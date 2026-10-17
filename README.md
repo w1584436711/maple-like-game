@@ -25,3 +25,23 @@
 ## 檔案
 
 - `index.html`：整個遊戲（HTML、CSS、JavaScript 都在這一個檔案裡）
+- `tests/smoke.spec.js`：自動試玩測試
+
+## 自動試玩測試
+
+每次修改後，可以用瀏覽器自動試玩一遍，確認遊戲沒壞：
+
+```bash
+npm install
+npx playwright install chromium   # 第一次才需要
+npm test
+```
+
+會檢查四件事：
+
+1. 遊戲畫面正常顯示，沒有程式錯誤
+2. 按住右鍵角色會往右走（看小地圖上的黃點），跳躍、攻擊不出錯
+3. 離開頁面時會把進度存進瀏覽器
+4. 手機上會出現觸控按鈕，按了不會出錯
+
+開 PR 或推到 `main` 時，GitHub Actions 也會自動跑這些測試。Claude Code 雲端對話開機時會自動裝好測試工具（`.claude/hooks/session-start.sh`）。

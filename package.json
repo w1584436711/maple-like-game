@@ -1,0 +1,11 @@
+{
+  "name": "maple-like-game",
+  "private": true,
+  "description": "浮島冒險記：瀏覽器就能玩的橫向捲軸動作小遊戲",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
