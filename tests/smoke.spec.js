@@ -74,6 +74,98 @@ test("離開頁面時會把進度存進瀏覽器", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+// 先把角色資料放進瀏覽器存檔，再打開遊戲
+async function openWithSave(page, save) {
+  await page.addInitScript(s => localStorage.setItem("floating-isle-v1", JSON.stringify(s)), save);
+  return openGame(page);
+}
+const readSave = async page => {
+  await page.evaluate(() => dispatchEvent(new Event("pagehide")));
+  return page.evaluate(() => JSON.parse(localStorage.getItem("floating-isle-v1")));
+};
+const LV10_BEGINNER = {
+  lv: 10, exp: 0, job: "beginner", str: 35, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
+  mhp: 176, mmp: 104, hp: 176, mp: 104, coins: 0, pots: { hp: 5, mp: 3 },
+};
+// 轉職教官站在 x=168 的地面上；鏡頭一開始在地圖左下角，所以她在畫面 (168, 420～480)
+async function clickNpc(page) {
+  const box = await page.locator("#game").boundingBox();
+  await page.mouse.click(box.x + box.width * 168 / 960, box.y + box.height * 455 / 540);
+}
+
+test("舊存檔會補回能力值，能在能力值視窗加點", async ({ page }) => {
+  // 沒有職業欄位的舊存檔：Lv.3 應該補回 2 級 × 5 = 10 點 AP
+  const errors = await openWithSave(page, { lv: 3, exp: 0, coins: 0, pots: { hp: 5, mp: 3 } });
+  await page.locator("#game").click();
+  await page.keyboard.press("s");
+  const win = page.locator("#statsWin");
+  await expect(win).toBeVisible();
+  await expect(win.locator(".ap b")).toHaveText("10");
+  const str = win.locator(".row.stat").first().locator("b");
+  await expect(str).toHaveText("12");
+  await win.locator('[data-stat="str"]').click();
+  await expect(str).toHaveText("13");
+  await expect(win.locator(".ap b")).toHaveText("9");
+  expect(errors).toEqual([]);
+});
+
+test("Lv.10 找轉職教官轉成劍士，學技能並施放", async ({ page }) => {
+  const errors = await openWithSave(page, LV10_BEGINNER);
+  await clickNpc(page);
+  const dlg = page.locator("#dlg");
+  await expect(dlg).toBeVisible();
+  await dlg.getByRole("button", { name: /我想轉職/ }).click();
+  await dlg.getByRole("button", { name: /劍士/ }).click();
+  await dlg.getByRole("button", { name: /我要成為劍士/ }).click();
+  await dlg.getByRole("button", { name: /好/ }).click();
+  await expect(dlg).toBeHidden();
+
+  await page.keyboard.press("k");
+  const win = page.locator("#skillsWin");
+  await expect(win).toContainText("重擊斬");
+  await expect(win.locator(".ap b")).toHaveText("1");
+  await win.locator('[data-skill="w_heavy"]').click();
+  await expect(win.locator(".ap b")).toHaveText("0");
+
+  // 技能要按住到下一個畫面才會放出來
+  await page.keyboard.down("Shift");
+  await page.waitForTimeout(200);
+  await page.keyboard.up("Shift");
+  const saved = await readSave(page);
+  expect(saved.job).toBe("warrior");
+  expect(saved.skills.w_heavy).toBe(1);
+  expect(saved.mp).toBeLessThan(saved.mmp);
+  expect(errors).toEqual([]);
+});
+
+test("能力值不夠時，轉職教官會說還差多少", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV10_BEGINNER, str: 12, ap: 23 });
+  await clickNpc(page);
+  const dlg = page.locator("#dlg");
+  await dlg.getByRole("button", { name: /我想轉職/ }).click();
+  await dlg.getByRole("button", { name: /劍士/ }).click();
+  await expect(dlg).toContainText("力量還差 23 點");
+  await page.keyboard.press("Escape");
+  await expect(dlg).toBeHidden();
+  expect((await readSave(page)).job).toBe("beginner");
+  expect(errors).toEqual([]);
+});
+
+test("盜賊丟飛鏢、放技能都不出錯", async ({ page }) => {
+  const errors = await openWithSave(page, {
+    ...LV10_BEGINNER, job: "thief", str: 4, dex: 25, luk: 31, sp: 0, skills: { t_twin: 1, t_shadow: 1 },
+  });
+  await page.locator("#game").click();
+  for (const key of ["x", "Shift", "d"]) {
+    await page.keyboard.down(key);
+    await page.waitForTimeout(700);
+    await page.keyboard.up(key);
+  }
+  const saved = await readSave(page);
+  expect(saved.buffs.t_shadow).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 
