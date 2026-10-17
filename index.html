@@ -33,7 +33,7 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 .pad{display:none;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;user-select:none;-webkit-user-select:none}
 .grp{display:grid;gap:6px}
 .dpad{grid-template-columns:repeat(3,50px);grid-template-rows:repeat(2,50px)}
-.acts{grid-template-columns:repeat(3,58px);grid-template-rows:repeat(2,50px)}
+.acts{grid-template-columns:repeat(4,54px);grid-template-rows:repeat(2,50px)}
 .pad button{touch-action:none;border-radius:12px;background:var(--panel);border:1px solid var(--line);border-bottom-width:3px;color:var(--ink);font:700 .95rem var(--ui);padding:0}
 .pad button.on{background:var(--line);transform:translateY(1px)}
 .pad .up{grid-column:2}
@@ -44,16 +44,62 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 .reset:hover{background:var(--panel)}
 .reset:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .reset.armed{border-color:#e0675a;color:#ffb0a6}
+.foot .btns{display:flex;gap:8px;flex-wrap:wrap}
+/* in-game windows float over the canvas, like the original's stat and skill windows */
+.win{position:absolute;top:6%;left:2%;width:min(270px,48%);max-height:82%;overflow:auto;background:rgb(14 22 40 / .94);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:.82rem;box-shadow:0 8px 24px rgb(0 0 0 / .45)}
+.win.right{left:auto;right:2%}
+.win header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.win h2{margin:0;font-size:.95rem;letter-spacing:.06em}
+.win .x{background:transparent;border:0;color:var(--muted);font-size:1rem;cursor:pointer;padding:2px 6px;border-radius:6px}
+.win .x:hover,.win .x:focus-visible{color:var(--ink);background:var(--panel);outline:none}
+.row{display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid rgb(255 255 255 / .06)}
+.row span{flex:1;min-width:0}
+.row b{font-family:var(--num);font-weight:400;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.row.stat.main span{color:var(--gold)}
+.row.stat.main span::after{content:"（主）";font-size:.75rem}
+.ap{margin:8px 0 4px;color:var(--muted)}
+.ap b{font-family:var(--num);font-weight:400;color:var(--gold);font-size:1rem}
+.plus{width:24px;height:24px;border-radius:6px;border:1px solid var(--gold);background:#3a2d0c;color:var(--gold);font:400 1rem var(--num);cursor:pointer;padding:0;line-height:1}
+.plus:disabled{border-color:var(--line);background:transparent;color:#4b5c7c;cursor:default}
+.plus:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.skill{padding:4px 0 6px;border-bottom:1px solid rgb(255 255 255 / .08)}
+.skill .row{border:0}
+.skill p{margin:2px 0 0;color:var(--ink);line-height:1.4}
+.skill p.dim,.note{color:var(--muted)}
+.sname{font-family:var(--ui);font-weight:700}
+.skill small{color:var(--muted)}
+.note{margin:6px 0;line-height:1.5}
+/* NPC dialog: a parchment card, the one warm surface in the UI */
+.dlg{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:min(460px,92%);max-height:88%;overflow:auto;background:#f7f0de;color:#33281c;border:3px solid #c79a5b;border-radius:12px;padding:12px 16px 14px;box-shadow:0 10px 28px rgb(0 0 0 / .5)}
+.dlg .who{font-weight:900;color:#7a4a1c;margin-bottom:6px;font-size:.9rem}
+.dlg p{margin:0 0 10px;white-space:pre-line;line-height:1.55;font-size:.92rem}
+.dlg .opts{display:flex;flex-direction:column;gap:6px}
+.dlg button{text-align:left;font:700 .88rem var(--ui);color:#33281c;background:#fffaf0;border:1px solid #d8b98a;border-radius:8px;padding:7px 10px;cursor:pointer}
+.dlg button:hover{background:#ffeccc}
+.dlg button:focus-visible{outline:2px solid #7a4a1c;outline-offset:1px}
 </style>
 
 <div class="wrap">
   <header>
     <h1>浮島冒險記<small>FLOATING ISLE</small></h1>
-    <p class="sub">青草平原．打怪、撿金幣、升等，深處還有一隻苔岩巨像。</p>
+    <p class="sub">打怪升等，Lv.10 找轉職教官選擇劍士、法師、弓手或盜賊。</p>
   </header>
 
   <div class="frame">
     <canvas id="game" tabindex="0" aria-label="遊戲畫面：點一下後用鍵盤操作"></canvas>
+    <section class="win" id="statsWin" hidden aria-label="能力值">
+      <header><h2>能力值</h2><button type="button" class="x" data-close aria-label="關閉能力值">✕</button></header>
+      <div id="statsBody"></div>
+    </section>
+    <section class="win right" id="skillsWin" hidden aria-label="技能">
+      <header><h2>技能</h2><button type="button" class="x" data-close aria-label="關閉技能">✕</button></header>
+      <div id="skillsBody"></div>
+    </section>
+    <div class="dlg" id="dlg" role="dialog" aria-labelledby="dlgName" hidden>
+      <div class="who" id="dlgName"></div>
+      <p id="dlgText"></p>
+      <div class="opts" id="dlgOpts"></div>
+    </div>
   </div>
 
   <ul class="legend" aria-label="操作方式">
@@ -64,8 +110,11 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
     <li><kbd>↓</kbd>＋<kbd>Alt</kbd> 從平台跳下</li>
     <li><kbd>Ctrl</kbd> 或 <kbd>X</kbd> 攻擊（按住連打）</li>
     <li><kbd>Z</kbd> 撿東西</li>
-    <li><kbd>Shift</kbd> 旋風斬（MP 8）</li>
+    <li><kbd>Shift</kbd><kbd>D</kbd><kbd>F</kbd> 技能</li>
     <li><kbd>1</kbd><kbd>2</kbd> 紅／藍藥水</li>
+    <li><kbd>S</kbd> 能力值</li>
+    <li><kbd>K</kbd> 技能視窗</li>
+    <li>靠近 NPC 按 <kbd>Space</kbd> 或點他說話</li>
   </ul>
 
   <div class="pad" aria-label="觸控按鈕">
@@ -78,16 +127,22 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
     <div class="grp acts">
       <button data-act="hpPot">紅藥</button>
       <button data-act="mpPot">藍藥</button>
-      <button data-act="skill">技能</button>
+      <button data-act="skill1">技能1</button>
+      <button data-act="skill2">技能2</button>
       <button data-act="pickup">撿取</button>
       <button data-act="jump">跳躍</button>
       <button data-act="attack">攻擊</button>
+      <button data-act="skill3">技能3</button>
     </div>
   </div>
 
   <div class="foot">
     <p>進度會自動存在這台裝置的瀏覽器裡。手機建議橫放。</p>
-    <button class="reset" id="reset" type="button">重新開始</button>
+    <div class="btns">
+      <button class="reset" id="openStats" type="button">能力值（S）</button>
+      <button class="reset" id="openSkills" type="button">技能（K）</button>
+      <button class="reset" id="reset" type="button">重新開始</button>
+    </div>
   </div>
 </div>
 
@@ -166,10 +221,10 @@ const clouds = Array.from({ length: 9 }, (_, i) => ({ x: i * 150 + rand(0, 80), 
 
 // ---------- Monsters ----------
 const TYPES = {
-  jelly:  { name: "青果凍", lv: 1,  hp: 28,   exp: 6,   dmg: 6,  spd: 40, w: 34,  h: 28,  coin: [3, 8] },
-  bjelly: { name: "藍果凍", lv: 4,  hp: 70,   exp: 15,  dmg: 12, spd: 50, w: 38,  h: 32,  coin: [8, 18] },
-  shell:  { name: "刺殼龜", lv: 8,  hp: 180,  exp: 38,  dmg: 20, spd: 35, w: 48,  h: 34,  coin: [15, 35] },
-  boss:   { name: "苔岩巨像", lv: 15, hp: 2400, exp: 600, dmg: 34, spd: 25, w: 100, h: 120, coin: [300, 500], respawn: 45 },
+  jelly:  { name: "青果凍", lv: 1,  hp: 18,   exp: 6,   dmg: 6,  spd: 40, avoid: 1, acc: 10, w: 34,  h: 28,  coin: [3, 8] },
+  bjelly: { name: "藍果凍", lv: 4,  hp: 55,   exp: 14,  dmg: 12, spd: 50, avoid: 2, acc: 20, w: 38,  h: 32,  coin: [8, 18] },
+  shell:  { name: "刺殼龜", lv: 8,  hp: 160,  exp: 32,  dmg: 20, spd: 35, avoid: 3, acc: 35, w: 48,  h: 34,  coin: [15, 35] },
+  boss:   { name: "苔岩巨像", lv: 15, hp: 2400, exp: 600, dmg: 34, spd: 25, avoid: 6, acc: 60, w: 100, h: 120, coin: [300, 500], respawn: 45 },
 };
 const zones = [
   { p: 0, x0: 300, x1: 1200, t: "jelly", n: 5 },
@@ -206,20 +261,118 @@ zones.forEach(z => {
   }
 });
 
+// ---------- Character rules ----------
+// Classic rules: 5 AP per level, 3 SP per level after the first job, damage from the job's main and
+// secondary stats times weapon attack with a low 10% base mastery, and accuracy against monster avoid.
+// Names, numbers of individual skills and weapons are our own.
+const STAT_NAMES = { str: "力量", dex: "敏捷", int: "智力", luk: "幸運" };
+const WEAPONS = {
+  sword: { name: "木劍", type: "sword", watk: 17 },
+  blade: { name: "精鐵長劍", type: "sword", watk: 27 },
+  wand:  { name: "橡木短杖", type: "wand", watk: 12, matk: 25 },
+  bow:   { name: "獵人短弓", type: "bow", watk: 25 },
+  claw:  { name: "鐵指爪", type: "claw", watk: 12, ammo: 15 },
+};
+const JOBS = {
+  beginner: { name: "新手", weapon: "sword", hp: [12, 16], mp: [10, 12] },
+  warrior:  { name: "劍士", weapon: "blade", hp: [24, 28], mp: [4, 6], req: { lv: 10, stat: "str", min: 35 }, gain: { hp: 150, mp: 0 },
+              blurb: "拿劍近身作戰，血量最厚。主屬性力量，副屬性敏捷。" },
+  magician: { name: "法師", weapon: "wand", hp: [10, 14], mp: [22, 24], req: { lv: 8, stat: "int", min: 20 }, gain: { hp: 0, mp: 120 },
+              blurb: "從遠處施放魔法，MP 很多但身體脆弱。主屬性智力，副屬性幸運。" },
+  bowman:   { name: "弓手", weapon: "bow", hp: [20, 24], mp: [14, 16], req: { lv: 10, stat: "dex", min: 25 }, gain: { hp: 60, mp: 40 },
+              blurb: "拉弓射箭，攻擊距離最長。主屬性敏捷，副屬性力量。" },
+  thief:    { name: "盜賊", weapon: "claw", hp: [20, 24], mp: [14, 16], req: { lv: 10, stat: "dex", min: 25 }, gain: { hp: 60, mp: 40 },
+              blurb: "丟飛鏢、身手靈活，擅長閃躲。主屬性幸運，副屬性敏捷和力量。" },
+};
+// type: atk (attack), buff, passive. Every number scales with the skill level l.
+const SKILLS = {
+  warrior: [
+    { id: "w_heavy", name: "重擊斬", type: "atk", max: 20, mp: l => 4 + (l >> 2), pct: l => 160 + 5 * l,
+      desc: l => `用力砍一隻怪物，造成 ${160 + 5 * l}% 傷害` },
+    { id: "w_sweep", name: "迴旋橫掃", type: "atk", max: 20, req: ["w_heavy", 1], mp: l => 8 + (l >> 2), pct: l => 60 + 4 * l,
+      desc: l => `橫掃前方最多 6 隻怪物，各造成 ${60 + 4 * l}% 傷害` },
+    { id: "w_iron", name: "鋼鐵意志", type: "buff", max: 20, mp: () => 10, dur: l => 10 * l, def: l => 2 * l,
+      desc: l => `${10 * l} 秒內，受到的傷害減少 ${2 * l}` },
+    { id: "w_regen", name: "體力回復", type: "passive", max: 16, hpr: l => l,
+      desc: l => `自然回復時多回 ${l} HP` },
+  ],
+  magician: [
+    { id: "m_bolt", name: "魔光彈", type: "atk", max: 20, mp: l => 3 + (l >> 2), spell: l => 12 + 2 * l,
+      desc: l => `射出一顆魔法彈，魔法攻擊 ${12 + 2 * l}` },
+    { id: "m_barrier", name: "魔力屏障", type: "buff", max: 20, mp: () => 12, dur: l => 20 * l, absorb: l => 4 * l,
+      desc: l => `${20 * l} 秒內，受到的傷害有 ${4 * l}% 改扣 MP` },
+    { id: "m_medit", name: "冥想", type: "passive", max: 16, mpr: l => l,
+      desc: l => `自然回復時多回 ${l} MP` },
+  ],
+  bowman: [
+    { id: "b_double", name: "連珠箭", type: "atk", max: 20, mp: l => 6 + (l >> 3), pct: l => 50 + 3 * l, shots: 2, shot: "arrow",
+      desc: l => `連射兩支箭，每支 ${50 + 3 * l}% 傷害` },
+    { id: "b_power", name: "強弓射擊", type: "atk", max: 20, mp: l => 5 + (l >> 2), pct: l => 140 + 6 * l, shots: 1, shot: "arrow",
+      desc: l => `拉滿弓射出一支箭，造成 ${140 + 6 * l}% 傷害` },
+    { id: "b_eye", name: "鷹眼", type: "buff", max: 20, mp: () => 10, dur: l => 10 * l, acc: l => l, avoid: l => l,
+      desc: l => `${10 * l} 秒內，命中和迴避各加 ${l}` },
+    { id: "b_crit", name: "致命瞄準", type: "passive", max: 20, crit: l => 2 * l,
+      desc: l => `有 ${2 * l}% 機率打出 1.5 倍的爆擊` },
+  ],
+  thief: [
+    { id: "t_twin", name: "雙星鏢", type: "atk", max: 20, mp: l => 8 + (l >> 2), pct: l => 60 + 4 * l, shots: 2, shot: "star",
+      desc: l => `連丟兩支飛鏢，每支 ${60 + 4 * l}% 傷害` },
+    { id: "t_shadow", name: "影遁", type: "buff", max: 20, mp: l => 20 - (l >> 1), dur: l => 10 * l,
+      desc: l => `${10 * l} 秒內躲進影子，怪物碰不到你；一攻擊就會現身` },
+    { id: "t_agile", name: "輕身術", type: "passive", max: 20, avoid: l => 2 * l,
+      desc: l => `迴避加 ${2 * l}` },
+  ],
+};
+const SKILL_BY_ID = {};
+Object.values(SKILLS).flat().forEach(s => { SKILL_BY_ID[s.id] = s; });
+const SLOT_KEYS = ["Shift", "D", "F"];
+
 // ---------- Player ----------
+function freshCharacter() {
+  return {
+    lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
+    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, pots: { hp: 5, mp: 3 }, skills: {}, buffs: {},
+  };
+}
 const P = {
   x: 96, y: 790, w: 26, h: 50, vx: 0, vy: 0, face: 1, onGround: false, ground: plats[0], climb: null,
   drop: 0, dropPlat: null, knock: 0, prone: false, climbCd: 0, pickCd: 0, lootHint: false, atkT: 0, atkDur: 0, atkKind: "", atkCd: 0, potCd: 0, inv: 0, anim: 0,
-  dead: false, deadT: 0, lv: 1, exp: 0, hp: 50, mp: 30, coins: 0, pots: { hp: 5, mp: 3 }, regen: 0,
+  dead: false, deadT: 0, regen: 0, ...freshCharacter(),
 };
-const maxHp = () => 50 + (P.lv - 1) * 22;
-const maxMp = () => 30 + (P.lv - 1) * 12;
-const need = () => Math.floor(12 * Math.pow(P.lv, 1.7) + 8);
-const atk = () => 8 + P.lv * 4;
+const maxHp = () => P.mhp;
+const maxMp = () => P.mmp;
+const need = () => Math.round(0.6 * P.lv ** 3 + 14 * P.lv);
+const job = () => JOBS[P.job];
+const weapon = () => WEAPONS[job().weapon];
+const skLv = id => P.skills[id] || 0;
+const buffOn = id => (P.buffs[id] || 0) > 0;
+const passive = (id, key) => { const l = skLv(id); return l ? SKILL_BY_ID[id][key](l) : 0; };
+const buffVal = (id, key) => buffOn(id) ? SKILL_BY_ID[id][key](skLv(id)) : 0;
+const jobSkills = () => SKILLS[P.job] || [];
+const slotSkills = () => jobSkills().filter(s => s.type !== "passive").slice(0, 3);
+
+// physical damage range before the skill's percentage
+function physRange() {
+  const w = weapon();
+  let pri, sec, watk = w.watk;
+  if (w.type === "bow") { pri = P.dex * 3.4; sec = P.str; }
+  else if (w.type === "claw") { pri = P.luk * 3.6; sec = P.str + P.dex; watk += w.ammo; }
+  else { pri = P.str * 4; sec = P.dex; }
+  const mastery = 0.1;
+  return [(pri * 0.9 * mastery + sec) * watk / 100, (pri + sec) * watk / 100];
+}
+function magicRange(spell) {
+  const mag = P.int + (weapon().matk || 0), mastery = 0.1;
+  return [((mag * mag / 1000 + mag * mastery * 0.9) / 30 + P.int / 200) * spell,
+          ((mag * mag / 1000 + mag) / 30 + P.int / 200) * spell];
+}
+const accuracy = () => P.dex * 0.8 + P.luk * 0.5 + buffVal("b_eye", "acc");
+const avoidability = () => P.dex * 0.25 + P.luk * 0.5 + passive("t_agile", "avoid") + buffVal("b_eye", "avoid");
+const critChance = () => passive("b_crit", "crit") / 100;
 
 // ---------- State ----------
 const cam = { x: 0, y: WORLD_H - H, shake: 0 };
-const nums = [], fx = [], drops = [], msgs = [], hitQueue = [];
+const nums = [], fx = [], drops = [], msgs = [];
 let time = 0, saveT = 0, started = false;
 
 function msg(text, color = "#eef3fb") {
@@ -231,21 +384,44 @@ function msg(text, color = "#eef3fb") {
 const held = new Set(), pressed = new Set();
 const KEYMAP = {
   ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down",
-  Space: "jump", KeyC: "jump", AltLeft: "jump", AltRight: "jump",
+  Space: "space", KeyC: "jump", AltLeft: "jump", AltRight: "jump",
   ControlLeft: "attack", ControlRight: "attack", KeyX: "attack", KeyZ: "pickup",
-  ShiftLeft: "skill", ShiftRight: "skill", KeyA: "skill",
+  ShiftLeft: "skill1", ShiftRight: "skill1", KeyA: "skill1", KeyD: "skill2", KeyF: "skill3",
   Digit1: "hpPot", Numpad1: "hpPot", Delete: "hpPot", Digit2: "mpPot", Numpad2: "mpPot", End: "mpPot", Enter: "revive",
+  KeyS: "stats", KeyK: "skills", Escape: "esc",
 };
 function press(a) { started = true; if (!held.has(a)) pressed.add(a); held.add(a); }
 addEventListener("keydown", e => {
+  if (!dlg.hidden) {
+    // while the NPC is talking, keys drive the dialog instead of the game
+    if (e.code === "Escape") { e.preventDefault(); closeDialog(); }
+    else if (/^(Digit|Numpad)[1-9]$/.test(e.code)) {
+      const b = dlgOpts.children[Number(e.code.slice(-1)) - 1];
+      if (b) { e.preventDefault(); b.click(); }
+    }
+    return;
+  }
   const a = KEYMAP[e.code];
   if (!a) return;
   e.preventDefault();
+  if (a === "stats" || a === "skills" || a === "esc") {
+    if (e.repeat) return;
+    if (a === "esc") { statsWin.hidden = true; skillsWin.hidden = true; }
+    else togglePanel(a === "stats" ? statsWin : skillsWin);
+    return;
+  }
   press(a);
 });
 addEventListener("keyup", e => { const a = KEYMAP[e.code]; if (a) { held.delete(a); e.preventDefault(); } });
 addEventListener("blur", () => held.clear());
-cv.addEventListener("pointerdown", () => { cv.focus(); started = true; if (P.dead) pressed.add("revive"); });
+cv.addEventListener("pointerdown", e => {
+  cv.focus(); started = true;
+  if (P.dead) { pressed.add("revive"); return; }
+  // clicking the NPC opens the dialog, like in the original
+  const r = cv.getBoundingClientRect();
+  const wx = (e.clientX - r.left) / r.width * W + cam.x, wy = (e.clientY - r.top) / r.height * H + cam.y;
+  if (Math.abs(wx - NPC.x) < 22 && wy > NPC.y - 64 && wy < NPC.y + 4) openNpc();
+});
 document.querySelectorAll("[data-act]").forEach(b => {
   const a = b.dataset.act;
   const off = () => { held.delete(a); b.classList.remove("on"); };
@@ -258,14 +434,31 @@ document.querySelectorAll("[data-act]").forEach(b => {
 });
 
 // ---------- Save ----------
-function serialize() { return { lv: P.lv, exp: P.exp, hp: P.hp, mp: P.mp, coins: P.coins, pots: { ...P.pots } }; }
+const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins"];
+function serialize() {
+  const d = { pots: { ...P.pots }, skills: { ...P.skills }, buffs: { ...P.buffs } };
+  SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
+  return d;
+}
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(serialize())); } catch (_) {} }
 function load(d) {
   if (!d) { try { d = JSON.parse(localStorage.getItem(SAVE_KEY) || "null"); } catch (_) { d = null; } }
   if (!d || !d.lv) return false;
-  P.lv = d.lv; P.exp = d.exp || 0; P.coins = d.coins || 0;
-  P.pots = { hp: d.pots?.hp ?? 5, mp: d.pots?.mp ?? 3 };
-  P.hp = clamp(d.hp || maxHp(), 1, maxHp()); P.mp = clamp(d.mp ?? maxMp(), 0, maxMp());
+  const c = freshCharacter();
+  if (!d.job) {
+    // saves from before jobs existed: keep level, coins and potions, hand back every level's AP
+    const lv = Math.max(1, d.lv | 0);
+    Object.assign(c, { lv, exp: d.exp || 0, coins: d.coins || 0, ap: 5 * (lv - 1), mhp: 50 + 14 * (lv - 1), mmp: 5 + 11 * (lv - 1) });
+    c.pots = { hp: d.pots?.hp ?? 5, mp: d.pots?.mp ?? 3 };
+    c.hp = c.mhp; c.mp = c.mmp;
+  } else {
+    SAVE_FIELDS.forEach(k => { if (d[k] !== undefined) c[k] = d[k]; });
+    if (!JOBS[c.job]) c.job = "beginner";
+    c.pots = { hp: d.pots?.hp ?? 5, mp: d.pots?.mp ?? 3 };
+    c.skills = { ...(d.skills || {}) }; c.buffs = { ...(d.buffs || {}) };
+  }
+  Object.assign(P, c);
+  P.hp = clamp(P.hp || maxHp(), 1, maxHp()); P.mp = clamp(P.mp ?? maxMp(), 0, maxMp());
   return true;
 }
 const resetBtn = document.getElementById("reset");
@@ -278,11 +471,140 @@ resetBtn.addEventListener("click", () => {
   }
   clearTimeout(armT);
   resetBtn.classList.remove("armed"); resetBtn.textContent = "重新開始";
-  Object.assign(P, { lv: 1, exp: 0, coins: 0, pots: { hp: 5, mp: 3 }, dead: false, climb: null, x: 96, y: 790, vx: 0, vy: 0 });
-  P.hp = maxHp(); P.mp = maxMp();
+  Object.assign(P, freshCharacter(), { dead: false, climb: null, x: 96, y: 790, vx: 0, vy: 0 });
   drops.length = 0;
+  closeDialog(); refreshPanels(true);
   save(); msg("已重新開始冒險", "#ffc94a"); cv.focus();
 });
+
+// ---------- NPC and dialog ----------
+const NPC = { x: 168, y: 840, name: "轉職教官 薇拉" };
+const nearNpc = () => !P.dead && !P.climb && Math.abs(P.x + P.w / 2 - NPC.x) < 50 && Math.abs(P.y + P.h - NPC.y) < 4;
+const dlg = document.getElementById("dlg");
+const dlgName = document.getElementById("dlgName"), dlgText = document.getElementById("dlgText"), dlgOpts = document.getElementById("dlgOpts");
+function say(text, options) {
+  dlgName.textContent = NPC.name;
+  dlgText.textContent = text;
+  dlgOpts.replaceChildren(...options.map(([label, fn], i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = `${i + 1}. ${label}`;
+    b.addEventListener("click", fn);
+    return b;
+  }));
+  dlg.hidden = false; held.clear();
+  dlgOpts.firstChild?.focus({ preventScroll: true });
+}
+function closeDialog() { if (!dlg.hidden) { dlg.hidden = true; cv.focus({ preventScroll: true }); } }
+function openNpc() {
+  if (P.job === "beginner") say("你好，冒險者。想選擇自己要走的路，就來找我吧。", [["我想轉職", jobMenu], ["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
+  else say(`你已經是${job().name}了。繼續努力，到 Lv.30 再來找我，我會告訴你下一步。`, [["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
+}
+function controlsHelp() {
+  say("← → 移動，↑ ↓ 爬繩梯，↓ 趴下。\nAlt 或 Space 跳躍，Ctrl 或 X 攻擊（按住連打），Z 撿東西。\nShift、D、F 放技能，1、2 喝藥水。\nS 打開能力值，K 打開技能。靠近 NPC 按 Space 或點他，就能說話。",
+    [["知道了", openNpc]]);
+}
+const reqText = J => `Lv.${J.req.lv}、${STAT_NAMES[J.req.stat]} ${J.req.min}`;
+const meets = J => P.lv >= J.req.lv && P[J.req.stat] >= J.req.min;
+function jobMenu() {
+  const ids = ["warrior", "magician", "bowman", "thief"];
+  say("一共有四條路，每一條都要達到等級和能力值的門檻：", [
+    ...ids.map(id => [`${JOBS[id].name}（${reqText(JOBS[id])}）${meets(JOBS[id]) ? "　✓ 可以轉職" : ""}`, () => jobInfo(id)]),
+    ["再想想", openNpc],
+  ]);
+}
+function jobInfo(id) {
+  const J = JOBS[id];
+  if (!meets(J)) {
+    const miss = [];
+    if (P.lv < J.req.lv) miss.push(`等級還差 ${J.req.lv - P.lv} 級`);
+    if (P[J.req.stat] < J.req.min) miss.push(`${STAT_NAMES[J.req.stat]}還差 ${J.req.min - P[J.req.stat]} 點`);
+    say(`${J.blurb}\n\n要成為${J.name}，需要 ${reqText(J)}。你${miss.join("、")}。按 S 可以分配能力值。`,
+      [["看看別的職業", jobMenu], ["再見", closeDialog]]);
+    return;
+  }
+  say(`${J.blurb}\n\n確定要成為${J.name}嗎？轉職之後就不能改了。`, [[`我要成為${J.name}`, () => advance(id)], ["再想想", jobMenu]]);
+}
+function advance(id) {
+  const J = JOBS[id];
+  P.job = id;
+  // 1 SP for the advancement, plus the 3 per level you would have earned past the required level
+  P.sp += 1 + 3 * (P.lv - J.req.lv);
+  P.mhp += J.gain.hp; P.mmp += J.gain.mp;
+  P.hp = maxHp(); P.mp = maxMp();
+  fx.push({ k: "lvup", t: 0, text: "JOB UP!" });
+  msg(`你成為${J.name}了！拿到 ${P.sp} 點 SP`, "#ffc94a");
+  refreshPanels(true); save();
+  say(`從今天起你就是${J.name}了，這把${weapon().name}送給你。\n按 K 打開技能視窗，用 SP 學技能；學會的技能放在 Shift、D、F 鍵。`, [["好", closeDialog]]);
+}
+
+// ---------- Stat and skill windows ----------
+const statsWin = document.getElementById("statsWin"), skillsWin = document.getElementById("skillsWin");
+const statsBody = document.getElementById("statsBody"), skillsBody = document.getElementById("skillsBody");
+function togglePanel(w) { w.hidden = !w.hidden; if (!w.hidden) refreshPanels(true); }
+let panelSig = "";
+function refreshPanels(force) {
+  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills]);
+  if (!force && sig === panelSig) return;
+  panelSig = sig;
+  if (!statsWin.hidden) renderStats();
+  if (!skillsWin.hidden) renderSkills();
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const row = (label, value) => `<div class="row"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
+const PRIMARY = { beginner: "str", warrior: "str", magician: "int", bowman: "dex", thief: "luk" };
+function renderStats() {
+  const [mn, mx] = physRange();
+  let html = row("職業", job().name) + row("等級", P.lv) + row("經驗值", `${P.exp} / ${need()}`)
+    + row("HP", maxHp()) + row("MP", maxMp()) + row("攻擊", `${Math.floor(mn)} ~ ${Math.floor(mx)}`);
+  if (P.job === "magician") html += row("魔力", P.int + (weapon().matk || 0));
+  html += row("命中", Math.floor(accuracy())) + row("迴避", Math.floor(avoidability()));
+  html += `<div class="ap">可分配能力值 <b>${P.ap}</b></div>`;
+  for (const k of ["str", "dex", "int", "luk"]) {
+    html += `<div class="row stat${PRIMARY[P.job] === k ? " main" : ""}"><span>${STAT_NAMES[k]}</span><b>${P[k]}</b>`
+      + `<button type="button" class="plus" data-stat="${k}" aria-label="${STAT_NAMES[k]}加 1"${P.ap > 0 ? "" : " disabled"}>+</button></div>`;
+  }
+  statsBody.innerHTML = html;
+}
+const TYPE_NAMES = { atk: "攻擊", buff: "輔助", passive: "被動" };
+const canLearn = s => P.sp > 0 && skLv(s.id) < s.max && (!s.req || skLv(s.req[0]) >= s.req[1]);
+function renderSkills() {
+  if (P.job === "beginner") {
+    skillsBody.innerHTML = `<p class="note">新手還不能學技能。Lv.10（法師 Lv.8）回浮島村找轉職教官薇拉轉職，就能用 SP 學技能。</p>`;
+    return;
+  }
+  const slots = slotSkills();
+  let html = `<div class="ap">${esc(job().name)}技能　剩餘 SP <b>${P.sp}</b></div>`;
+  for (const s of jobSkills()) {
+    const l = skLv(s.id), slot = slots.indexOf(s);
+    const lock = s.req && skLv(s.req[0]) < s.req[1] ? `需要「${SKILL_BY_ID[s.req[0]].name}」Lv.${s.req[1]}` : "";
+    const now = l ? s.desc(l) : "還沒學會";
+    const next = l < s.max ? `下一級：${s.desc(l + 1)}` : "已經滿級";
+    const cost = s.mp ? `MP ${s.mp(Math.max(1, l))}` : "";
+    html += `<div class="skill"><div class="row"><span><b class="sname">${esc(s.name)}</b> <small>${TYPE_NAMES[s.type]}${slot >= 0 ? `．${SLOT_KEYS[slot]} 鍵` : ""}</small></span>`
+      + `<b>${l} / ${s.max}</b><button type="button" class="plus" data-skill="${s.id}" aria-label="${esc(s.name)}加 1"${canLearn(s) ? "" : " disabled"}>+</button></div>`
+      + `<p>${esc(now)}${cost ? `．${cost}` : ""}</p><p class="dim">${esc(lock || next)}</p></div>`;
+  }
+  skillsBody.innerHTML = html;
+}
+statsBody.addEventListener("click", e => {
+  const b = e.target.closest("[data-stat]");
+  if (!b || P.ap <= 0) return;
+  P[b.dataset.stat]++; P.ap--;
+  refreshPanels(true); save();
+  if (e.detail) cv.focus({ preventScroll: true });
+});
+skillsBody.addEventListener("click", e => {
+  const b = e.target.closest("[data-skill]");
+  const s = b && SKILL_BY_ID[b.dataset.skill];
+  if (!s || !canLearn(s)) return;
+  P.skills[s.id] = skLv(s.id) + 1; P.sp--;
+  if (skLv(s.id) === 1) msg(`學會了「${s.name}」`, "#cfe3ff");
+  refreshPanels(true); save();
+  if (e.detail) cv.focus({ preventScroll: true });
+});
+document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => { b.closest(".win").hidden = true; cv.focus({ preventScroll: true }); }));
+document.getElementById("openStats").addEventListener("click", () => togglePanel(statsWin));
+document.getElementById("openSkills").addEventListener("click", () => togglePanel(skillsWin));
 
 // ---------- Combat ----------
 function targetsIn(box, n) {
@@ -291,16 +613,31 @@ function targetsIn(box, n) {
     .sort((a, b) => Math.abs(a.x + a.w / 2 - cx) - Math.abs(b.x + b.w / 2 - cx))
     .slice(0, n);
 }
-function dealDamage(m, mult, stack) {
+// o: { pct } for physical hits, { magic: true, spell } for spells; stack lifts the number for multi-hits
+function rollDamage(m, o) {
+  const diff = Math.max(0, m.T.lv - P.lv);
+  if (o.magic) {
+    if (Math.random() < diff * 0.04) return null;
+    const [mn, mx] = magicRange(o.spell);
+    return { d: rand(mn, mx), crit: false };
+  }
+  // classic hit check: accuracy needed grows with the monster's avoid and its level lead
+  const needAcc = (55 + 2 * diff) * m.T.avoid / 15;
+  if (Math.random() > Math.min(1, accuracy() / needAcc)) return null;
+  const [mn, mx] = physRange();
+  const crit = Math.random() < critChance();
+  return { d: rand(mn, mx) * (o.pct || 100) / 100 * (crit ? 1.5 : 1), crit };
+}
+function dealDamage(m, o = {}) {
   if (m.dead) return;
-  let d = atk() * rand(0.85, 1.15) * mult;
-  const crit = Math.random() < 0.15;
-  if (crit) d *= 1.6;
-  d = Math.max(1, Math.round(d));
-  m.hp -= d; m.flash = 0.12; m.showHp = 4; m.aggro = 10;
-  const mcx = m.x + m.w / 2;
+  const mcx = m.x + m.w / 2, ny = m.y - 8 - (o.stack || 0) * 28;
+  m.aggro = 10; m.showHp = 4;
+  const r = rollDamage(m, o);
+  if (!r) { nums.push({ x: mcx, y: ny, text: "MISS", kind: "miss", t: 0 }); return; }
+  const d = Math.max(1, Math.round(r.d));
+  m.hp -= d; m.flash = 0.12;
   if (m.t !== "boss") m.kb = (mcx > P.x + P.w / 2 ? 1 : -1) * 170;
-  nums.push({ x: mcx, y: m.y - 8 - stack * 28, text: String(d), kind: crit ? "crit" : "hit", t: 0 });
+  nums.push({ x: mcx, y: ny, text: String(d), kind: r.crit ? "crit" : "hit", t: 0 });
   fx.push({ k: "spark", x: mcx + rand(-8, 8), y: m.y + m.h / 2 + rand(-8, 8), t: 0 });
   if (m.hp <= 0) kill(m);
 }
@@ -332,16 +669,35 @@ function gainExp(n) {
   P.exp += n;
   msg(`獲得經驗值 +${n}`, "#cfe3ff");
   while (P.exp >= need()) {
-    P.exp -= need(); P.lv++;
-    P.hp = maxHp(); P.mp = maxMp();
-    fx.push({ k: "lvup", t: 0 });
-    msg(`等級提升！現在是 Lv.${P.lv}`, "#ffc94a");
-    save();
+    P.exp -= need();
+    levelUp();
   }
 }
-function hurt(d, fromX) {
+function levelUp() {
+  const J = job();
+  P.lv++; P.ap += 5;
+  if (P.job !== "beginner") P.sp += 3;
+  P.mhp += randi(J.hp[0], J.hp[1]);
+  P.mmp += randi(J.mp[0], J.mp[1]) + (P.job === "magician" ? Math.floor(P.int / 10) : 0);
+  P.hp = maxHp(); P.mp = maxMp();
+  fx.push({ k: "lvup", t: 0 });
+  msg(`等級提升！現在是 Lv.${P.lv}，按 S 分配 5 點能力值`, "#ffc94a");
+  if (P.job === "beginner" && (P.lv === 8 || P.lv === 10)) msg("可以回浮島村找轉職教官薇拉轉職了", "#ffc94a");
+  refreshPanels(true);
+  save();
+}
+// acc is the monster's accuracy; null means the hit cannot be dodged
+function hurt(d, fromX, acc = null) {
   if (P.inv > 0 || P.dead) return;
-  const dmg = Math.max(1, Math.round(d * rand(0.9, 1.1) - P.lv * 0.6));
+  if (acc !== null && buffOn("t_shadow")) return;
+  if (acc !== null && Math.random() < Math.min(0.5, avoidability() / (acc * 4))) {
+    nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "MISS", kind: "miss", t: 0 });
+    P.inv = 0.6;
+    return;
+  }
+  let dmg = Math.max(1, Math.round(d * rand(0.9, 1.1) - P.lv * 0.6 - buffVal("w_iron", "def")));
+  const toMp = Math.min(P.mp, Math.round(dmg * buffVal("m_barrier", "absorb") / 100));
+  P.mp -= toMp; dmg -= toMp;
   P.hp -= dmg;
   nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: String(dmg), kind: "hurt", t: 0 });
   P.inv = INV_TIME;
@@ -365,6 +721,8 @@ function revive() {
 
 // ---------- Update ----------
 function findLadder(test) { return ladders.find(test); }
+// Space talks to a nearby NPC, otherwise it jumps
+const jumpPressed = () => pressed.has("jump") || (pressed.has("space") && !nearNpc());
 
 function updatePlayer(dt) {
   const L_ = held.has("left"), R_ = held.has("right"), U_ = held.has("up"), D_ = held.has("down");
@@ -380,7 +738,7 @@ function updatePlayer(dt) {
     if (P.y + P.h <= L.top) { P.y = L.top - P.h; P.climb = null; P.onGround = true; P.ground = platAt(L.x, L.top); return; }
     if (P.y + P.h >= L.bottom) { P.y = L.bottom - P.h; P.climb = null; P.onGround = true; P.ground = platAt(L.x, L.bottom); return; }
     // jumping off a rope needs a direction held
-    if (pressed.has("jump") && (L_ || R_)) {
+    if (jumpPressed() && (L_ || R_)) {
       P.climb = null; P.climbCd = 0.35; P.face = L_ ? -1 : 1; P.vx = P.face * ROPE_JUMP_VX; P.vy = -ROPE_JUMP_VY;
     }
     return;
@@ -412,7 +770,7 @@ function updatePlayer(dt) {
     if (ax * P.vx < 0) { const b = AIR_BRAKE * dt; P.vx = Math.abs(P.vx) <= b ? 0 : P.vx + ax * b; }
   }
 
-  if (pressed.has("jump") && P.onGround && !attacking && P.knock <= 0) {
+  if (jumpPressed() && P.onGround && !attacking && P.knock <= 0) {
     if (D_) {
       if (!P.ground.ground) { P.drop = 0.3; P.dropPlat = P.ground; P.onGround = false; P.prone = false; P.vy = -180; }
     } else { P.vy = -JUMP; P.onGround = false; }
@@ -446,30 +804,12 @@ function playerActions(dt0) {
     if (d) { collect(d); P.pickCd = 0.12; }
   }
   if (P.climb) return;
-  // holding the attack key keeps swinging, like the original
+  if (pressed.has("space") && nearNpc() && P.onGround) { openNpc(); return; }
+  // holding the attack key keeps attacking, like the original
   if (P.atkCd <= 0 && P.atkT <= 0) {
-    if (held.has("attack")) {
-      if (P.prone) {
-        P.atkT = P.atkDur = STAB_T; P.atkKind = "stab"; P.atkCd = STAB_T;
-        const box = P.face > 0 ? { x: P.x + P.w, y: P.y + P.h - 30, w: 56, h: 30 } : { x: P.x - 56, y: P.y + P.h - 30, w: 56, h: 30 };
-        targetsIn(box, 1).forEach(m => dealDamage(m, 1, 0));
-        fx.push({ k: "stab", t: 0 });
-      } else {
-        P.atkT = P.atkDur = SLASH_T; P.atkKind = "slash"; P.atkCd = SLASH_T;
-        const box = P.face > 0 ? { x: P.x + P.w - 6, y: P.y - 10, w: 80, h: 66 } : { x: P.x - 74, y: P.y - 10, w: 80, h: 66 };
-        targetsIn(box, 1).forEach(m => dealDamage(m, 1, 0));
-        fx.push({ k: "slash", t: 0 });
-      }
-    } else if (held.has("skill")) {
-      if (P.mp >= 8) {
-        P.prone = false;
-        P.mp -= 8; P.atkT = P.atkDur = SKILL_T; P.atkKind = "spin"; P.atkCd = SKILL_T;
-        const cx = P.x + P.w / 2;
-        const box = { x: P.face > 0 ? cx - 45 : cx - 175, y: P.y - 22, w: 220, h: 84 };
-        targetsIn(box, 5).forEach(m => { for (let i = 0; i < 3; i++) hitQueue.push({ t: i * 0.12, m, i }); });
-        fx.push({ k: "spin", t: 0 });
-      } else if (!P.noMpT || P.noMpT < time) { msg("MP 不夠了，按 2 喝藍藥水", "#9fb0cd"); P.noMpT = time + 1.5; }
-    }
+    const slot = ["skill1", "skill2", "skill3"].findIndex(a => held.has(a));
+    if (held.has("attack")) basicAttack();
+    else if (slot >= 0) useSkill(slotSkills()[slot], SLOT_KEYS[slot]);
   }
   if (P.potCd <= 0) {
     if (pressed.has("hpPot")) {
@@ -484,6 +824,93 @@ function playerActions(dt0) {
         nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "+" + v, kind: "mana", t: 0 });
       } else if (P.pots.mp <= 0) msg("沒有藍藥水了", "#9fb0cd");
     }
+  }
+}
+
+const meleeBox = reach => P.face > 0
+  ? { x: P.x + P.w - 6, y: P.y - 10, w: reach, h: 66 }
+  : { x: P.x + 6 - reach, y: P.y - 10, w: reach, h: 66 };
+function startAction(kind, t) { P.atkT = P.atkDur = t; P.atkKind = kind; P.atkCd = t; }
+function revealFromShadow() { if (buffOn("t_shadow")) { P.buffs.t_shadow = 0; msg("從影子裡現身了", "#9fb0cd"); } }
+function hint(text) { if (!P.hintT || P.hintT < time) { msg(text, "#9fb0cd"); P.hintT = time + 1.5; } }
+
+function basicAttack() {
+  revealFromShadow();
+  const type = weapon().type;
+  if (P.prone) {
+    // lying down, every weapon does a short stab
+    startAction("stab", STAB_T);
+    const box = P.face > 0 ? { x: P.x + P.w, y: P.y + P.h - 30, w: 56, h: 30 } : { x: P.x - 56, y: P.y + P.h - 30, w: 56, h: 30 };
+    targetsIn(box, 1).forEach(m => dealDamage(m));
+    fx.push({ k: "stab", t: 0 });
+  } else if (type === "bow" || type === "claw") {
+    startAction("shoot", 0.5);
+    fire(type === "bow" ? "arrow" : "star", {}, 0, 0.12);
+  } else {
+    startAction("slash", SLASH_T);
+    targetsIn(meleeBox(80), 1).forEach(m => dealDamage(m));
+    fx.push({ k: "slash", t: 0 });
+  }
+}
+
+function useSkill(s, key) {
+  if (!s) { hint(P.job === "beginner" ? "新手還沒有技能，Lv.10 去找轉職教官薇拉" : `${key} 鍵還沒有技能`); return; }
+  const l = skLv(s.id);
+  if (!l) { hint(`還沒學會「${s.name}」，按 K 用 SP 學`); return; }
+  const cost = s.mp(l);
+  if (P.mp < cost) { hint("MP 不夠了，按 2 喝藍藥水"); return; }
+  P.mp -= cost; P.prone = false;
+  if (s.type === "buff") {
+    startAction("buff", 0.5);
+    P.buffs[s.id] = s.dur(l);
+    fx.push({ k: "buff", t: 0 });
+    msg(`${s.name}：${s.dur(l)} 秒`, "#cfe3ff");
+    return;
+  }
+  revealFromShadow();
+  if (s.id === "m_bolt") {
+    startAction("cast", 0.55);
+    fire("bolt", { magic: true, spell: s.spell(l) }, 0, 0.15);
+  } else if (s.shot) {
+    startAction("shoot", 0.6);
+    for (let i = 0; i < s.shots; i++) fire(s.shot, { pct: s.pct(l) }, i, 0.12 + i * 0.12);
+  } else if (s.id === "w_heavy") {
+    startAction("slash", SLASH_T);
+    targetsIn(meleeBox(86), 1).forEach(m => dealDamage(m, { pct: s.pct(l) }));
+    fx.push({ k: "slash", t: 0, big: true });
+  } else if (s.id === "w_sweep") {
+    startAction("spin", SKILL_T);
+    const cx = P.x + P.w / 2;
+    targetsIn({ x: P.face > 0 ? cx - 40 : cx - 170, y: P.y - 22, w: 210, h: 84 }, 6)
+      .forEach(m => dealDamage(m, { pct: s.pct(l) }));
+    fx.push({ k: "spin", t: 0 });
+  }
+}
+
+// arrows, throwing stars and magic bolts fly straight and hit the first monster in their path
+const shots = [];
+function fire(kind, o, stack, delay) {
+  shots.push({ kind, o: { ...o, stack }, wait: delay, launched: false, x: 0, y: 0, vx: 0, dist: 0, spin: 0,
+               max: kind === "bolt" ? 320 : kind === "arrow" ? 400 : 340 });
+}
+function updateShots(dt) {
+  for (let i = shots.length - 1; i >= 0; i--) {
+    const s = shots[i];
+    if (!s.launched) {
+      if ((s.wait -= dt) > 0) continue;
+      if (P.dead) { shots.splice(i, 1); continue; }
+      s.launched = true; s.face = P.face;
+      s.x = P.x + P.w / 2 + P.face * 16; s.y = P.y + 24;
+      s.vx = P.face * (s.kind === "bolt" ? 560 : 760);
+    }
+    const step = s.vx * dt;
+    s.x += step; s.dist += Math.abs(step); s.spin += dt * 30;
+    const m = mobs.find(m => !m.dead && m.alpha > 0.5 && s.x >= m.x && s.x <= m.x + m.w && s.y >= m.y - 10 && s.y <= m.y + m.h + 6);
+    if (m) {
+      dealDamage(m, s.o);
+      if (s.kind === "bolt") fx.push({ k: "burst", x: s.x, y: s.y, t: 0 });
+      shots.splice(i, 1);
+    } else if (s.dist > s.max || s.x < 0 || s.x > WORLD_W) shots.splice(i, 1);
   }
 }
 
@@ -533,7 +960,7 @@ function updateMobs(dt) {
         if (m.slamCd <= 0 && Math.abs(dx) < 420) { m.wind = 0.85; m.slamCd = 3.4; }
       }
     }
-    if (!P.dead && P.inv <= 0 && m.alpha > 0.6 && overlap(P, m, 5)) hurt(m.T.dmg, m.x + m.w / 2);
+    if (!P.dead && P.inv <= 0 && m.alpha > 0.6 && overlap(P, m, 5)) hurt(m.T.dmg, m.x + m.w / 2, m.T.acc);
   }
 }
 
@@ -556,26 +983,30 @@ function update(dt) {
   time += dt;
   if (P.dead) {
     P.deadT += dt;
-    if (P.deadT > 1 && (pressed.has("revive") || pressed.has("jump") || pressed.has("attack"))) revive();
+    if (P.deadT > 1 && ["revive", "jump", "space", "attack"].some(a => pressed.has(a))) revive();
   } else {
     updatePlayer(dt);
     playerActions(dt);
     P.regen += dt;
-    if (P.regen >= 2.5) { P.regen = 0; P.hp = Math.min(maxHp(), P.hp + 2 + (P.lv >> 2)); P.mp = Math.min(maxMp(), P.mp + 1 + (P.lv >> 3)); }
+    if (P.regen >= 2.5) {
+      P.regen = 0;
+      P.hp = Math.min(maxHp(), P.hp + 2 + (P.lv >> 2) + passive("w_regen", "hpr"));
+      P.mp = Math.min(maxMp(), P.mp + 1 + (P.lv >> 3) + passive("m_medit", "mpr"));
+    }
+    for (const id in P.buffs) {
+      if (P.buffs[id] > 0 && (P.buffs[id] -= dt) <= 0) { P.buffs[id] = 0; msg(`「${SKILL_BY_ID[id].name}」的效果結束了`, "#9fb0cd"); }
+    }
   }
   P.atkT = Math.max(0, P.atkT - dt); P.atkCd -= dt; P.potCd -= dt; P.inv -= dt; P.drop -= dt;
   P.knock = Math.max(0, P.knock - dt);
 
-  for (let i = hitQueue.length - 1; i >= 0; i--) {
-    const q = hitQueue[i]; q.t -= dt;
-    if (q.t <= 0) { dealDamage(q.m, 0.7, q.i); hitQueue.splice(i, 1); }
-  }
+  updateShots(dt);
   updateMobs(dt);
   updateDrops(dt);
   for (let i = nums.length - 1; i >= 0; i--) if ((nums[i].t += dt) > 1.1) nums.splice(i, 1);
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt;
-    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3 }[f.k];
+    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3, buff: 0.7, burst: 0.3 }[f.k];
     if (f.t > life) fx.splice(i, 1);
   }
   for (let i = msgs.length - 1; i >= 0; i--) if ((msgs[i].t -= dt) <= 0) msgs.splice(i, 1);
@@ -586,6 +1017,7 @@ function update(dt) {
   cam.y += (clamp(P.y - H * 0.58, 0, WORLD_H - H) - cam.y) * k;
   cam.shake = Math.max(0, cam.shake - dt * 30);
 
+  refreshPanels();
   saveT += dt;
   if (saveT > 5) { saveT = 0; save(); }
 }
@@ -666,22 +1098,45 @@ function drawVillage() {
   ctx.fillStyle = "#7a4a2c"; ctx.fillRect(hx + 64, hy - 46, 26, 46);
   ctx.fillStyle = "#8fd3f0"; ctx.fillRect(hx + 16, hy - 56, 28, 22);
   ctx.strokeStyle = "#7a4a2c"; ctx.lineWidth = 3; ctx.strokeRect(hx + 16, hy - 56, 28, 22);
-  // signpost
-  const sx = 176;
-  ctx.fillStyle = "#7a5233"; ctx.fillRect(sx - 3, hy - 46, 6, 46);
-  ctx.fillStyle = "#c79a5b"; rr(sx - 34, hy - 64, 68, 26, 4); ctx.fill();
-  ctx.strokeStyle = "#7a5233"; ctx.lineWidth = 2; ctx.stroke();
-  ctx.font = `700 13px ${UI}`; ctx.textAlign = "center"; ctx.fillStyle = "#4a2e17";
-  ctx.fillText("浮島村", sx, hy - 46);
-  if (Math.abs(P.x + P.w / 2 - sx) < 150 && !P.dead) {
-    const lines = ["歡迎來到浮島村！", "← → 移動　↑ ↓ 爬繩梯　↓ 趴下", "Alt / Space 跳躍　Ctrl / X 攻擊", "Z 撿東西　Shift 旋風斬", "1 / 2 喝藥水，往右是青草平原。"];
-    const bw = 250, bh = lines.length * 20 + 18, bx = sx - bw / 2, by = hy - 82 - bh;
-    ctx.fillStyle = "rgba(255,255,255,.95)"; rr(bx, by, bw, bh, 10); ctx.fill();
+  drawNpc();
+}
+
+// the job instructor: a robed figure with a staff, facing the spawn point
+function drawNpc() {
+  const x = NPC.x, y = NPC.y;
+  ctx.save(); ctx.translate(x, y); ctx.scale(-1, 1);
+  ctx.fillStyle = "rgba(0,0,0,.15)"; ctx.beginPath(); ctx.ellipse(0, 0, 16, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#7a5233"; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(14, -2); ctx.lineTo(14, -62); ctx.stroke();
+  ctx.fillStyle = "#7fe0d0"; ctx.beginPath(); ctx.arc(14, -65, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#2f6f78";
+  ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(-9, -34); ctx.lineTo(9, -34); ctx.lineTo(14, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#e7c45a"; ctx.fillRect(-10, -20, 20, 3);
+  ctx.fillStyle = "#ffd8b5"; ctx.beginPath(); ctx.arc(12, -32, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1, -44, 12, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#e6e9f2";
+  ctx.beginPath(); ctx.arc(0, -47, 12.5, Math.PI * 0.95, Math.PI * 2.08); ctx.fill();
+  ctx.beginPath(); ctx.arc(-9, -50, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#2a2233"; ctx.fillRect(6, -46, 2.4, 4.5);
+  ctx.restore();
+  // name tag under the feet, as NPCs have
+  ctx.font = `700 11px ${UI}`; ctx.textAlign = "center";
+  const tw = ctx.measureText(NPC.name).width + 12;
+  ctx.fillStyle = "rgba(20,24,30,.65)"; rr(x - tw / 2, y + 4, tw, 17, 4); ctx.fill();
+  ctx.fillStyle = "#ffe48a"; ctx.fillText(NPC.name, x, y + 17);
+  // a bouncing "!" when a beginner is ready to pick a job
+  if (P.job === "beginner" && P.lv >= 8) {
+    const by = y - 92 + Math.sin(time * 4) * 3;
+    ctx.fillStyle = "#ffc94a"; ctx.beginPath(); ctx.arc(x, by, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#8a5a00"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.font = `16px ${NUM}`; ctx.fillStyle = "#5a3a00"; ctx.fillText("!", x, by + 6);
+  }
+  if (nearNpc() && dlg.hidden) {
+    const t = "按 Space 或點我說話";
+    ctx.font = `700 12px ${UI}`;
+    const bw = ctx.measureText(t).width + 18, by = y - 112;
+    ctx.fillStyle = "rgba(255,255,255,.95)"; rr(x - bw / 2, by, bw, 24, 8); ctx.fill();
     ctx.strokeStyle = "#c79a5b"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(sx - 8, by + bh); ctx.lineTo(sx, by + bh + 10); ctx.lineTo(sx + 8, by + bh); ctx.closePath();
-    ctx.fillStyle = "rgba(255,255,255,.95)"; ctx.fill();
-    ctx.fillStyle = "#33281c"; ctx.font = `700 13px ${UI}`;
-    lines.forEach((l, i) => ctx.fillText(l, sx, by + 24 + i * 20));
+    ctx.fillStyle = "#33281c"; ctx.fillText(t, x, by + 16);
   }
   ctx.textAlign = "left";
 }
@@ -828,13 +1283,55 @@ function drawMob(m) {
   }
 }
 
-function drawSword(angle) {
+// drawn pointing "up" (-y) from the hand, then rotated by angle
+function drawWeapon(type, angle) {
   ctx.save(); ctx.rotate(angle);
-  ctx.fillStyle = "#5b3a24"; ctx.fillRect(-2, -2, 4, 10);
-  ctx.fillStyle = "#d9a630"; ctx.fillRect(-7, -5, 14, 4);
-  ctx.fillStyle = "#e7eef6"; ctx.beginPath(); ctx.moveTo(-3, -5); ctx.lineTo(-3, -34); ctx.lineTo(0, -40); ctx.lineTo(3, -34); ctx.lineTo(3, -5); ctx.fill();
-  ctx.fillStyle = "#b7c4d3"; ctx.fillRect(0.5, -34, 2, 29);
+  if (type === "wand") {
+    ctx.fillStyle = "#8a5a32"; ctx.fillRect(-1.8, -30, 3.6, 36);
+    ctx.fillStyle = "#c9a2ff"; ctx.shadowColor = "#c9a2ff"; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(0, -33, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  } else if (type === "bow") {
+    ctx.strokeStyle = "#8a5a32"; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.arc(0, 20, 20, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+    ctx.strokeStyle = "#f1ead8"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-17.8, 10.9); ctx.lineTo(17.8, 10.9); ctx.stroke();
+  } else if (type === "claw") {
+    ctx.fillStyle = "#8f9cab"; rr(-5, -6, 10, 9, 2); ctx.fill();
+    ctx.strokeStyle = "#dfe6ee"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); for (const bx of [-3.5, 0, 3.5]) { ctx.moveTo(bx, -6); ctx.lineTo(bx * 1.3, -15); } ctx.stroke();
+  } else {
+    ctx.fillStyle = "#5b3a24"; ctx.fillRect(-2, -2, 4, 10);
+    ctx.fillStyle = "#d9a630"; ctx.fillRect(-7, -5, 14, 4);
+    ctx.fillStyle = "#e7eef6"; ctx.beginPath(); ctx.moveTo(-3, -5); ctx.lineTo(-3, -34); ctx.lineTo(0, -40); ctx.lineTo(3, -34); ctx.lineTo(3, -5); ctx.fill();
+    ctx.fillStyle = "#b7c4d3"; ctx.fillRect(0.5, -34, 2, 29);
+  }
   ctx.restore();
+}
+
+function drawShots() {
+  for (const s of shots) {
+    if (!s.launched) continue;
+    ctx.save(); ctx.translate(s.x, s.y);
+    if (s.kind === "arrow") {
+      ctx.scale(s.face, 1);
+      ctx.strokeStyle = "#8a5a32"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-22, 0); ctx.lineTo(4, 0); ctx.stroke();
+      ctx.fillStyle = "#cfd8e3"; ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(2, -4); ctx.lineTo(2, 4); ctx.fill();
+      ctx.fillStyle = "#f1ead8"; ctx.fillRect(-24, -3, 5, 2); ctx.fillRect(-24, 1, 5, 2);
+    } else if (s.kind === "star") {
+      ctx.rotate(s.spin);
+      ctx.fillStyle = "#c8d2de"; ctx.strokeStyle = "#5d6b7c"; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) { const r = i % 2 ? 3 : 9, a = i * Math.PI / 4; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else {
+      const g = ctx.createRadialGradient(0, 0, 1, 0, 0, 12);
+      g.addColorStop(0, "#ffffff"); g.addColorStop(0.4, "#d6b8ff"); g.addColorStop(1, "rgba(150,100,255,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(190,150,255,.35)"; ctx.beginPath(); ctx.ellipse(-s.face * 14, 0, 12, 4, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
 }
 
 function drawPlayer() {
@@ -846,10 +1343,12 @@ function drawPlayer() {
   }
   ctx.save();
   if (P.inv > 0 && Math.floor(P.inv * 16) % 2 === 0) ctx.globalAlpha = 0.45;
+  if (buffOn("t_shadow")) ctx.globalAlpha = 0.3;
   ctx.translate(cx, by);
   ctx.fillStyle = "rgba(0,0,0,.15)"; ctx.beginPath(); ctx.ellipse(0, 0, 14, 4, 0, 0, Math.PI * 2); ctx.fill();
 
-  const skin = "#ffd8b5", hair = "#3b2a52", shirt = "#e0574a", pants = "#2c3e66", shoe = "#5b3a24";
+  const shirt = { beginner: "#e0574a", warrior: "#b8462f", magician: "#6a4bc4", bowman: "#3f9a52", thief: "#4a4f6a" }[P.job];
+  const skin = "#ffd8b5", hair = "#3b2a52", pants = "#2c3e66", shoe = "#5b3a24";
   if (P.climb) {
     const s = Math.sin(P.anim * 14);
     ctx.fillStyle = pants; ctx.fillRect(-8, -14 + s * 2, 7, 14); ctx.fillRect(1, -14 - s * 2, 7, 14);
@@ -867,7 +1366,7 @@ function drawPlayer() {
     ctx.fillStyle = shoe; ctx.fillRect(-30, -10, 5, 9);
     ctx.fillStyle = shirt; rr(-8, -15, 22, 14, 5); ctx.fill();
     const thrust = P.atkKind === "stab" && P.atkT > 0 ? Math.sin((1 - P.atkT / P.atkDur) * Math.PI) * 16 : 0;
-    ctx.save(); ctx.translate(14 + thrust, -6); drawSword(Math.PI / 2); ctx.restore();
+    ctx.save(); ctx.translate(14 + thrust, -6); drawWeapon(weapon().type, Math.PI / 2); ctx.restore();
     ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(14 + thrust, -6, 3.4, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(24, -14, 12, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = hair; ctx.beginPath(); ctx.arc(22, -17, 12.5, Math.PI * 0.95, Math.PI * 2.08); ctx.fill();
@@ -887,14 +1386,19 @@ function drawPlayer() {
   ctx.fillStyle = shirt; rr(-10, -32, 20, 20, 5); ctx.fill();
   ctx.fillStyle = "#6b4a2a"; ctx.fillRect(-10, -16, 20, 3);
   ctx.fillStyle = "#f6e3a3"; ctx.fillRect(-2, -16, 4, 3);
-  // sword arm
-  let ang = 2.3;
+  // weapon arm
+  const wt = weapon().type;
+  let ang = wt === "bow" ? 2.7 : 2.3;
   if (P.atkT > 0) {
     const prog = 1 - P.atkT / P.atkDur;
-    ang = P.atkKind === "slash" ? -2.3 + prog * 3.9 : prog * Math.PI * 4;
-  } else if (moving) ang = 2.3 + sw * 0.15;
+    if (P.atkKind === "slash") ang = -2.3 + prog * 3.9;
+    else if (P.atkKind === "spin") ang = prog * Math.PI * 4;
+    else if (P.atkKind === "shoot") ang = wt === "claw" ? -0.8 + Math.min(1, prog * 3) * 2.4 : Math.PI / 2;
+    else if (P.atkKind === "cast") ang = 0.5 + Math.sin(prog * Math.PI) * 0.5;
+    else if (P.atkKind === "buff") ang = -0.3;
+  } else if (moving) ang += sw * 0.15;
   ctx.save(); ctx.translate(5, -24);
-  drawSword(ang);
+  drawWeapon(wt, ang);
   ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(0, 0, 3.6, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
   // head
@@ -914,9 +1418,19 @@ function drawFX() {
     if (f.k === "slash" && !P.dead) {
       const p = f.t / 0.25;
       ctx.save(); ctx.translate(cx, P.y + 22); ctx.scale(P.face, 1);
-      ctx.strokeStyle = `rgba(255,255,255,${0.85 * (1 - p)})`; ctx.lineWidth = 12 * (1 - p) + 2; ctx.lineCap = "round";
-      ctx.beginPath(); ctx.arc(10, 0, 44, -1.9 + p * 0.4, 0.9 + p * 0.3); ctx.stroke();
+      ctx.strokeStyle = f.big ? `rgba(255,214,120,${0.9 * (1 - p)})` : `rgba(255,255,255,${0.85 * (1 - p)})`;
+      ctx.lineWidth = (f.big ? 18 : 12) * (1 - p) + 2; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.arc(10, 0, f.big ? 50 : 44, -1.9 + p * 0.4, 0.9 + p * 0.3); ctx.stroke();
       ctx.restore();
+    } else if (f.k === "buff" && !P.dead) {
+      const p = f.t / 0.7;
+      ctx.strokeStyle = `rgba(160,220,255,${1 - p})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(cx, P.y + P.h - p * 60, 26, 7, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(cx, P.y + P.h - p * 30, 22, 6, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (f.k === "burst") {
+      const p = f.t / 0.3;
+      ctx.fillStyle = `rgba(214,184,255,${0.8 * (1 - p)})`;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 6 + p * 18, 0, Math.PI * 2); ctx.fill();
     } else if (f.k === "stab" && !P.dead) {
       const p = f.t / 0.2;
       ctx.save(); ctx.translate(cx, P.y + P.h - 6); ctx.scale(P.face, 1);
@@ -956,7 +1470,7 @@ function drawFX() {
         ctx.fillStyle = `rgba(255,245,180,${a})`; ctx.fillRect(sx - 2, sy - 2, 4, 4);
       }
       ctx.font = `34px ${NUM}`; ctx.textAlign = "center";
-      outlinedText("LEVEL UP!", cx, P.y - 30 - p * 40, `rgba(255,214,74,${a})`, `rgba(90,50,0,${a})`, 6);
+      outlinedText(f.text || "LEVEL UP!", cx, P.y - 30 - p * 40, `rgba(255,214,74,${a})`, `rgba(90,50,0,${a})`, 6);
       ctx.textAlign = "left";
     }
   }
@@ -967,6 +1481,7 @@ function drawNums() {
   const style = {
     hit: [26, "#ffb636", "#6b2a00"], crit: [32, "#ff6a3d", "#4a0c00"],
     hurt: [25, "#c98cff", "#3a1460"], heal: [22, "#7dff8a", "#0d4a1a"], mana: [22, "#8fd0ff", "#0d2e5a"],
+    miss: [22, "#e3e9f2", "#3a4660"],
   };
   for (const n of nums) {
     const [size, fill, stroke] = style[n.kind];
@@ -999,37 +1514,61 @@ function drawHUD() {
   ctx.fillStyle = "rgba(255,255,255,.08)"; ctx.fillRect(0, top, W, 1);
   ctx.font = `13px ${NUM}`; ctx.fillStyle = "#ffc94a"; ctx.fillText("LV.", 14, top + 22);
   ctx.font = `26px ${NUM}`; outlinedText(String(P.lv), 40, top + 26, "#ffc94a", "#5a3a00", 4);
-  ctx.font = `700 12px ${UI}`; ctx.fillStyle = "#cfe3ff"; ctx.fillText("見習劍士", 14, top + 42);
+  ctx.font = `700 12px ${UI}`; ctx.fillStyle = "#cfe3ff"; ctx.fillText(job().name, 14, top + 42);
+  // unspent points glow as a reminder, like the level-up buttons in the original
+  const pts = [P.ap > 0 && `AP ${P.ap}`, P.sp > 0 && `SP ${P.sp}`].filter(Boolean);
+  if (pts.length) {
+    const t = pts.join("  ");
+    ctx.font = `12px ${NUM}`;
+    const tw = ctx.measureText(t).width + 14, a = 0.75 + Math.sin(time * 5) * 0.25;
+    ctx.globalAlpha = a; ctx.fillStyle = "#ffc94a"; rr(14, top - 24, tw, 18, 9); ctx.fill();
+    ctx.globalAlpha = 1; ctx.fillStyle = "#4a2e00"; ctx.fillText(t, 21, top - 10);
+  }
   // coins
   ctx.fillStyle = "#ffcf3d"; ctx.beginPath(); ctx.arc(96, top + 17, 6, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = "#c98a12"; ctx.beginPath(); ctx.arc(96, top + 17, 3, 0, Math.PI * 2); ctx.fill();
   ctx.font = `14px ${NUM}`; ctx.fillStyle = "#ffe7a3"; ctx.fillText(P.coins.toLocaleString(), 106, top + 22);
 
-  const bx = 160, bw = 180, gap = 10;
+  const bx = 160, bw = 162, gap = 8;
   drawBar(bx, top + 10, bw, 18, P.hp / maxHp(), "#ff7a6b", "#d8362b", "HP", `${Math.ceil(P.hp)} / ${maxHp()}`);
   drawBar(bx + bw + gap, top + 10, bw, 18, P.mp / maxMp(), "#7fb6ff", "#2f6fd6", "MP", `${Math.floor(P.mp)} / ${maxMp()}`);
   const er = P.exp / need();
   drawBar(bx + (bw + gap) * 2, top + 10, bw, 18, er, "#fff08a", "#e0b62a", "EXP", `${(er * 100).toFixed(1)}%`);
   ctx.font = `700 11px ${UI}`; ctx.fillStyle = "#9fb0cd";
   ctx.fillText(`${P.exp} / ${need()}`, bx + (bw + gap) * 2 + 8, top + 42);
-  ctx.fillText(`攻擊力 ${atk()}`, bx + 8, top + 42);
+  const [dmgMin, dmgMax] = physRange();
+  ctx.fillText(`攻擊 ${Math.floor(dmgMin)}～${Math.floor(dmgMax)}`, bx + 8, top + 42);
 
-      // quick slots
+  // quick slots: two potions, then the three skill keys
+  const SKILL_COLORS = { atk: "#ff9b5a", buff: "#7fd0ff" };
   const slots = [
-    { key: "1", label: "紅藥", n: P.pots.hp, c: "#e0453b" },
-    { key: "2", label: "藍藥", n: P.pots.mp, c: "#3a7be0" },
-    { key: "X", label: "旋風", n: null, c: "#5fd0e8", cd: P.atkKind === "spin" ? Math.max(0, P.atkCd) / SKILL_T : 0, dim: P.mp < 8 },
+    { key: "1", label: "紅藥", sub: "×" + P.pots.hp, c: "#e0453b" },
+    { key: "2", label: "藍藥", sub: "×" + P.pots.mp, c: "#3a7be0" },
+    ...slotSkills().map((s, i) => {
+      const l = skLv(s.id);
+      return { key: ["⇧", "D", "F"][i], label: s.name.slice(0, 2), sub: l ? `MP ${s.mp(l)}` : "未學",
+               c: SKILL_COLORS[s.type], dim: !l || P.mp < s.mp(Math.max(1, l)), on: buffOn(s.id) };
+    }),
   ];
   slots.forEach((s, i) => {
-    const x = 740 + i * 72, y = top + 6;
-    ctx.fillStyle = "#0b1426"; rr(x, y, 64, 36, 7); ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,.14)"; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = s.dim ? "#3b4a63" : s.c; ctx.beginPath(); ctx.arc(x + 18, y + 18, 9, 0, Math.PI * 2); ctx.fill();
-    if (s.cd > 0) { ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.beginPath(); ctx.moveTo(x + 18, y + 18); ctx.arc(x + 18, y + 18, 10, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * s.cd); ctx.fill(); }
-    ctx.font = `700 11px ${UI}`; ctx.fillStyle = "#dfe8f6"; ctx.fillText(s.label, x + 32, y + 15);
-    ctx.font = `13px ${NUM}`;
-    ctx.fillStyle = "#9fb0cd"; ctx.fillText(s.n === null ? "MP 8" : "×" + s.n, x + 32, y + 30);
-    ctx.font = `11px ${NUM}`; ctx.fillStyle = "#ffc94a"; ctx.fillText(s.key, x + 4, y + 12);
+    const x = 678 + i * 56, y = top + 6;
+    ctx.fillStyle = "#0b1426"; rr(x, y, 52, 36, 7); ctx.fill();
+    ctx.strokeStyle = s.on ? "#7fd0ff" : "rgba(255,255,255,.14)"; ctx.lineWidth = s.on ? 2 : 1; ctx.stroke();
+    ctx.fillStyle = s.dim ? "#3b4a63" : s.c; ctx.beginPath(); ctx.arc(x + 13, y + 20, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.font = `700 11px ${UI}`; ctx.fillStyle = s.dim ? "#7d8aa3" : "#dfe8f6"; ctx.fillText(s.label, x + 23, y + 16);
+    ctx.font = `10px ${NUM}`; ctx.fillStyle = "#9fb0cd"; ctx.fillText(s.sub, x + 23, y + 30);
+    ctx.font = `10px ${NUM}`; ctx.fillStyle = "#ffc94a"; ctx.fillText(s.key, x + 4, y + 11);
+  });
+
+  // active buffs under the minimap, with seconds left
+  Object.keys(P.buffs).filter(buffOn).forEach((id, i) => {
+    const x = W - 46 - i * 40, y = 88;
+    ctx.fillStyle = "rgba(14,22,40,.8)"; rr(x, y, 36, 36, 7); ctx.fill();
+    ctx.strokeStyle = "#7fd0ff"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.font = `700 12px ${UI}`; ctx.textAlign = "center"; ctx.fillStyle = "#dfe8f6";
+    ctx.fillText(SKILL_BY_ID[id].name.slice(0, 2), x + 18, y + 16);
+    ctx.font = `11px ${NUM}`; ctx.fillStyle = "#ffc94a"; ctx.fillText(Math.ceil(P.buffs[id]) + "s", x + 18, y + 30);
+    ctx.textAlign = "left";
   });
 
   // map name + messages
@@ -1098,6 +1637,7 @@ function draw() {
   ladders.forEach(drawLadder);
   drops.forEach(drawDrop);
   mobs.forEach(drawMob);
+  drawShots();
   drawPlayer();
   drawFX();
   drawNums();
