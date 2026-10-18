@@ -104,6 +104,23 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 .place p{margin:2px 0 0;color:var(--muted);line-height:1.45}
 .place .tag{margin-left:6px;font-size:.72rem;color:#4a2e00;background:var(--gold);border-radius:6px;padding:1px 6px}
 .link{width:2px;height:12px;margin:0 auto;background:var(--line)}
+/* shop: a wider window in the middle, one row per item with its price and buttons */
+.win.shop{left:50%;transform:translateX(-50%);width:min(440px,94%)}
+.srow{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgb(255 255 255 / .06)}
+.srow img{width:32px;height:32px;flex:none}
+.srow .what{flex:1;min-width:0;line-height:1.35}
+.srow .what small{display:block;color:var(--muted)}
+.srow .what .bad{color:#ff9b8f}
+.srow .btn{padding:4px 9px;flex:none}
+.srow .btn.warn{border-color:#e0675a;color:#ffb0a6}
+.price{font-family:var(--num);color:#ffe7a3;letter-spacing:.02em}
+/* quest log */
+.quest{padding:6px 0;border-bottom:1px solid rgb(255 255 255 / .06);line-height:1.5}
+.quest b{font-size:.86rem}
+.quest p{margin:0;color:var(--muted)}
+.quest .ok{color:var(--gold)}
+.quest small{color:var(--muted)}
+.qhead{margin:8px 0 2px;font-size:.8rem;color:var(--muted);font-weight:700;letter-spacing:.08em}
 /* NPC dialog: a parchment card, the one warm surface in the UI */
 .dlg{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:min(460px,92%);max-height:88%;overflow:auto;background:#f7f0de;color:#33281c;border:3px solid #c79a5b;border-radius:12px;padding:12px 16px 14px;box-shadow:0 10px 28px rgb(0 0 0 / .5)}
 .dlg .who{font-weight:900;color:#7a4a1c;margin-bottom:6px;font-size:.9rem}
@@ -133,6 +150,14 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
     <section class="win" id="equipWin" hidden aria-label="裝備">
       <header><h2>裝備</h2><button type="button" class="x" data-close aria-label="關閉裝備">✕</button></header>
       <div id="equipBody"></div>
+    </section>
+    <section class="win shop" id="shopWin" hidden aria-label="商店">
+      <header><h2 id="shopTitle">商店</h2><button type="button" class="x" data-close aria-label="關閉商店">✕</button></header>
+      <div id="shopBody"></div>
+    </section>
+    <section class="win" id="questWin" hidden aria-label="任務日誌">
+      <header><h2>任務日誌</h2><button type="button" class="x" data-close aria-label="關閉任務日誌">✕</button></header>
+      <div id="questBody"></div>
     </section>
     <section class="win right" id="worldWin" hidden aria-label="世界地圖">
       <header><h2>世界地圖</h2><button type="button" class="x" data-close aria-label="關閉世界地圖">✕</button></header>
@@ -164,6 +189,7 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
     <li><kbd>I</kbd> 背包</li>
     <li><kbd>E</kbd> 裝備</li>
     <li><kbd>W</kbd> 世界地圖</li>
+    <li><kbd>Q</kbd> 任務日誌</li>
     <li>傳送門前按 <kbd>↑</kbd> 換地圖</li>
     <li>靠近 NPC 按 <kbd>Space</kbd> 或點他說話</li>
   </ul>
@@ -195,6 +221,7 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
       <button class="reset" id="openInv" type="button">背包（I）</button>
       <button class="reset" id="openEquip" type="button">裝備（E）</button>
       <button class="reset" id="openWorld" type="button">世界地圖（W）</button>
+      <button class="reset" id="openQuests" type="button">任務（Q）</button>
       <button class="reset" id="reset" type="button">重新開始</button>
     </div>
   </div>
@@ -203,7 +230,8 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 <script>
 (() => {
 "use strict";
-const W = 960, H = 540, WORLD_H = 900;
+// WORLD_H leaves room under the ground so name tags under the feet clear the status bar
+const W = 960, H = 540, WORLD_H = 924;
 let WORLD_W = 1400;  // set by loadMap
 // Movement tuned to the classic side-scroller feel (px and px/s):
 // walk 125, jump launch 555 under gravity 2000 (about 77 px high), fall cap 670, climb 120,
@@ -252,8 +280,8 @@ const THEMES = {
 const MAPS = {
   village: {
     name: "浮島村", area: "浮島", town: true, w: 1400, spawn: 96, theme: THEMES.meadow,
-    plats: [{ x: 420, y: 780, w: 200 }, { x: 660, y: 720, w: 240 }, { x: 960, y: 780, w: 200 }],
-    ladders: [], trees: [300, 560, 900, 1220], zones: [],
+    plats: [{ x: 840, y: 780, w: 180 }, { x: 1040, y: 720, w: 200 }],
+    ladders: [], trees: [250, 760, 1240], zones: [],
     portals: [{ x: 1350, to: "meadow", tp: 0 }],
   },
   meadow: {
@@ -452,8 +480,19 @@ const ITEMS = {
   shell_shard:   { name: "刺殼碎片", color: "#b49a6a", desc: "刺殼龜背上掉下來的硬殼" },
   moss_core:     { name: "苔岩之心", color: "#8fe07a", desc: "苔岩巨像體內微微發光的石頭" },
 };
+// shop prices in coins; a shop buys anything back for half, and monster materials have their own price
+const PRICES = {
+  red_pot: 25, blue_pot: 50, town_scroll: 200, arrow: 1, iron_star: 2, steel_star: 4,
+  wood_sword: 50, iron_blade: 3000, jade_blade: 20000, oak_wand: 2500, vine_staff: 20000, hunter_bow: 3000, hawk_bow: 20000,
+  iron_claw: 3000, dark_claw: 20000, plain_tee: 30, jelly_tunic: 600, plain_shorts: 30, canvas_pants: 600, straw_shoes: 30,
+  wind_boots: 2000, leaf_band: 200, leather_cap: 1500, work_gloves: 300, hunter_gloves: 2500, travel_cape: 1500, moss_cape: 15000,
+  wood_shield: 1500, shell_shield: 8000,
+};
+const SELL = { green_gel: 6, blue_gel: 12, shell_shard: 25, moss_core: 800 };
 for (const [id, I] of Object.entries(ITEMS)) {
   I.id = id;
+  I.price = PRICES[id] || 0;
+  I.sell = SELL[id] ?? I.price / 2;
   I.cat = I.slot ? "equip" : I.cat || "etc";
   I.stack = I.slot ? 1 : I.stack || (I.cat === "use" ? 100 : 200);
   if (I.wtype) I.jobs = WTYPES[I.wtype].jobs;
@@ -515,7 +554,7 @@ const SLOT_KEYS = ["Shift", "D", "F"];
 function freshCharacter() {
   return {
     lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
-    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village",
+    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {},
     bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"),
   };
 }
@@ -587,9 +626,9 @@ const KEYMAP = {
   ControlLeft: "attack", ControlRight: "attack", KeyX: "attack", KeyZ: "pickup",
   ShiftLeft: "skill1", ShiftRight: "skill1", KeyA: "skill1", KeyD: "skill2", KeyF: "skill3",
   Digit1: "hpPot", Numpad1: "hpPot", Delete: "hpPot", Digit2: "mpPot", Numpad2: "mpPot", End: "mpPot", Enter: "revive",
-  KeyS: "stats", KeyK: "skills", KeyI: "inv", KeyE: "equip", KeyW: "world", Escape: "esc",
+  KeyS: "stats", KeyK: "skills", KeyI: "inv", KeyE: "equip", KeyW: "world", KeyQ: "quests", Escape: "esc",
 };
-const PANEL_KEYS = ["stats", "skills", "inv", "equip", "world", "esc"];
+const PANEL_KEYS = ["stats", "skills", "inv", "equip", "world", "quests", "esc"];
 function press(a) { started = true; if (!held.has(a)) pressed.add(a); held.add(a); }
 addEventListener("keydown", e => {
   if (!dlg.hidden) {
@@ -606,8 +645,8 @@ addEventListener("keydown", e => {
   e.preventDefault();
   if (PANEL_KEYS.includes(a)) {
     if (e.repeat) return;
-    const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin, world: worldWin };
-    if (a === "esc") Object.values(wins).forEach(w => { w.hidden = true; });
+    const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin, world: worldWin, quests: questWin };
+    if (a === "esc") [...Object.values(wins), shopWin].forEach(w => { w.hidden = true; });
     else togglePanel(wins[a]);
     return;
   }
@@ -621,7 +660,8 @@ cv.addEventListener("pointerdown", e => {
   // clicking the NPC opens the dialog, like in the original
   const r = cv.getBoundingClientRect();
   const wx = (e.clientX - r.left) / r.width * W + cam.x, wy = (e.clientY - r.top) / r.height * H + cam.y;
-  if (map.town && Math.abs(wx - NPC.x) < 22 && wy > NPC.y - 64 && wy < NPC.y + 4) openNpc();
+  const npc = npcsHere().find(n => Math.abs(wx - n.x) < 22 && wy > n.y - 64 && wy < n.y + 4);
+  if (npc) openNpc(npc);
 });
 document.querySelectorAll("[data-act]").forEach(b => {
   const a = b.dataset.act;
@@ -637,7 +677,7 @@ document.querySelectorAll("[data-act]").forEach(b => {
 // ---------- Save ----------
 const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins", "map"];
 function serialize() {
-  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, bag: JSON.parse(JSON.stringify(P.bag)), eq: JSON.parse(JSON.stringify(P.eq)) };
+  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, quests: JSON.parse(JSON.stringify(P.quests)), bag: JSON.parse(JSON.stringify(P.bag)), eq: JSON.parse(JSON.stringify(P.eq)) };
   SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
   return d;
 }
@@ -677,6 +717,7 @@ function load(d) {
     if (!MAPS[c.map]) c.map = "village";
     c.skills = { ...(d.skills || {}) }; c.buffs = { ...(d.buffs || {}) };
   }
+  c.quests = cleanQuests(d.quests);
   if (d.bag) { c.bag = cleanBag(d.bag); c.eq = cleanEq(d.eq); }
   else giveStarterGear(c, d.pots);
   Object.assign(P, c);
@@ -700,13 +741,32 @@ resetBtn.addEventListener("click", () => {
   save(); msg("已重新開始冒險", "#ffc94a"); cv.focus();
 });
 
-// ---------- NPC and dialog ----------
-const NPC = { x: 168, y: 840, name: "轉職教官 薇拉" };
-const nearNpc = () => map.town && !P.dead && !P.climb && Math.abs(P.x + P.w / 2 - NPC.x) < 50 && Math.abs(P.y + P.h - NPC.y) < 4;
+// ---------- NPCs and dialog ----------
+// Everyone you can talk to. They all stand on the ground of their map; look sets how they are drawn.
+// A shop NPC sells the list in SHOPS; quests name the NPC that gives them.
+const NPCS = {
+  vera:  { name: "轉職教官 薇拉", map: "village", x: 168, talk: veraTalk,
+           look: { robe: "#2f6f78", hair: "#f4f6fb", long: true, prop: "staff" } },
+  molly: { name: "道具商 莫莉", map: "village", x: 330, shop: "items", greet: "歡迎光臨！藥水、卷軸、箭矢和飛鏢，冒險用得到的這裡都有。",
+           look: { robe: "#d46a8a", hair: "#9a5a32", bun: true, apron: true } },
+  borin: { name: "武器商 鐵叔", map: "village", x: 490, shop: "gear", greet: "哼，想要好裝備？我這裡的武器和防具，每一件都是親手打的。",
+           look: { robe: "#7a5233", hair: "#3a2a20", bald: true, beard: "#4a3020", apron: true, prop: "hammer" } },
+  owen:  { name: "村長 歐文", map: "village", x: 660, greet: "歡迎來到浮島村。年輕人，村子最近有些麻煩，你願意幫忙嗎？",
+           look: { robe: "#4a63a8", hair: "#dfe3ec", beard: "#eef1f6", prop: "cane" } },
+  tuck:  { name: "漁夫 塔克", map: "shore", x: 200, greet: "唉，今天又沒釣到魚。都是那些刺殼龜害的！",
+           look: { robe: "#3a7be0", hair: "#6b4a2a", strawHat: true, prop: "rod" } },
+};
+for (const [id, n] of Object.entries(NPCS)) { n.id = id; n.y = 840; }
+const npcsHere = () => Object.values(NPCS).filter(n => n.map === P.map);
+// the NPC you are standing next to, if any
+const nearNpc = () => P.dead || P.climb || !P.onGround ? null
+  : npcsHere().find(n => Math.abs(P.x + P.w / 2 - n.x) < 50 && Math.abs(P.y + P.h - n.y) < 4) || null;
+
 const dlg = document.getElementById("dlg");
 const dlgName = document.getElementById("dlgName"), dlgText = document.getElementById("dlgText"), dlgOpts = document.getElementById("dlgOpts");
+let talking = NPCS.vera;
 function say(text, options) {
-  dlgName.textContent = NPC.name;
+  dlgName.textContent = talking.name;
   dlgText.textContent = text;
   dlgOpts.replaceChildren(...options.map(([label, fn], i) => {
     const b = document.createElement("button");
@@ -718,31 +778,166 @@ function say(text, options) {
   dlgOpts.firstChild?.focus({ preventScroll: true });
 }
 function closeDialog() { if (!dlg.hidden) { dlg.hidden = true; cv.focus({ preventScroll: true }); } }
-function openNpc() {
-  if (P.job === "beginner") say("你好，冒險者。想選擇自己要走的路，就來找我吧。", [["我想轉職", jobMenu], ["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
-  else {
-    const J = job(), opts = [["怎麼操作？", controlsHelp], ["再見", closeDialog]];
-    // until shops open, she tops up an empty quiver so a bowman or thief is never stuck
-    if (J.ammo && countItem(J.ammo[0]) === 0) opts.unshift([`我的${ITEMS[J.ammo[0]].name}用完了`, refillAmmo]);
-    say(`你已經是${J.name}了。繼續努力，到 Lv.30 再來找我，我會告訴你下一步。`, opts);
+const back = () => openNpc(talking);
+function openNpc(npc) {
+  talking = npc;
+  // quests first, like the original's quest list at the top of a conversation
+  const opts = [];
+  for (const q of Object.values(QUESTS).filter(q => q.npc === npc.id)) {
+    const st = questState(q);
+    if (st === "ready") opts.push([`【完成】${q.name}`, () => finishQuest(q)]);
+    else if (st === "active") opts.push([`【進行中】${q.name}`, () => questProgress(q)]);
+    else if (st === "available") opts.push([`【任務】${q.name}`, () => offerQuest(q)]);
   }
+  if (npc.shop) opts.push(["我想買賣東西", () => openShop(npc)]);
+  if (npc.talk) { npc.talk(opts); return; }
+  say(npc.greet, [...opts, ["再見", closeDialog]]);
 }
-function refillAmmo() {
-  const [id, n] = job().ammo, k = n / 4;
-  giveItem(id, k);
-  say(`拿去吧，這裡有 ${k} 個${ITEMS[id].name}。打怪的時候也會撿到，省著點用。`, [["謝謝", closeDialog]]);
+function veraTalk() {
+  if (P.job === "beginner") say("你好，冒險者。想選擇自己要走的路，就來找我吧。", [["我想轉職", jobMenu], ["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
+  else say(`你已經是${job().name}了。繼續努力，到 Lv.30 再來找我，我會告訴你下一步。`, [["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
 }
 function controlsHelp() {
-  say("← → 移動，↑ ↓ 爬繩梯，↓ 趴下。\nAlt 或 Space 跳躍，Ctrl 或 X 攻擊（按住連打），Z 撿東西。\nShift、D、F 放技能，1、2 喝藥水。\nS 能力值，K 技能，I 背包，E 裝備，W 世界地圖。走到傳送門按 ↑ 換地圖。靠近 NPC 按 Space 或點他，就能說話。",
-    [["知道了", openNpc]]);
+  say("← → 移動，↑ ↓ 爬繩梯，↓ 趴下。\nAlt 或 Space 跳躍，Ctrl 或 X 攻擊（按住連打），Z 撿東西。\nShift、D、F 放技能，1、2 喝藥水。\nS 能力值，K 技能，I 背包，E 裝備，W 世界地圖，Q 任務。走到傳送門按 ↑ 換地圖。靠近 NPC 按 Space 或點他，就能說話。",
+    [["知道了", back]]);
 }
+
+// ---------- Quests ----------
+// kill: monsters to defeat (counted after you accept); collect: items to hand in (taken from the bag).
+// after: a quest that has to be finished first. Rewards come all at once when you report back.
+const QUESTS = {
+  q_jelly: { npc: "owen", name: "果凍大掃除", lv: 1, kill: { jelly: 10 },
+             reward: { exp: 150, coins: 300, items: [["red_pot", 10]] },
+             ask: "青草平原的青果凍越來越多，把村子的花圃都壓壞了。可以幫我打倒 10 隻嗎？",
+             where: "青果凍在村子東邊的青草平原，走到傳送門按 ↑ 就到了。",
+             thanks: "做得好！花圃終於保住了。這些藥水給你路上用。" },
+  q_gel:   { npc: "owen", name: "冰涼的凝膠", lv: 4, after: "q_jelly", collect: { blue_gel: 15 },
+             reward: { exp: 500, coins: 800, items: [["travel_cape", 1]] },
+             ask: "藍果凍的凝膠冰冰涼涼，夏天拿來冰西瓜最好了。幫我收集 15 個藍果凍凝膠好嗎？",
+             where: "藍果凍在青草平原比較東邊的地方，刺殼海岸的高台上也有。",
+             thanks: "太好了，今年夏天有冰西瓜吃了！這件披風是我年輕時穿的，送給你。" },
+  q_shell: { npc: "tuck", name: "海岸的刺殼龜", lv: 8, kill: { shell: 15 },
+             reward: { exp: 1500, coins: 1500, items: [["leather_cap", 1]] },
+             ask: "刺殼龜佔住了我釣魚的位置，害我好幾天沒收穫。幫我打倒 15 隻吧！",
+             where: "整片刺殼海岸都是刺殼龜，小心牠們背上的刺。",
+             thanks: "海岸終於清靜了！這頂帽子擋太陽很好用，拿去吧。" },
+  q_shard: { npc: "tuck", name: "做魚鉤的碎片", lv: 10, after: "q_shell", collect: { shell_shard: 20 },
+             reward: { exp: 2500, coins: 2000, items: [["wind_boots", 1]] },
+             ask: "刺殼碎片磨一磨可以做成很利的魚鉤。再幫我收集 20 個好嗎？",
+             where: "打倒刺殼龜就有機會掉刺殼碎片。",
+             thanks: "這麼多碎片，夠我做一整年的魚鉤了！這雙靴子跑起來很輕，送你。" },
+  q_core:  { npc: "owen", name: "遺跡的巨像", lv: 13, after: "q_gel", collect: { moss_core: 1 },
+             reward: { exp: 6000, coins: 5000, items: [["town_scroll", 5]] },
+             ask: "刺殼海岸再過去有一片遺跡，聽說裡面住著會動的石像。如果你能帶回它的苔岩之心，就證明你是真正的冒險者了。",
+             where: "苔岩遺跡在刺殼海岸東邊高台上的傳送門後面。苔岩巨像在遺跡中間的高台上。",
+             thanks: "這就是苔岩之心……你真的辦到了！浮島村以你為榮。" },
+};
+for (const [id, q] of Object.entries(QUESTS)) q.id = id;
+// P.quests[id] is { state: "active" | "done", kills: { monster type: count } }
+function questState(q) {
+  const s = P.quests[q.id];
+  if (s?.state === "done") return "done";
+  if (s) return questGoals(q).every(g => g.have >= g.need) ? "ready" : "active";
+  if (P.lv < q.lv || (q.after && P.quests[q.after]?.state !== "done")) return "locked";
+  return "available";
+}
+const questGoals = q => [
+  ...Object.entries(q.kill || {}).map(([t, n]) => ({ text: `打倒${TYPES[t].name}`, have: Math.min(n, P.quests[q.id]?.kills?.[t] || 0), need: n })),
+  ...Object.entries(q.collect || {}).map(([id, n]) => ({ text: `收集${ITEMS[id].name}`, have: Math.min(n, countItem(id)), need: n })),
+];
+const goalText = q => questGoals(q).map(g => `${g.text} ${g.have} / ${g.need}`).join("\n");
+const rewardText = q => ["經驗值 " + q.reward.exp, "金幣 " + q.reward.coins,
+  ...(q.reward.items || []).map(([id, n]) => ITEMS[id].name + (n > 1 ? ` ×${n}` : ""))].join("、");
+function offerQuest(q) {
+  say(`${q.ask}\n\n${goalText(q)}\n獎勵：${rewardText(q)}`, [["好，交給我吧", () => acceptQuest(q)], ["下次再說", back]]);
+}
+function acceptQuest(q) {
+  P.quests[q.id] = { state: "active", kills: {} };
+  msg(`接下任務「${q.name}」，按 Q 看任務日誌`, "#ffc94a");
+  refreshPanels(true); save();
+  say(`謝謝你！${q.where}`, [["知道了", closeDialog]]);
+}
+function questProgress(q) {
+  say(`${q.where}\n\n${goalText(q)}`, [["我再去努力", closeDialog]]);
+}
+function finishQuest(q) {
+  const items = q.reward.items || [];
+  if (items.some(([id, n]) => roomFor(id) < n)) { say("你的背包好像放不下我的謝禮了，整理一下再來找我吧。", [["好", closeDialog]]); return; }
+  for (const [id, n] of Object.entries(q.collect || {})) removeItem(id, n);
+  P.quests[q.id] = { state: "done" };
+  P.coins += q.reward.coins;
+  items.forEach(([id, n]) => addItem(id, n));
+  msg(`完成任務「${q.name}」！`, "#ffc94a");
+  fx.push({ k: "lvup", t: 0, text: "QUEST CLEAR!" });
+  gainExp(q.reward.exp);
+  refreshPanels(true); save();
+  say(`${q.thanks}\n\n獲得：${rewardText(q)}`, [["謝謝", closeDialog]]);
+}
+// counts a defeated monster toward every quest that wants it
+function questKill(t) {
+  for (const [id, s] of Object.entries(P.quests)) {
+    const need = QUESTS[id]?.kill?.[t];
+    if (s.state !== "active" || !need || (s.kills[t] || 0) >= need) continue;
+    s.kills[t] = (s.kills[t] || 0) + 1;
+    msg(`${QUESTS[id].name}：${TYPES[t].name} ${s.kills[t]} / ${need}`, s.kills[t] >= need ? "#ffc94a" : "#cfe3ff");
+  }
+}
+// after picking something up, shows progress on quests that collect it
+function questPickup(itemId) {
+  for (const [id, s] of Object.entries(P.quests)) {
+    const need = QUESTS[id]?.collect?.[itemId];
+    if (s.state === "active" && need && countItem(itemId) <= need) msg(`${QUESTS[id].name}：${ITEMS[itemId].name} ${countItem(itemId)} / ${need}`, countItem(itemId) >= need ? "#ffc94a" : "#cfe3ff");
+  }
+}
+function cleanQuests(d) {
+  const out = {};
+  for (const [id, s] of Object.entries(d || {})) {
+    if (!QUESTS[id] || !s) continue;
+    out[id] = s.state === "done" ? { state: "done" } : { state: "active", kills: { ...(s.kills || {}) } };
+  }
+  return out;
+}
+
+// ---------- Shops ----------
+// [item, how many one purchase gives]; you sell anything back for half its price
+const SHOPS = {
+  items: [["red_pot", 1], ["blue_pot", 1], ["town_scroll", 1], ["arrow", 100], ["iron_star", 100]],
+  gear: ["wood_sword", "iron_blade", "oak_wand", "hunter_bow", "iron_claw", "plain_tee", "plain_shorts", "straw_shoes", "leaf_band",
+         "work_gloves", "jelly_tunic", "canvas_pants", "leather_cap", "hunter_gloves", "travel_cape", "wind_boots", "wood_shield"].map(id => [id, 1]),
+};
+let shopNpc = null, shopMode = "buy", shopTab = "use", sellArm = -1;
+function openShop(npc) {
+  shopNpc = npc; shopMode = "buy"; sellArm = -1;
+  closeDialog();
+  shopWin.hidden = false;
+  refreshPanels(true);
+}
+function buy(k, times) {
+  const [id, per] = SHOPS[shopNpc.shop][k], I = ITEMS[id], n = per * times, cost = I.price * n;
+  if (P.coins < cost) { hint("金幣不夠"); return; }
+  if (roomFor(id) < n) { hint(`背包的${TABS[I.cat]}欄放不下了`); return; }
+  P.coins -= cost; addItem(id, n);
+  msg(`買了${I.name}${n > 1 ? ` ×${n}` : ""}，花了 ${cost} 金幣`, "#ffd97a");
+  save();
+}
+const sellPrice = (I, n) => Math.floor(I.sell * n);
+function sell(i, all) {
+  const s = P.bag[shopTab][i];
+  if (!s) return;
+  const I = ITEMS[s.id], n = all ? s.n : 1, gain = sellPrice(I, n);
+  takeFromSlot(shopTab, i, n);
+  P.coins += gain; sellArm = -1;
+  msg(`賣掉${I.name}${n > 1 ? ` ×${n}` : ""}，得到 ${gain} 金幣`, "#ffd97a");
+  save();
+}
+
 const reqText = J => `Lv.${J.req.lv}、${STAT_NAMES[J.req.stat]} ${J.req.min}`;
 const meets = J => P.lv >= J.req.lv && P[J.req.stat] >= J.req.min;
 function jobMenu() {
   const ids = ["warrior", "magician", "bowman", "thief"];
   say("一共有四條路，每一條都要達到等級和能力值的門檻：", [
     ...ids.map(id => [`${JOBS[id].name}（${reqText(JOBS[id])}）${meets(JOBS[id]) ? "　✓ 可以轉職" : ""}`, () => jobInfo(id)]),
-    ["再想想", openNpc],
+    ["再想想", back],
   ]);
 }
 function jobInfo(id) {
@@ -782,10 +977,12 @@ const statsBody = document.getElementById("statsBody"), skillsBody = document.ge
 const invWin = document.getElementById("invWin"), equipWin = document.getElementById("equipWin");
 const invBody = document.getElementById("invBody"), equipBody = document.getElementById("equipBody");
 const worldWin = document.getElementById("worldWin"), worldBody = document.getElementById("worldBody");
+const shopWin = document.getElementById("shopWin"), shopBody = document.getElementById("shopBody");
+const questWin = document.getElementById("questWin"), questBody = document.getElementById("questBody");
 function togglePanel(w) { w.hidden = !w.hidden; if (!w.hidden) refreshPanels(true); }
 let panelSig = "";
 function refreshPanels(force) {
-  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer, P.map]);
+  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer, P.map, P.quests, shopMode, shopTab, sellArm]);
   if (!force && sig === panelSig) return;
   panelSig = sig;
   if (!statsWin.hidden) renderStats();
@@ -793,6 +990,67 @@ function refreshPanels(force) {
   if (!invWin.hidden) renderInv();
   if (!equipWin.hidden) renderEquip();
   if (!worldWin.hidden) renderWorld();
+  if (!shopWin.hidden) renderShop();
+  if (!questWin.hidden) renderQuests();
+}
+function renderShop() {
+  document.getElementById("shopTitle").textContent = shopNpc.name;
+  let html = `<div class="tabs" role="tablist" aria-label="買或賣">`
+    + [["buy", "買"], ["sell", "賣"]].map(([k, n]) => `<button type="button" role="tab" data-mode="${k}" aria-selected="${shopMode === k}">${n}</button>`).join("") + `</div>`;
+  if (shopMode === "buy") {
+    SHOPS[shopNpc.shop].forEach(([id, per], k) => {
+      const I = ITEMS[id], cost = I.price * per, bad = I.slot && !canWear(I);
+      const jobs = I.jobs ? I.jobs.filter(j => j !== "beginner").map(j => JOBS[j].name).join("、") || "新手" : "";
+      const what = I.slot ? [EQUIP_SLOTS[I.slot], I.req?.lv && `Lv.${I.req.lv}`, jobs].filter(Boolean).join("．") : I.desc;
+      html += `<div class="srow"><img src="${itemIcon(id).url}" alt=""><div class="what"><b class="${bad ? "bad" : ""}">${esc(I.name)}${per > 1 ? ` ×${per}` : ""}</b><small>${esc(what)}</small></div>`
+        + `<span class="price">${cost.toLocaleString()}</span>`
+        + `<button type="button" class="btn" data-buy="${k}" data-times="1"${P.coins < cost ? " disabled" : ""} aria-label="買${esc(I.name)}">買</button>`
+        + (I.cat === "use" && per === 1 ? `<button type="button" class="btn" data-buy="${k}" data-times="10"${P.coins < cost * 10 ? " disabled" : ""} aria-label="買 10 個${esc(I.name)}">買 10</button>` : "")
+        + `</div>`;
+    });
+  } else {
+    html += `<div class="tabs" role="tablist" aria-label="背包分頁">`
+      + Object.entries(TABS).map(([k, n]) => `<button type="button" role="tab" data-stab="${k}" aria-selected="${k === shopTab}">${n}</button>`).join("") + `</div>`;
+    const rows = P.bag[shopTab].map((s, i) => [s, i]).filter(([s]) => s);
+    if (!rows.length) html += `<p class="note">這一欄是空的。</p>`;
+    for (const [s, i] of rows) {
+      const I = ITEMS[s.id], one = sellPrice(I, 1);
+      html += `<div class="srow"><img src="${itemIcon(s.id).url}" alt=""><div class="what"><b>${esc(I.name)}${s.n > 1 ? ` ×${s.n}` : ""}</b><small>每個 ${one.toLocaleString()} 金幣</small></div>`
+        + (s.n > 1
+          ? `<button type="button" class="btn" data-sell="${i}" aria-label="賣 1 個${esc(I.name)}">賣 1</button>`
+            + `<button type="button" class="btn" data-sell="${i}" data-all="1" aria-label="全部賣掉${esc(I.name)}">全部 ${sellPrice(I, s.n).toLocaleString()}</button>`
+          // equipment asks once more before it goes, so a rare weapon is never sold by a stray click
+          : `<button type="button" class="btn${sellArm === i ? " warn" : ""}" data-sell="${i}" data-all="1" aria-label="賣掉${esc(I.name)}">${sellArm === i ? "確定賣掉？" : "賣"}</button>`)
+        + `</div>`;
+    }
+  }
+  html += `<div class="money">金幣 <b>${P.coins.toLocaleString()}</b></div>`;
+  shopBody.innerHTML = html;
+}
+shopBody.addEventListener("click", e => {
+  const t = e.target.closest("[data-mode],[data-stab],[data-buy],[data-sell]");
+  if (!t) return;
+  if (t.dataset.mode) { shopMode = t.dataset.mode; sellArm = -1; }
+  else if (t.dataset.stab) { shopTab = t.dataset.stab; sellArm = -1; }
+  else if (t.dataset.buy) buy(Number(t.dataset.buy), Number(t.dataset.times));
+  else {
+    const i = Number(t.dataset.sell), s = P.bag[shopTab][i];
+    if (s && ITEMS[s.id].slot && sellArm !== i) sellArm = i;
+    else sell(i, !!t.dataset.all);
+  }
+  refreshPanels(true);
+});
+function renderQuests() {
+  const all = Object.values(QUESTS);
+  const block = (title, list, body) => list.length ? `<div class="qhead">${title}</div>` + list.map(body).join("") : "";
+  const active = all.filter(q => ["active", "ready"].includes(questState(q)));
+  let html = block("進行中", active, q => `<div class="quest"><b>${esc(q.name)}</b>　<small>${esc(NPCS[q.npc].name)}</small>`
+    + questGoals(q).map(g => `<p class="${g.have >= g.need ? "ok" : ""}">${esc(g.text)} ${g.have} / ${g.need}</p>`).join("")
+    + (questState(q) === "ready" ? `<p class="ok">完成了！回去找${esc(NPCS[q.npc].name)}回報</p>` : "") + `</div>`);
+  html += block("可以接的任務", all.filter(q => questState(q) === "available"),
+    q => `<div class="quest"><b>${esc(q.name)}</b><p>去${esc(MAPS[NPCS[q.npc].map].name)}找${esc(NPCS[q.npc].name)}</p></div>`);
+  html += block("已完成", all.filter(q => questState(q) === "done"), q => `<div class="quest"><p>✔ ${esc(q.name)}</p></div>`);
+  questBody.innerHTML = html || `<p class="note">現在沒有任務。等級提升後再去村裡找人聊聊吧。</p>`;
 }
 function renderWorld() {
   worldBody.innerHTML = MAP_ORDER.map((id, i) => {
@@ -867,6 +1125,12 @@ function addItem(id, n = 1) { const left = addTo(P.bag, id, n); if (left < n) ba
 function giveItem(id, n = 1) {
   const left = addItem(id, n);
   if (left) { addDrop("item", P.x + P.w / 2, P.y + P.h - 20, left, id); msg(`背包滿了，${ITEMS[id].name}掉在地上`, "#ff9b8f"); }
+}
+// takes n of an item out of the bag, from the first stacks on
+function removeItem(id, n) {
+  const tab = P.bag[ITEMS[id].cat];
+  tab.forEach((s, i) => { if (n > 0 && s?.id === id) { const k = Math.min(n, s.n); s.n -= k; n -= k; if (!s.n) tab[i] = null; } });
+  bagVer++;
 }
 function takeFromSlot(tab, i, n = 1) {
   const s = P.bag[tab][i];
@@ -1049,6 +1313,7 @@ equipBody.addEventListener("dblclick", e => {
 document.getElementById("openInv").addEventListener("click", () => togglePanel(invWin));
 document.getElementById("openEquip").addEventListener("click", () => togglePanel(equipWin));
 document.getElementById("openWorld").addEventListener("click", () => togglePanel(worldWin));
+document.getElementById("openQuests").addEventListener("click", () => togglePanel(questWin));
 
 document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => { b.closest(".win").hidden = true; cv.focus({ preventScroll: true }); }));
 document.getElementById("openStats").addEventListener("click", () => togglePanel(statsWin));
@@ -1092,6 +1357,7 @@ function dealDamage(m, o = {}) {
 function kill(m) {
   m.dead = true; m.deadT = m.T.respawn || 5;
   gainExp(m.T.exp * EXP_RATE);
+  questKill(m.t);
   const mcx = m.x + m.w / 2, my = m.y + m.h / 2;
   const boss = m.t === "boss", items = [];
   const coinDrops = boss ? 8 : (Math.random() < 0.9 ? 1 : 0);
@@ -1115,6 +1381,7 @@ function collect(d) {
     // a stack that only partly fits leaves the rest on the ground
     const I = ITEMS[d.id], left = addItem(d.id, d.value), got = d.value - left;
     msg(`撿到${I.name}${got > 1 ? ` ×${got}` : ""}`, PICK_COLORS[I.cat]);
+    questPickup(d.id);
     if (left) { d.value = left; msg(`背包的${TABS[I.cat]}欄滿了`, "#ff9b8f"); return; }
   }
   fx.push({ k: "spark", x: d.x, y: d.y - 8, t: 0 });
@@ -1269,7 +1536,8 @@ function playerActions(dt0) {
     else if (near.length) hint(`背包的${TABS[ITEMS[near[0].id].cat]}欄滿了，按 I 整理背包`);
   }
   if (P.climb) return;
-  if (pressed.has("space") && nearNpc() && P.onGround) { openNpc(); return; }
+  const npc = nearNpc();
+  if (pressed.has("space") && npc) { openNpc(npc); return; }
   // holding the attack key keeps attacking, like the original
   if (P.atkCd <= 0 && P.atkT <= 0) {
     const slot = ["skill1", "skill2", "skill3"].findIndex(a => held.has(a));
@@ -1292,7 +1560,7 @@ const AMMO_NAMES = { bow: "箭矢", claw: "飛鏢" };
 function haveAmmo(n) {
   const wt = weapon().wtype;
   if (!AMMO_NAMES[wt] || ammoCount() >= n) return true;
-  hint(ammoCount() ? `${AMMO_NAMES[wt]}不夠了` : `沒有${AMMO_NAMES[wt]}了，回浮島村找轉職教官薇拉`);
+  hint(ammoCount() ? `${AMMO_NAMES[wt]}不夠了` : `沒有${AMMO_NAMES[wt]}了，回浮島村找道具商莫莉買`);
   return false;
 }
 function basicAttack() {
@@ -1694,58 +1962,108 @@ function drawVillage() {
     ctx.fillStyle = "#4a9d3b"; ctx.fillRect(hx + x - 0.8, hy - 37, 1.6, 5);
     ctx.fillStyle = c; ctx.beginPath(); ctx.arc(hx + x, hy - 38, 2.6, 0, Math.PI * 2); ctx.fill();
   }
-  drawNpc();
+  drawStall(NPCS.molly.x, "#e88aa6", "red_pot");
+  drawStall(NPCS.borin.x, "#d9823a", "iron_blade");
 }
 
-// the job instructor: a robed figure with long white hair and a staff, facing the spawn point
-function drawNpc() {
-  const x = NPC.x, y = NPC.y;
-  ctx.save(); ctx.translate(x, y); ctx.scale(-1, 1);
-  ctx.fillStyle = "rgba(0,0,0,.16)"; ctx.beginPath(); ctx.ellipse(0, 0, 16, 4, 0, 0, Math.PI * 2); ctx.fill();
-  // staff with a floating crystal
-  ctx.lineCap = "round";
-  ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(14, -2); ctx.lineTo(14, -60); ctx.stroke();
-  ctx.strokeStyle = "#9a6a3f"; ctx.lineWidth = 3; ctx.stroke();
-  ctx.lineCap = "butt";
-  const bob = Math.sin(time * 2.5) * 1.5;
-  ctx.save(); ctx.shadowColor = "#7fe0d0"; ctx.shadowBlur = 10;
-  ctx.beginPath(); ctx.moveTo(14, -76 + bob); ctx.lineTo(19, -68 + bob); ctx.lineTo(14, -61 + bob); ctx.lineTo(9, -68 + bob); ctx.closePath(); paint(gloss("#7fe0d0", -76, -61));
+// a market stall behind a shopkeeper: posts, a striped awning, a counter and a hanging sign
+function drawStall(x, stripe, sign) {
+  const y = 840;
+  ctx.fillStyle = "#7a5233"; ctx.fillRect(x - 46, y - 92, 5, 92); ctx.fillRect(x + 41, y - 92, 5, 92);
+  ctx.beginPath(); ctx.moveTo(x - 54, y - 92); ctx.lineTo(x + 54, y - 92); ctx.lineTo(x + 50, y - 74); ctx.lineTo(x - 50, y - 74); ctx.closePath();
+  paint("#fff6e6", "rgba(60,35,20,.7)", 1.4);
+  ctx.save(); ctx.clip(); ctx.fillStyle = stripe;
+  for (let i = -54; i < 54; i += 18) ctx.fillRect(x + i, y - 92, 9, 18);
   ctx.restore();
-  // long hair behind
-  ctx.beginPath(); ctx.moveTo(-12, -48); ctx.quadraticCurveTo(-17, -30, -12, -16); ctx.lineTo(-4, -22); ctx.lineTo(-2, -48); ctx.closePath(); paint(vgrad(-50, -16, "#ffffff", "#c9d0e0"));
-  // robe with a gold hem and sash
-  ctx.beginPath(); ctx.moveTo(-14, 0); ctx.quadraticCurveTo(-12, -20, -9, -34); ctx.lineTo(9, -34); ctx.quadraticCurveTo(12, -20, 14, 0); ctx.closePath(); paint(gloss("#2f6f78", -34, 0));
-  ctx.fillStyle = "#e7c45a"; ctx.fillRect(-13.6, -4, 27.2, 3);
-  ctx.beginPath(); rr(-10, -21, 20, 4, 2); paint("#e7c45a", INK, 1);
+  ctx.fillStyle = stripe;
+  for (let i = -50; i < 50; i += 12.5) { ctx.beginPath(); ctx.arc(x + i + 6.25, y - 74, 6.25, 0, Math.PI); ctx.fill(); }
+  ctx.beginPath(); rr(x - 50, y - 30, 100, 30, 3); paint(vgrad(y - 30, y, "#b07a4a", "#7a5233"), "rgba(50,30,20,.7)", 1.4);
+  ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.fillRect(x - 48, y - 28, 96, 3);
+  ctx.beginPath(); ctx.arc(x, y - 104, 11, 0, Math.PI * 2); paint("#f6e8cc", "rgba(60,35,20,.7)", 1.4);
+  ctx.drawImage(itemIcon(sign).canvas, x - 9, y - 113, 18, 18);
+}
+
+// NPCs are drawn facing +x, then flipped to face the player. look picks the hair, clothes and prop.
+function drawNpc(n) {
+  const L = n.look, x = n.x, y = n.y, skin = vgrad(-55, -33, "#ffe8d4", "#f3bf95");
+  ctx.save(); ctx.translate(x, y); ctx.scale(P.x + P.w / 2 < x ? -1 : 1, 1);
+  ctx.fillStyle = "rgba(0,0,0,.16)"; ctx.beginPath(); ctx.ellipse(0, 0, 16, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.lineCap = "round";
+  if (L.prop === "staff") {
+    ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(14, -2); ctx.lineTo(14, -60); ctx.stroke();
+    ctx.strokeStyle = "#9a6a3f"; ctx.lineWidth = 3; ctx.stroke();
+    const bob = Math.sin(time * 2.5) * 1.5;
+    ctx.save(); ctx.shadowColor = "#7fe0d0"; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.moveTo(14, -76 + bob); ctx.lineTo(19, -68 + bob); ctx.lineTo(14, -61 + bob); ctx.lineTo(9, -68 + bob); ctx.closePath(); paint(gloss("#7fe0d0", -76, -61));
+    ctx.restore();
+  } else if (L.prop === "cane") {
+    ctx.strokeStyle = INK; ctx.lineWidth = 4.5; ctx.beginPath(); ctx.moveTo(15, -1); ctx.lineTo(14, -32); ctx.arc(10, -32, 4, 0, Math.PI, true); ctx.stroke();
+    ctx.strokeStyle = "#8a5a32"; ctx.lineWidth = 2.6; ctx.stroke();
+  } else if (L.prop === "rod") {
+    ctx.strokeStyle = "#6b4a2a"; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(12, -26); ctx.lineTo(38, -84); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,.7)"; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(38, -84); ctx.quadraticCurveTo(44, -50, 42, -30 + Math.sin(time * 2) * 2); ctx.stroke();
+    ctx.fillStyle = "#e0453b"; ctx.beginPath(); ctx.arc(42, -30 + Math.sin(time * 2) * 2, 2.2, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.lineCap = "butt";
+  if (L.long) { ctx.beginPath(); ctx.moveTo(-12, -48); ctx.quadraticCurveTo(-17, -30, -12, -16); ctx.lineTo(-4, -22); ctx.lineTo(-2, -48); ctx.closePath(); paint(vgrad(-50, -16, shade(L.hair, 0.2), shade(L.hair, -0.12))); }
+  // robe, with a sash, or an apron for the shopkeepers
+  ctx.beginPath(); ctx.moveTo(-14, 0); ctx.quadraticCurveTo(-12, -20, -9, -34); ctx.lineTo(9, -34); ctx.quadraticCurveTo(12, -20, 14, 0); ctx.closePath(); paint(gloss(L.robe, -34, 0));
+  ctx.fillStyle = shade(L.robe, -0.3); ctx.fillRect(-13.6, -4, 27.2, 3);
+  if (L.apron) {
+    ctx.beginPath(); ctx.moveTo(-6, -30); ctx.lineTo(6, -30); ctx.lineTo(10, -3); ctx.lineTo(-10, -3); ctx.closePath(); paint(vgrad(-30, -3, "#ffffff", "#e6dccb"), INK, 1.1);
+    ctx.beginPath(); rr(-3, -16, 6, 5, 1.5); paint("#e6dccb", INK, 0.8);
+  } else { ctx.beginPath(); rr(-10, -21, 20, 4, 2); paint("#e7c45a", INK, 1); }
   ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-5, -30); ctx.quadraticCurveTo(-7, -14, -9, -4); ctx.stroke();
-  // sleeve and hand on the staff
-  ctx.beginPath(); ctx.ellipse(8, -28, 5, 7, -0.6, 0, Math.PI * 2); paint(gloss("#2f6f78", -35, -21));
+  if (L.prop === "hammer") {
+    ctx.save(); ctx.translate(13, -24); ctx.rotate(0.35);
+    ctx.beginPath(); rr(-1.6, 0, 3.2, 22, 1.4); paint("#8a5a32");
+    ctx.beginPath(); rr(-7, 18, 14, 9, 2); paint(gloss("#8f9cab", 18, 27));
+    ctx.restore();
+  }
+  ctx.beginPath(); ctx.ellipse(8, -28, 5, 7, -0.6, 0, Math.PI * 2); paint(gloss(L.robe, -35, -21));
   ctx.beginPath(); ctx.arc(13, -32, 3.3, 0, Math.PI * 2); paint(vgrad(-35, -29, "#ffe8d4", "#f3bf95"), INK, 1.1);
-  // face, eyes and white hair on top
-  ctx.beginPath(); ctx.ellipse(1.5, -44, 11.5, 11, 0, 0, Math.PI * 2); paint(vgrad(-55, -33, "#ffe8d4", "#f3bf95"));
-  eyes(4.5, 9.5, -44, 2.3, 0.6, blinking(1.7), "#2f6f78");
-  ctx.strokeStyle = "#9a4a3a"; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.arc(7.5, -39.5, 1.6, 0.2, Math.PI - 0.2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-12, -46); ctx.quadraticCurveTo(-6, -61, 6, -58); ctx.quadraticCurveTo(14, -55, 13.5, -47);
-  ctx.lineTo(10, -50); ctx.lineTo(7, -46); ctx.lineTo(4, -51); ctx.lineTo(0, -47); ctx.lineTo(-4, -51); ctx.lineTo(-7, -44); ctx.closePath();
-  paint(vgrad(-60, -44, "#ffffff", "#d3d9e8"));
-  ctx.beginPath(); ctx.arc(-9, -53, 5.5, 0, Math.PI * 2); paint(vgrad(-59, -47, "#ffffff", "#d3d9e8"));
+  // face
+  ctx.beginPath(); ctx.ellipse(1.5, -44, 11.5, 11, 0, 0, Math.PI * 2); paint(skin);
+  eyes(4.5, 9.5, -44, 2.3, 0.6, blinking(n.x * 0.013), "#3a2a4a");
+  if (L.beard) {
+    ctx.beginPath(); ctx.moveTo(-6, -42); ctx.quadraticCurveTo(-4, -26, 6, -27); ctx.quadraticCurveTo(13, -30, 12, -40); ctx.quadraticCurveTo(7, -36, 0, -38); ctx.closePath();
+    paint(vgrad(-42, -26, shade(L.beard, 0.15), shade(L.beard, -0.1)));
+  } else { ctx.strokeStyle = "#9a4a3a"; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.arc(7.5, -39.5, 1.6, 0.2, Math.PI - 0.2); ctx.stroke(); }
+  // hair, then a hat on top if there is one
+  const hairFill = vgrad(-60, -44, shade(L.hair, 0.2), shade(L.hair, -0.12));
+  if (L.bald) {
+    ctx.beginPath(); ctx.ellipse(-8, -45, 4, 6, 0, 0, Math.PI * 2); paint(hairFill);
+    ctx.fillStyle = "rgba(255,255,255,.4)"; ctx.beginPath(); ctx.ellipse(-1, -52, 4, 2, -0.3, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.moveTo(-12, -46); ctx.quadraticCurveTo(-6, -61, 6, -58); ctx.quadraticCurveTo(14, -55, 13.5, -47);
+    ctx.lineTo(10, -50); ctx.lineTo(7, -46); ctx.lineTo(4, -51); ctx.lineTo(0, -47); ctx.lineTo(-4, -51); ctx.lineTo(-7, -44); ctx.closePath();
+    paint(hairFill);
+    if (L.long || L.bun) { ctx.beginPath(); ctx.arc(-9, -53, 5.5, 0, Math.PI * 2); paint(vgrad(-59, -47, shade(L.hair, 0.2), shade(L.hair, -0.12))); }
+  }
+  if (L.strawHat) {
+    ctx.beginPath(); ctx.ellipse(1, -53, 20, 4.5, 0, 0, Math.PI * 2); paint(vgrad(-58, -48, "#f6dc8a", "#d9b65a"));
+    ctx.beginPath(); ctx.arc(1, -54, 10, Math.PI, 0); ctx.closePath(); paint(vgrad(-64, -54, "#f6dc8a", "#d9b65a"));
+    ctx.fillStyle = "#c8553d"; ctx.fillRect(-9, -57, 20, 3);
+  }
   ctx.restore();
   // name tag under the feet, as NPCs have
   ctx.font = `700 11px ${UI}`; ctx.textAlign = "center";
-  const tw = ctx.measureText(NPC.name).width + 12;
+  const tw = ctx.measureText(n.name).width + 12;
   ctx.fillStyle = "rgba(20,24,30,.65)"; rr(x - tw / 2, y + 4, tw, 17, 4); ctx.fill();
-  ctx.fillStyle = "#ffe48a"; ctx.fillText(NPC.name, x, y + 17);
-  // a bouncing "!" when a beginner is ready to pick a job
-  if (P.job === "beginner" && P.lv >= 8) {
+  ctx.fillStyle = "#ffe48a"; ctx.fillText(n.name, x, y + 17);
+  // a bouncing mark over the head: ! for something new, ? when a quest is ready to hand in
+  const states = Object.values(QUESTS).filter(q => q.npc === n.id).map(questState);
+  const mark = states.includes("ready") ? "?" : states.includes("available") || (n.id === "vera" && P.job === "beginner" && P.lv >= 8) ? "!" : "";
+  if (mark) {
     const by = y - 96 + Math.sin(time * 4) * 3;
     ctx.fillStyle = "#ffc94a"; ctx.beginPath(); ctx.arc(x, by, 11, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#8a5a00"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.font = `16px ${NUM}`; ctx.fillStyle = "#5a3a00"; ctx.fillText("!", x, by + 6);
+    ctx.font = `16px ${NUM}`; ctx.fillStyle = "#5a3a00"; ctx.fillText(mark, x, by + 6);
   }
-  if (nearNpc() && dlg.hidden) {
+  if (nearNpc() === n && dlg.hidden) {
     const t = "按 Space 或點我說話";
     ctx.font = `700 12px ${UI}`;
-    const bw = ctx.measureText(t).width + 18, by = y - 116;
+    const bw = ctx.measureText(t).width + 18, by = y - 124;
     ctx.fillStyle = "rgba(255,255,255,.95)"; rr(x - bw / 2, by, bw, 24, 8); ctx.fill();
     ctx.strokeStyle = "#c79a5b"; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = "#33281c"; ctx.fillText(t, x, by + 16);
@@ -2557,6 +2875,7 @@ function draw() {
   for (let i = plats.length - 1; i >= 0; i--) drawPlatform(plats[i]);
   ladders.forEach(drawLadder);
   portals.forEach(drawPortal);
+  npcsHere().forEach(drawNpc);
   drops.forEach(drawDrop);
   mobs.forEach(drawMob);
   drawShots();
