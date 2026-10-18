@@ -49,7 +49,10 @@ function kill(m) {
     if (Math.random() < chance) items.push(["item", randi(a, b), Array.isArray(id) ? id[randi(0, id.length - 1)] : id]);
   }
   // items pop up and land side by side in a row, centred on the monster
-  items.forEach(([kind, value, id], i) => addDrop(kind, mcx + (i - (items.length - 1) / 2) * 24, my, value, id));
+  items.forEach(([kind, value, id], i) => {
+    addDrop(kind, mcx + (i - (items.length - 1) / 2) * 24, my, value, id);
+    if (kind === "item" && ITEMS[id].slot) drops[drops.length - 1].gear = rollGear(id);
+  });
   if (items.length && !P.lootHint) { P.lootHint = true; msg("按 Z 撿起地上的東西", "#ffc94a"); }
   if (boss) { msg(`打倒了${m.T.name}！`, "#ffc94a"); cam.shake = 10; }
 }

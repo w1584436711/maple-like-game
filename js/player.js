@@ -7,7 +7,7 @@ function freshCharacter() {
   return {
     lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
     mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {},
-    bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"),
+    bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"), storage: Array(BAG_SLOTS).fill(null),
   };
 }
 function starterBag(pots) {
@@ -20,9 +20,15 @@ const P = {
   drop: 0, dropPlat: null, knock: 0, prone: false, climbCd: 0, pickCd: 0, lootHint: false, atkT: 0, atkDur: 0, atkKind: "", atkCd: 0, potCd: 0, inv: 0, anim: 0,
   dead: false, deadT: 0, regen: 0, ...freshCharacter(),
 };
-// gear(k) sums one bonus over everything worn, scroll bonuses included; stat(k) is the base stat plus gear
-const bonusOf = (e, k) => (ITEMS[e.id][k] || 0) + (e.bonus?.[k] || 0);
-const gear = k => Object.values(P.eq).reduce((s, e) => s + (e ? bonusOf(e, k) : 0), 0);
+// gear(k) sums one bonus over everything worn: the item's own value, how its drop rolled, scroll bonuses
+// and set bonuses; stat(k) is the base stat plus gear
+const bonusOf = (e, k) => (ITEMS[e.id][k] || 0) + (e.vary?.[k] || 0) + (e.bonus?.[k] || 0);
+const setCount = id => Object.values(P.eq).filter(e => e && ITEMS[e.id].set === id).length;
+const setBonus = k => Object.entries(SETS).reduce((s, [id, S]) => {
+  const n = setCount(id);
+  return s + Object.entries(S.tiers).reduce((t, [need, add]) => t + (n >= need ? add[k] || 0 : 0), 0);
+}, 0);
+const gear = k => Object.values(P.eq).reduce((s, e) => s + (e ? bonusOf(e, k) : 0), 0) + setBonus(k);
 const stat = k => P[k] + gear(k);
 const maxHp = () => P.mhp + gear("hp");
 const maxMp = () => P.mmp + gear("mp");
@@ -178,7 +184,8 @@ document.querySelectorAll("[data-act]").forEach(b => {
 // ---------- Save ----------
 const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins", "map"];
 function serialize() {
-  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, quests: JSON.parse(JSON.stringify(P.quests)), bag: JSON.parse(JSON.stringify(P.bag)), eq: JSON.parse(JSON.stringify(P.eq)) };
+  const copy = v => JSON.parse(JSON.stringify(v));
+  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage) };
   SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
   return d;
 }
@@ -191,7 +198,8 @@ function cleanBag(b) {
   });
   return bag;
 }
-// a piece of gear: upgrade slots left, successful upgrades, and the bonus they added
+// a piece of gear: upgrade slots left, successful upgrades, the bonus they added, how its stats rolled
+// when it dropped, and whether a guard scroll is on it
 function cleanGear(s) {
   const I = ITEMS[s.id], g = { id: s.id, n: 1 };
   if (Number.isInteger(s.left)) g.left = clamp(s.left, 0, I.slots);
@@ -200,7 +208,19 @@ function cleanGear(s) {
     g.bonus = {};
     for (const k in GEAR_STATS) if (Number(s.bonus[k]) > 0) g.bonus[k] = Number(s.bonus[k]) | 0;
   }
+  if (s.vary) {
+    const vary = {};
+    for (const k in GEAR_STATS) if (Number.isInteger(s.vary[k]) && s.vary[k]) vary[k] = clamp(s.vary[k], -(I[k] || 0), 50);
+    if (Object.keys(vary).length) g.vary = vary;
+  }
+  if (s.guard === true) g.guard = true;
   return g;
+}
+function cleanStorage(a) {
+  return Array.from({ length: BAG_SLOTS }, (_, i) => {
+    const s = a?.[i], I = s && ITEMS[s.id];
+    return I && s.n > 0 ? (I.slot ? cleanGear(s) : { id: s.id, n: Math.min(s.n | 0, I.stack) }) : null;
+  });
 }
 function cleanEq(e) {
   const eq = {};
@@ -230,6 +250,7 @@ function load(d) {
     c.skills = { ...(d.skills || {}) }; c.buffs = { ...(d.buffs || {}) };
   }
   c.quests = cleanQuests(d.quests);
+  c.storage = cleanStorage(d.storage);
   if (d.bag) { c.bag = cleanBag(d.bag); c.eq = cleanEq(d.eq); }
   else giveStarterGear(c, d.pots);
   Object.assign(P, c);

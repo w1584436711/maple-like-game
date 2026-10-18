@@ -12,6 +12,8 @@ const NPCS = {
            look: { robe: "#d46a8a", hair: "#9a5a32", bun: true, apron: true } },
   borin: { name: "武器商 鐵叔", map: "village", x: 490, shop: "gear", greet: "哼，想要好裝備？我這裡的武器和防具，每一件都是親手打的。",
            look: { robe: "#7a5233", hair: "#3a2a20", bald: true, beard: "#4a3020", apron: true, prop: "hammer" } },
+  rose:  { name: "倉庫管理員 蘿絲", map: "village", x: 790, storage: true, greet: "要寄放東西嗎？放在我這裡的東西，什麼時候來拿都可以。",
+           look: { robe: "#a85a3a", hair: "#2a2a3a", bun: true, apron: true } },
   owen:  { name: "村長 歐文", map: "village", x: 660, greet: "歡迎來到浮島村。年輕人，村子最近有些麻煩，你願意幫忙嗎？",
            look: { robe: "#4a63a8", hair: "#dfe3ec", beard: "#eef1f6", prop: "cane" } },
   tuck:  { name: "漁夫 塔克", map: "shore", x: 200, greet: "唉，今天又沒釣到魚。都是那些刺殼龜害的！",
@@ -57,6 +59,7 @@ function openNpc(npc) {
     else if (st === "available") opts.push([`${q.daily ? "【每日】" : "【任務】"}${q.name}`, () => offerQuest(q)]);
   }
   if (npc.shop) opts.push(["我想買賣東西", () => openShop(npc)]);
+  if (npc.storage) opts.push(["打開倉庫", () => openShop(npc)]);
   if (npc.talk) { npc.talk(opts); return; }
   say(npc.greet, [...opts, ["再見", closeDialog]]);
 }
@@ -248,13 +251,13 @@ function cleanQuests(d) {
 // ---------- Shops ----------
 // [item, how many one purchase gives]; you sell anything back for half its price
 const SHOPS = {
-  items: [["red_pot", 1], ["blue_pot", 1], ["town_scroll", 1], ["arrow", 100], ["iron_star", 100]],
+  items: [["red_pot", 1], ["blue_pot", 1], ["town_scroll", 1], ["arrow", 100], ["iron_star", 100], ["guard_scroll", 1], ["restore_scroll", 1]],
   gear: ["wood_sword", "iron_blade", "oak_wand", "hunter_bow", "iron_claw", "plain_tee", "plain_shorts", "straw_shoes", "leaf_band",
          "work_gloves", "jelly_tunic", "canvas_pants", "leather_cap", "hunter_gloves", "travel_cape", "wind_boots", "wood_shield"].map(id => [id, 1]),
 };
 let shopNpc = null, shopMode = "buy", shopTab = "use", sellArm = -1;
 function openShop(npc) {
-  shopNpc = npc; shopMode = "buy"; sellArm = -1;
+  shopNpc = npc; shopMode = npc.storage ? "put" : "buy"; sellArm = -1;
   closeDialog();
   shopWin.hidden = false;
   refreshPanels(true);
@@ -275,6 +278,45 @@ function sell(i, all) {
   takeFromSlot(shopTab, i, n);
   P.coins += gain; sellArm = -1;
   msg(`賣掉${I.name}${n > 1 ? ` ×${n}` : ""}，得到 ${gain} 金幣`, "#ffd97a");
+  save();
+}
+
+// ---------- Storage ----------
+// The storage keeper holds 24 slots for you; gear goes in as it is, stackables pile up like in the bag.
+function store(i, all) {
+  const s = P.bag[shopTab][i];
+  if (!s) return;
+  const I = ITEMS[s.id];
+  let moved = 1;
+  if (I.slot) {
+    const j = P.storage.indexOf(null);
+    if (j < 0) { hint("倉庫滿了"); return; }
+    P.storage[j] = s; P.bag[shopTab][i] = null; bagVer++;
+  } else {
+    const n = all ? s.n : 1;
+    moved = n - addToList(P.storage, s.id, n);
+    if (!moved) { hint("倉庫滿了"); return; }
+    takeFromSlot(shopTab, i, moved);
+  }
+  msg(`放進倉庫：${I.slot ? gearName(s) : I.name}${moved > 1 ? ` ×${moved}` : ""}`, "#cfe3ff");
+  save();
+}
+function takeOut(j, all) {
+  const s = P.storage[j];
+  if (!s) return;
+  const I = ITEMS[s.id];
+  let moved = 1;
+  if (I.slot) {
+    if (putGear(s)) { hint("背包的裝備欄滿了"); return; }
+    P.storage[j] = null;
+  } else {
+    const n = all ? s.n : 1;
+    moved = n - addItem(s.id, n);
+    if (!moved) { hint(`背包的${TABS[I.cat]}欄滿了`); return; }
+    if ((s.n -= moved) <= 0) P.storage[j] = null;
+  }
+  bagVer++;
+  msg(`從倉庫拿出：${I.slot ? gearName(s) : I.name}${moved > 1 ? ` ×${moved}` : ""}`, "#cfe3ff");
   save();
 }
 

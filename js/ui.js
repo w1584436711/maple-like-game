@@ -28,6 +28,7 @@ function refreshPanels(force) {
 }
 function renderShop() {
   document.getElementById("shopTitle").textContent = shopNpc.name;
+  if (shopNpc.storage) { renderStorage(); return; }
   let html = `<div class="tabs" role="tablist" aria-label="買或賣">`
     + [["buy", "買"], ["sell", "賣"]].map(([k, n]) => `<button type="button" role="tab" data-mode="${k}" aria-selected="${shopMode === k}">${n}</button>`).join("") + `</div>`;
   if (shopMode === "buy") {
@@ -60,9 +61,34 @@ function renderShop() {
   html += `<div class="money">金幣 <b>${P.coins.toLocaleString()}</b></div>`;
   shopBody.innerHTML = html;
 }
+function renderStorage() {
+  const row = (s, attr, verb) => {
+    const I = ITEMS[s.id], name = I.slot ? gearName(s) : I.name;
+    return `<div class="srow"><img src="${itemIcon(s.id).url}" alt=""><div class="what"><b>${esc(name)}${s.n > 1 ? ` ×${s.n}` : ""}</b><small>${TABS[I.cat]}</small></div>`
+      + (s.n > 1
+        ? `<button type="button" class="btn" ${attr} aria-label="${verb} 1 個${esc(I.name)}">${verb} 1</button><button type="button" class="btn" ${attr} data-all="1" aria-label="全部${verb}${esc(I.name)}">全部</button>`
+        : `<button type="button" class="btn" ${attr} data-all="1" aria-label="${verb}${esc(name)}">${verb}</button>`)
+      + `</div>`;
+  };
+  let html = `<div class="tabs" role="tablist" aria-label="存入或取出">`
+    + [["put", "存入"], ["take", "取出"]].map(([k, n]) => `<button type="button" role="tab" data-mode="${k}" aria-selected="${shopMode === k}">${n}</button>`).join("") + `</div>`;
+  if (shopMode === "put") {
+    html += `<div class="tabs" role="tablist" aria-label="背包分頁">`
+      + Object.entries(TABS).map(([k, n]) => `<button type="button" role="tab" data-stab="${k}" aria-selected="${k === shopTab}">${n}</button>`).join("") + `</div>`;
+    const rows = P.bag[shopTab].map((s, i) => s && row(s, `data-store="${i}"`, "存入")).filter(Boolean);
+    html += rows.join("") || `<p class="note">這一欄是空的。</p>`;
+  } else {
+    const rows = P.storage.map((s, j) => s && row(s, `data-take="${j}"`, "取出")).filter(Boolean);
+    html += rows.join("") || `<p class="note">倉庫裡還沒有東西。</p>`;
+  }
+  html += `<div class="money">倉庫 <b>${P.storage.filter(Boolean).length} / ${BAG_SLOTS}</b> 格</div>`;
+  shopBody.innerHTML = html;
+}
 shopBody.addEventListener("click", e => {
-  const t = e.target.closest("[data-mode],[data-stab],[data-buy],[data-sell]");
+  const t = e.target.closest("[data-mode],[data-stab],[data-buy],[data-sell],[data-store],[data-take]");
   if (!t) return;
+  if (t.dataset.store) { store(Number(t.dataset.store), !!t.dataset.all); refreshPanels(true); return; }
+  if (t.dataset.take) { takeOut(Number(t.dataset.take), !!t.dataset.all); refreshPanels(true); return; }
   if (t.dataset.mode) { shopMode = t.dataset.mode; sellArm = -1; }
   else if (t.dataset.stab) { shopTab = t.dataset.stab; sellArm = -1; }
   else if (t.dataset.buy) buy(Number(t.dataset.buy), Number(t.dataset.times));
@@ -234,6 +260,18 @@ function readScroll(i) {
   msg("讀了回村卷軸，回到浮島村", "#cfe3ff");
   save();
 }
+// gear from monsters comes with each stat a little above or below normal (about 10%, at least 1),
+// like the original's lucky and unlucky drops
+function rollGear(id) {
+  const I = ITEMS[id], g = { id, n: 1 }, vary = {};
+  for (const k in GEAR_STATS) {
+    if (!(I[k] > 0)) continue;
+    const r = Math.max(1, Math.round(I[k] * 0.1)), d = Math.max(-I[k], randi(-r, r));
+    if (d) vary[k] = d;
+  }
+  if (Object.keys(vary).length) g.vary = vary;
+  return g;
+}
 // a piece of gear keeps its scroll upgrades when it is dropped and picked up again
 function putGear(g) {
   const j = P.bag.equip.indexOf(null);
@@ -255,10 +293,14 @@ const gearLeft = g => g.left ?? ITEMS[g.id].slots;
 const gearName = g => ITEMS[g.id].name + (g.up ? ` +${g.up}` : "");
 let scrollPick = null;  // the bag slot of a scroll waiting for you to pick the gear it goes on
 // gear in the bag and on the body that a scroll can still go on
+// slots used up by failed scrolls: everything spent that did not turn into an upgrade
+const gearFailed = g => ITEMS[g.id].slots - gearLeft(g) - (g.up || 0);
+const scrollFits = (S, g) => S.slots.includes(ITEMS[g.id].slot)
+  && (S.kind === "restore" ? gearFailed(g) > 0 : S.kind === "guard" ? !g.guard && gearLeft(g) > 0 : gearLeft(g) > 0);
 function scrollTargets(S) {
   const out = [];
-  P.bag.equip.forEach((g, i) => { if (g && S.slots.includes(ITEMS[g.id].slot) && gearLeft(g) > 0) out.push([`bag:${i}`, g, ""]); });
-  for (const k of EQ_ORDER) { const g = P.eq[k]; if (g && S.slots.includes(ITEMS[g.id].slot) && gearLeft(g) > 0) out.push([`eq:${k}`, g, "（身上）"]); }
+  P.bag.equip.forEach((g, i) => { if (g && scrollFits(S, g)) out.push([`bag:${i}`, g, ""]); });
+  for (const k of EQ_ORDER) { const g = P.eq[k]; if (g && scrollFits(S, g)) out.push([`eq:${k}`, g, "（身上）"]); }
   return out;
 }
 function applyScroll(si, target) {
@@ -267,19 +309,29 @@ function applyScroll(si, target) {
   const g = where === "eq" ? P.eq[key] : P.bag.equip[Number(key)];
   if (!S || !g || P.dead) return;
   const I = ITEMS[g.id];
-  if (!S.slots.includes(I.slot) || gearLeft(g) <= 0) return;
+  if (!scrollFits(S, g)) return;
   takeFromSlot("use", si);
-  // success or not, the scroll uses up one of the gear's upgrade slots
-  g.left = gearLeft(g) - 1;
-  if (Math.random() < S.rate) {
+  if (S.kind === "guard") {
+    g.guard = true;
+    msg(`${gearName(g)}貼上了防爆卷軸`, "#cfe3ff");
+  } else if (S.kind === "restore") {
+    if (Math.random() < S.rate) { g.left = gearLeft(g) + 1; msg(`回復成功！${I.name}的可升級次數多了一次`, "#ffc94a"); fx.push({ k: "lvup", t: 0, text: "SUCCESS!" }); }
+    else msg("回復失敗……", "#ff9b8f");
+  } else if (Math.random() < S.rate) {
+    g.left = gearLeft(g) - 1;
     g.bonus = g.bonus || {};
     for (const [k, v] of Object.entries(S.add)) g.bonus[k] = (g.bonus[k] || 0) + v;
     g.up = (g.up || 0) + 1;
     msg(`強化成功！${gearName(g)}`, "#ffc94a");
     fx.push({ k: "lvup", t: 0, text: "SUCCESS!" });
+  } else if (g.guard) {
+    msg(`強化失敗，但防爆卷軸保住了${I.name}的可升級次數`, "#cfe3ff");
   } else {
+    g.left = gearLeft(g) - 1;
     msg(`強化失敗……${I.name}的可升級次數少了一次`, "#ff9b8f");
   }
+  // a guard scroll is used up by the next enhancement scroll, whether it works or not
+  if (!S.kind) delete g.guard;
   afterGearChange(); save();
 }
 
@@ -289,10 +341,19 @@ function itemInfo(I, n, acts, g) {
   if (I.slot) {
     const wt = I.wtype && WTYPES[I.wtype];
     h += `<p class="dim">${EQUIP_SLOTS[I.slot]}${wt ? `．${wt.name}${wt.twoHand ? "（雙手）" : ""}` : ""}</p>`;
+    // the rolled difference shows green or red, scroll bonuses in gold
     const bon = Object.keys(GEAR_STATS).filter(k => I[k] || g?.bonus?.[k])
-      .map(k => `${GEAR_STATS[k]} +${(I[k] || 0) + (g?.bonus?.[k] || 0)}${g?.bonus?.[k] ? ` <small class="up">(+${g.bonus[k]})</small>` : ""}`);
+      .map(k => {
+        const v = g?.vary?.[k] || 0, b = g?.bonus?.[k] || 0;
+        return `${GEAR_STATS[k]} +${(I[k] || 0) + v + b}${v ? ` <small class="${v > 0 ? "lucky" : "bad"}">(${v > 0 ? "+" : ""}${v})</small>` : ""}${b ? ` <small class="up">(+${b})</small>` : ""}`;
+      });
     if (bon.length) h += `<p>${bon.join("　")}</p>`;
-    h += `<p class="dim">可升級次數 ${g ? gearLeft(g) : I.slots}</p>`;
+    h += `<p class="dim">可升級次數 ${g ? gearLeft(g) : I.slots}${g?.guard ? "．已貼防爆卷軸" : ""}</p>`;
+    if (I.set) {
+      const S = SETS[I.set], n = setCount(I.set);
+      h += `<p class="set">${esc(S.name)}（身上 ${n} / ${S.items.length} 件）</p>`
+        + Object.entries(S.tiers).map(([need, add]) => `<p class="${n >= need ? "set" : "dim"}">${need} 件：${Object.entries(add).map(([k, v]) => `${GEAR_STATS[k]} +${v}`).join("、")}</p>`).join("");
+    }
     const req = reqLines(I);
     if (req.length) h += `<p>需求：${req.map(l => `<span class="${l.ok ? "dim" : "bad"}">${esc(l.text)}</span>`).join("、")}</p>`;
   } else {
@@ -327,7 +388,9 @@ function invInfo() {
   const I = ITEMS[s.id];
   if (I.scroll && scrollPick === invSel) {
     const list = scrollTargets(I.scroll);
-    return `<div class="info"><h3>${esc(I.name)}</h3><p class="dim">要強化哪一件？成功率 ${Math.round(I.scroll.rate * 100)}%，不管成不成功都會用掉一次可升級次數。</p>`
+    const how = I.scroll.kind === "guard" ? "要貼在哪一件上？" : I.scroll.kind === "restore" ? `要回復哪一件？成功率 ${Math.round(I.scroll.rate * 100)}%。`
+      : `要強化哪一件？成功率 ${Math.round(I.scroll.rate * 100)}%，失敗會用掉一次可升級次數（貼了防爆卷軸就不會）。`;
+    return `<div class="info"><h3>${esc(I.name)}</h3><p class="dim">${how}</p>`
       + list.map(([t, g, where]) => `<button type="button" class="btn pickgear" data-target="${t}">${esc(gearName(g))}${where}　剩 ${gearLeft(g)} 次</button>`).join("")
       + `<div class="acts">${actBtn("cancel", "取消")}</div></div>`;
   }
@@ -350,7 +413,10 @@ function renderEquip() {
   }
   html += `</div>`;
   const bon = Object.keys(GEAR_STATS).filter(k => gear(k)).map(k => `${GEAR_STATS[k]} +${gear(k)}`);
-  html += `<p class="note">裝備加成：${bon.join("、") || "沒有"}</p><div data-info>${equipInfo()}</div>`;
+  const sets = Object.entries(SETS).map(([id, S]) => [S, setCount(id)]).filter(([, n]) => n >= 2);
+  html += `<p class="note">裝備加成：${bon.join("、") || "沒有"}</p>`
+    + sets.map(([S, n]) => `<p class="note set">${esc(S.name)} ${n} / ${S.items.length} 件</p>`).join("")
+    + `<div data-info>${equipInfo()}</div>`;
   equipBody.innerHTML = html;
 }
 function equipInfo() {
@@ -365,7 +431,7 @@ function doInv(act) {
   else if (act === "use" && invTab === "use" && ITEMS[s.id].warp) readScroll(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].scroll) {
     if (scrollTargets(ITEMS[s.id].scroll).length) { scrollPick = i; return; }
-    hint("沒有可以用這張卷軸的裝備");
+    hint(ITEMS[s.id].scroll.kind === "restore" ? "沒有強化失敗過的裝備" : "沒有可以用這張卷軸的裝備");
   } else if (act === "cancel") { scrollPick = null; return; }
   else if (act === "drop") discard(invTab, i);
   if (!P.bag[invTab][i] || P.bag[invTab][i] !== s) invSel = null;

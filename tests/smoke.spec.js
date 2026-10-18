@@ -529,6 +529,80 @@ test("倒下損失的經驗值隨等級變少，新手不會損失", async ({ pa
   expect(errors).toEqual([]);
 });
 
+test("怪物掉的裝備能力會小幅浮動，不會超過一成", async ({ page }) => {
+  await openGame(page);
+  // 狂嵐巨劍攻擊 52：每次浮動在 -5～+5 之間，擲 300 次應該有好運也有壞運
+  const rolls = await page.evaluate(() => Array.from({ length: 300 }, () => rollGear("storm_blade").vary?.watk || 0));
+  expect(Math.min(...rolls)).toBeGreaterThanOrEqual(-5);
+  expect(Math.max(...rolls)).toBeLessThanOrEqual(5);
+  expect(rolls.some(v => v > 0) && rolls.some(v => v < 0)).toBe(true);
+});
+
+test("套裝：穿上霧林套裝 3 件，多出 2 件和 3 件的加成", async ({ page }) => {
+  const errors = await openWithSave(page, {
+    ...LV30_WARRIOR, bag: { equip: [], use: [], etc: [] },
+    eq: { weapon: { id: "wood_sword", n: 1 }, hat: { id: "fog_hood", n: 1 }, top: { id: "lizard_mail", n: 1 }, bottom: { id: "lizard_greaves", n: 1 } },
+  });
+  // 防禦 14 + 20 + 15，再加 2 件的 5；攻擊是木劍 17 加 3 件的 3
+  expect(await page.evaluate(() => [gear("def"), gear("watk")])).toEqual([54, 20]);
+  await page.locator("#game").click();
+  await page.keyboard.press("e");
+  await expect(page.locator("#equipWin")).toContainText("霧林套裝 3 / 4 件");
+  expect(errors).toEqual([]);
+});
+
+test("倉庫：存進去的東西重新整理後還在，也拿得回來", async ({ page }) => {
+  const errors = await openGame(page);
+  await clickNpc(page, 790);
+  await page.locator("#dlg").getByRole("button", { name: /打開倉庫/ }).click();
+  const win = page.locator("#shopWin");
+  await win.getByRole("tab", { name: "消耗" }).click();
+  await win.getByRole("button", { name: "全部存入紅藥水" }).click();
+  let saved = await readSave(page);
+  expect(saved.storage.filter(Boolean)).toEqual([{ id: "red_pot", n: 5 }]);
+  expect(itemCount(saved, "red_pot")).toBe(0);
+
+  await page.reload();
+  await clickNpc(page, 790);
+  await page.locator("#dlg").getByRole("button", { name: /打開倉庫/ }).click();
+  await win.getByRole("tab", { name: "取出" }).click();
+  await win.getByRole("button", { name: "全部取出紅藥水" }).click();
+  saved = await readSave(page);
+  expect(itemCount(saved, "red_pot")).toBe(5);
+  expect(saved.storage.filter(Boolean)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("防爆卷軸擋住一次失敗，回復卷軸補回失敗的次數", async ({ page }) => {
+  // 先讓亂數固定成 0.99：一般卷軸一定失敗
+  await page.addInitScript(() => { Math.random = () => 0.99; });
+  const errors = await openWithSave(page, {
+    ...LV10_BEGINNER, eq: { weapon: { id: "iron_blade", n: 1, left: 5 } },
+    bag: { equip: [], use: [{ id: "guard_scroll", n: 1 }, { id: "scroll_wpn60", n: 2 }, { id: "restore_scroll", n: 1 }], etc: [] },
+  });
+  await page.locator("#game").click();
+  await page.keyboard.press("i");
+  const inv = page.locator("#invWin");
+  await inv.getByRole("tab", { name: "消耗" }).click();
+  const useOn = async (scroll, target) => {
+    await inv.getByRole("button", { name: scroll }).click();
+    await inv.getByRole("button", { name: "使用" }).click();
+    await inv.getByRole("button", { name: target }).click();
+  };
+  await useOn(/防爆卷軸/, /精鐵長劍（身上）/);
+  await useOn(/武器攻擊卷軸/, /精鐵長劍（身上）/);
+  // 有防爆卷軸：失敗也不扣，而且防爆卷軸用掉了
+  expect((await readSave(page)).eq.weapon).toEqual({ id: "iron_blade", n: 1, left: 5 });
+  await useOn(/武器攻擊卷軸/, /精鐵長劍（身上）/);
+  expect((await readSave(page)).eq.weapon.left).toBe(4);
+
+  // 換成一定成功：回復卷軸把一次失敗的次數補回來
+  await page.evaluate(() => { Math.random = () => 0; });
+  await useOn(/回復卷軸/, /精鐵長劍（身上）/);
+  expect((await readSave(page)).eq.weapon.left).toBe(5);
+  expect(errors).toEqual([]);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 
