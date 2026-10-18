@@ -159,6 +159,8 @@ const SLASH_T = 0.55, STAB_T = 0.45, SKILL_T = 0.6;
 const UI = '"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif';
 const NUM = '"Lilita One","Arial Black",sans-serif';
 const SAVE_KEY = "floating-isle-v1";
+// experience multiplier: 3x gets a new character to the first job in roughly ten minutes
+const EXP_RATE = 3;
 
 const cv = document.getElementById("game");
 const ctx = cv.getContext("2d");
@@ -642,8 +644,8 @@ function dealDamage(m, o = {}) {
   if (m.hp <= 0) kill(m);
 }
 function kill(m) {
-  m.dead = true; m.deadT = m.T.respawn || 7;
-  gainExp(m.T.exp);
+  m.dead = true; m.deadT = m.T.respawn || 5;
+  gainExp(m.T.exp * EXP_RATE);
   const mcx = m.x + m.w / 2, my = m.y + m.h / 2;
   const boss = m.t === "boss", items = [];
   const coinDrops = boss ? 8 : (Math.random() < 0.9 ? 1 : 0);
