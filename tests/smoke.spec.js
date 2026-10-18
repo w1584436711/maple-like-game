@@ -89,10 +89,11 @@ const LV10_BEGINNER = {
   lv: 10, exp: 0, job: "beginner", str: 35, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
   mhp: 176, mmp: 104, hp: 176, mp: 104, coins: 0, pots: { hp: 5, mp: 3 },
 };
-// 轉職教官站在 x=168 的地面上；鏡頭一開始在地圖左下角，所以她在畫面 (168, 420～480)
-async function clickNpc(page) {
+// 村裡的 NPC 都站在地面上：轉職教官 x=168、道具商 330、武器商 490、村長 660。
+// 鏡頭一開始在地圖左下角，地面在畫面 y=456，所以點 (x, 440) 就會點到他們的身體
+async function clickNpc(page, x = 168) {
   const box = await page.locator("#game").boundingBox();
-  await page.mouse.click(box.x + box.width * 168 / 960, box.y + box.height * 455 / 540);
+  await page.mouse.click(box.x + box.width * x / 960, box.y + box.height * 440 / 540);
 }
 
 test("舊存檔會補回能力值，能在能力值視窗加點", async ({ page }) => {
@@ -218,9 +219,9 @@ test("穿上、卸下裝備，等級不夠就穿不上", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("弓手射箭會用掉箭矢，用完可以找轉職教官補", async ({ page }) => {
+test("弓手射箭會用掉箭矢，用完可以跟道具商買", async ({ page }) => {
   const errors = await openWithSave(page, {
-    ...LV10_BEGINNER, job: "bowman", str: 4, dex: 25,
+    ...LV10_BEGINNER, job: "bowman", str: 4, dex: 25, coins: 500,
     bag: { equip: [], use: [{ id: "arrow", n: 2 }], etc: [] },
     eq: { weapon: { id: "hunter_bow", n: 1 } },
   });
@@ -230,11 +231,78 @@ test("弓手射箭會用掉箭矢，用完可以找轉職教官補", async ({ pa
   await page.keyboard.up("x");
   expect(itemCount(await readSave(page), "arrow")).toBe(0);
 
-  await clickNpc(page);
+  await clickNpc(page, 330);
+  await page.locator("#dlg").getByRole("button", { name: /買賣/ }).click();
+  const shop = page.locator("#shopWin");
+  await expect(shop).toContainText("道具商 莫莉");
+  await shop.getByRole("button", { name: "買木箭矢" }).click();
+  const saved = await readSave(page);
+  expect(itemCount(saved, "arrow")).toBe(100);
+  expect(saved.coins).toBe(400);
+  expect(errors).toEqual([]);
+});
+
+test("賣裝備要按兩次確認", async ({ page }) => {
+  const errors = await openWithSave(page, {
+    ...LV10_BEGINNER, coins: 0,
+    bag: { equip: [{ id: "iron_blade", n: 1 }], use: [], etc: [{ id: "green_gel", n: 10 }] }, eq: { weapon: { id: "wood_sword", n: 1 } },
+  });
+  await clickNpc(page, 490);
+  await page.locator("#dlg").getByRole("button", { name: /買賣/ }).click();
+  const shop = page.locator("#shopWin");
+  await shop.getByRole("tab", { name: "賣" }).click();
+  await shop.getByRole("tab", { name: "裝備" }).click();
+  await shop.getByRole("button", { name: "賣掉精鐵長劍" }).click();
+  await expect(shop.getByRole("button", { name: "賣掉精鐵長劍" })).toHaveText("確定賣掉？");
+  expect(itemCount(await readSave(page), "iron_blade")).toBe(1);
+  await shop.getByRole("button", { name: "賣掉精鐵長劍" }).click();
+  await shop.getByRole("tab", { name: "其他" }).click();
+  await shop.getByRole("button", { name: "全部賣掉青果凍凝膠" }).click();
+  const saved = await readSave(page);
+  expect(itemCount(saved, "iron_blade")).toBe(0);
+  expect(saved.coins).toBe(1500 + 60);
+  expect(errors).toEqual([]);
+});
+
+test("找村長接任務，任務日誌顯示進度", async ({ page }) => {
+  const errors = await openGame(page);
+  await clickNpc(page, 660);
   const dlg = page.locator("#dlg");
-  await dlg.getByRole("button", { name: /木箭矢用完了/ }).click();
+  await dlg.getByRole("button", { name: /【任務】果凍大掃除/ }).click();
+  await dlg.getByRole("button", { name: /交給我/ }).click();
+  await dlg.getByRole("button", { name: /知道了/ }).click();
+  await page.keyboard.press("q");
+  await expect(page.locator("#questWin")).toContainText("打倒青果凍 0 / 10");
+  expect((await readSave(page)).quests.q_jelly.state).toBe("active");
+  expect(errors).toEqual([]);
+});
+
+test("打倒的數量夠了，回村長那裡拿獎勵", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV10_BEGINNER, lv: 3, coins: 0, quests: { q_jelly: { state: "active", kills: { jelly: 10 } } } });
+  await clickNpc(page, 660);
+  const dlg = page.locator("#dlg");
+  await dlg.getByRole("button", { name: /【完成】果凍大掃除/ }).click();
   await dlg.getByRole("button", { name: /謝謝/ }).click();
-  expect(itemCount(await readSave(page), "arrow")).toBe(250);
+  const saved = await readSave(page);
+  expect(saved.quests.q_jelly.state).toBe("done");
+  expect(saved.coins).toBe(300);
+  expect(itemCount(saved, "red_pot")).toBe(15);
+  expect(saved.lv).toBeGreaterThan(3);
+  expect(errors).toEqual([]);
+});
+
+test("收集任務會收走材料、給裝備", async ({ page }) => {
+  const errors = await openWithSave(page, {
+    ...LV10_BEGINNER, lv: 5, quests: { q_jelly: { state: "done" }, q_gel: { state: "active", kills: {} } },
+    bag: { equip: [], use: [], etc: [{ id: "blue_gel", n: 18 }] }, eq: { weapon: { id: "wood_sword", n: 1 } },
+  });
+  await clickNpc(page, 660);
+  const dlg = page.locator("#dlg");
+  await dlg.getByRole("button", { name: /【完成】冰涼的凝膠/ }).click();
+  await dlg.getByRole("button", { name: /謝謝/ }).click();
+  const saved = await readSave(page);
+  expect(itemCount(saved, "blue_gel")).toBe(3);
+  expect(itemCount(saved, "travel_cape")).toBe(1);
   expect(errors).toEqual([]);
 });
 
