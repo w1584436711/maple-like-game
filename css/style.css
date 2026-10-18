@@ -128,3 +128,6 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 .btn.pickgear{display:block;width:100%;text-align:left;margin-top:5px}
 .keyrow .keys{flex:none;display:flex;gap:4px}
 .keyrow .keys kbd{font-size:.75rem}
+/* rolled stats and sets */
+.info .lucky{color:#8fe07a}
+.info .set,.note.set{color:#9fd0ff}

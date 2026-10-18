@@ -80,6 +80,10 @@ const ITEMS = {
                    color: "#c8d8f0", seal: "#3a7be0", desc: "60% 機率讓帽子、衣服、褲子、鞋子、披風或盾牌的防禦加 2、HP 加 5" },
   scroll_arm10:  { name: "防具防禦卷軸 10%", cat: "use", scroll: { slots: ["hat", "top", "bottom", "shoes", "cape", "shield"], rate: 0.1, add: { def: 5, hp: 20 } },
                    color: "#c8d8f0", seal: "#d23b3b", desc: "10% 機率讓防具的防禦加 5、HP 加 20" },
+  guard_scroll:  { name: "防爆卷軸", cat: "use", scroll: { kind: "guard" }, color: "#f4f4f4", seal: "#ffc94a",
+                   desc: "貼在一件裝備上：下一次強化失敗時，不會用掉可升級次數。不管成不成功，貼上的防爆卷軸都會用掉" },
+  restore_scroll: { name: "回復卷軸", cat: "use", scroll: { kind: "restore", rate: 0.5 }, color: "#e6f0d0", seal: "#4fae3f",
+                   desc: "50% 機率補回一次因為強化失敗而用掉的可升級次數" },
   scroll_glove60: { name: "手套攻擊卷軸 60%", cat: "use", scroll: { slots: ["gloves"], rate: 0.6, add: { watk: 2 } }, color: "#d8eec0", seal: "#3a7be0",
                    desc: "60% 機率讓手套的攻擊加 2" },
   green_gel:     { name: "青果凍凝膠", color: "#7fd36b", desc: "青果凍留下的黏黏凝膠" },
@@ -109,9 +113,17 @@ const PRICES = {
   wind_boots: 2000, leaf_band: 200, leather_cap: 1500, work_gloves: 300, hunter_gloves: 2500, travel_cape: 1500, moss_cape: 15000,
   wood_shield: 1500, shell_shield: 8000,
   storm_blade: 40000, star_staff: 40000, gale_bow: 40000, fang_claw: 40000, fog_hood: 5000, lizard_mail: 9000, lizard_greaves: 7000,
-  crab_shield: 16000, grove_cape: 30000, scroll_wpn60: 4000, scroll_wpn10: 6000, scroll_arm60: 3000, scroll_arm10: 5000, scroll_glove60: 4000,
+  crab_shield: 16000, grove_cape: 30000, guard_scroll: 8000, restore_scroll: 6000, scroll_wpn60: 4000, scroll_wpn10: 6000, scroll_arm60: 3000, scroll_arm10: 5000, scroll_glove60: 4000,
 };
 const SELL = { green_gel: 6, blue_gel: 12, shell_shard: 25, moss_core: 800, fog_spore: 30, lizard_scale: 50, crab_claw: 1500, ancient_ring: 3000 };
+// sets: wearing more pieces of one set unlocks more of its bonuses (every tier you reach adds up)
+const SETS = {
+  adventurer: { name: "冒險者套裝", items: ["leather_cap", "jelly_tunic", "canvas_pants", "wind_boots"],
+                tiers: { 2: { def: 3 }, 4: { def: 8, hp: 50, avoid: 5 } } },
+  fog:        { name: "霧林套裝", items: ["fog_hood", "lizard_mail", "lizard_greaves", "grove_cape"],
+                tiers: { 2: { def: 5 }, 3: { watk: 3, matk: 3 }, 4: { def: 15, hp: 150, str: 3, dex: 3, int: 3, luk: 3 } } },
+};
+for (const [id, S] of Object.entries(SETS)) S.items.forEach(i => { ITEMS[i].set = id; });
 for (const [id, I] of Object.entries(ITEMS)) {
   I.id = id;
   I.price = PRICES[id] || 0;
@@ -121,11 +133,15 @@ for (const [id, I] of Object.entries(ITEMS)) {
   if (I.wtype) I.jobs = WTYPES[I.wtype].jobs;
   // how many times a piece of gear can be enhanced with scrolls
   if (I.slot) I.slots = I.slots ?? (I.slot === "weapon" ? 7 : 5);
+  // guard and restore scrolls work on any piece of gear
+  if (I.scroll && !I.scroll.slots) I.scroll.slots = Object.keys(EQUIP_SLOTS);
 }
 const newBag = () => ({ equip: Array(BAG_SLOTS).fill(null), use: Array(BAG_SLOTS).fill(null), etc: Array(BAG_SLOTS).fill(null) });
 // puts n of an item into a bag, filling partly used stacks first; returns how many did not fit
-function addTo(bag, id, n = 1) {
-  const I = ITEMS[id], tab = bag[I.cat];
+function addTo(bag, id, n = 1) { return addToList(bag[ITEMS[id].cat], id, n); }
+// the same for any list of slots, such as the storage
+function addToList(tab, id, n = 1) {
+  const I = ITEMS[id];
   for (const s of tab) if (n > 0 && s && s.id === id && s.n < I.stack) { const k = Math.min(n, I.stack - s.n); s.n += k; n -= k; }
   for (let i = 0; i < tab.length && n > 0; i++) if (!tab[i]) { const k = Math.min(n, I.stack); tab[i] = { id, n: k }; n -= k; }
   return n;
