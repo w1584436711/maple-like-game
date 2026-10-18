@@ -112,13 +112,14 @@ function renderQuests() {
   html += block("已完成", all.filter(q => !q.daily && questState(q) === "done"), q => `<div class="quest"><p>✔ ${esc(q.name)}</p></div>`);
   questBody.innerHTML = html || `<p class="note">現在沒有任務。等級提升後再去村裡找人聊聊吧。</p>`;
 }
+// grouped by island; within one, each place leads to the next
 function renderWorld() {
   worldBody.innerHTML = MAP_ORDER.map((id, i) => {
-    const m = MAPS[id], here = m === map;
-    const who = m.town ? "城鎮．轉職教官薇拉在這裡" : mapMobs(id).join("、");
-    return (i ? `<div class="link" aria-hidden="true"></div>` : "")
+    const m = MAPS[id], here = m === map, first = !i || MAPS[MAP_ORDER[i - 1]].area !== m.area;
+    const who = m.town ? m.note : mapMobs(id).join("、");
+    return (first ? `<div class="qhead">${esc(m.area)}</div>` : `<div class="link" aria-hidden="true"></div>`)
       + `<div class="place${here ? " here" : ""}"><b>${esc(m.name)}</b>${here ? `<span class="tag">你在這裡</span>` : ""}<p>${esc(who)}</p></div>`;
-  }).join("") + `<p class="note">走到傳送門按 ↑ 換地圖。讀回村卷軸可以立刻回到浮島村。</p>`;
+  }).join("") + `<p class="note">走到傳送門按 ↑ 換地圖。浮島和雲頂之間找飛船船長搭飛船。回村卷軸會帶你回到這片大陸的城鎮。</p>`;
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const row = (label, value) => `<div class="row"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
@@ -240,6 +241,9 @@ function unequip(slot) {
   afterGearChange();
   msg(`卸下了「${ITEMS[s.id].name}」`, "#cfe3ff");
 }
+// the potion keys drink the strongest kind you are carrying: white before red, mana before blue
+const POTS = { hp: ["white_pot", "red_pot"], mp: ["mana_pot", "blue_pot"] };
+const potFor = kind => POTS[kind].find(id => countItem(id) > 0) || POTS[kind][POTS[kind].length - 1];
 // i picks the bag slot; without it the first stack is used, as with keys 1 and 2
 function drink(id, i = P.bag.use.findIndex(s => s?.id === id)) {
   const I = ITEMS[id];
@@ -254,10 +258,10 @@ function drink(id, i = P.bag.use.findIndex(s => s?.id === id)) {
 }
 function readScroll(i) {
   if (P.dead) return;
-  if (map.town) { hint("你已經在浮島村了"); return; }
+  if (map.town) { hint(`你已經在${map.name}了`); return; }
   takeFromSlot("use", i);
   goToTown();
-  msg("讀了回村卷軸，回到浮島村", "#cfe3ff");
+  msg(`讀了回村卷軸，回到${map.name}`, "#cfe3ff");
   save();
 }
 // gear from monsters comes with each stat a little above or below normal (about 10%, at least 1),

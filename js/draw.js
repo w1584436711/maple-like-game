@@ -60,7 +60,16 @@ function drawBG() {
   ctx.beginPath(); ctx.arc(780 - cam.x * 0.02, 90, 60, 0, Math.PI * 2); ctx.fill();
   // far mountains
   const ox = cam.x * 0.12, oy = cam.y * 0.1, th = map.theme;
-  if (th.sea) {
+  if (th.cloudsea) {
+    // banks of cloud rolling slowly below the island
+    const sy = 320 - oy;
+    ctx.fillStyle = vgrad(sy, H, "rgba(255,255,255,.95)", "rgba(220,232,248,.95)"); ctx.fillRect(0, sy + 20, W, H - sy);
+    ctx.fillStyle = "#ffffff";
+    for (let i = 0; i < 14; i++) {
+      const x = ((i * 110 - ox * 1.2 + time * 6) % 1540 + 1540) % 1540 - 160;
+      ctx.beginPath(); ctx.ellipse(x, sy + 24 + (i % 3) * 6, 70 + (i % 4) * 14, 26, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (th.sea) {
     // open sea with slow rolling wave lines
     const sy = 330 - oy;
     ctx.fillStyle = vgrad(sy, H, th.far, shade(th.far, -0.3)); ctx.fillRect(0, sy, W, H - sy);
@@ -110,6 +119,7 @@ function drawTree(t) {
   const kind = map.theme.tree;
   if (kind === "palm") drawPalm(t);
   else if (kind === "pine") drawPine(t);
+  else if (kind === "spire") drawSpire(t);
   else if (kind === "pillar") drawPillar(t);
   else drawOak(t);
 }
@@ -133,6 +143,18 @@ function drawPalm(t) {
   }
   ctx.fillStyle = "#6b4a2a";
   for (const [dx, dy] of [[-5, 6], [4, 7], [0, 11]]) { ctx.beginPath(); ctx.arc(top.x + dx, top.y + dy, 4.2, 0, Math.PI * 2); ctx.fill(); }
+}
+// a white tower of the cloud island: marble walls, little windows, a gold roof and a pennant
+function drawSpire(t) {
+  const by = 840, h = t.h * 1.1, x = t.x, w = 22;
+  const g = ctx.createLinearGradient(x - w, 0, x + w, 0); g.addColorStop(0, "#ffffff"); g.addColorStop(1, "#c8d4e6");
+  ctx.beginPath(); ctx.rect(x - w, by - h, w * 2, h); paint(g, "rgba(60,70,100,.5)", 1.3);
+  ctx.fillStyle = "#7ab8f0";
+  for (let y = by - h + 24; y < by - 20; y += 34) { ctx.beginPath(); rr(x - 5, y, 10, 16, 5); ctx.fill(); }
+  ctx.beginPath(); ctx.moveTo(x - w - 6, by - h); ctx.lineTo(x, by - h - 40); ctx.lineTo(x + w + 6, by - h); ctx.closePath();
+  paint(vgrad(by - h - 40, by - h, "#ffe08a", "#c8952a"), "rgba(90,60,10,.7)", 1.3);
+  ctx.strokeStyle = "#8a6237"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, by - h - 40); ctx.lineTo(x, by - h - 58); ctx.stroke();
+  ctx.fillStyle = "#e0453b"; ctx.beginPath(); ctx.moveTo(x, by - h - 58); ctx.lineTo(x + 16 + Math.sin(time * 3) * 2, by - h - 53); ctx.lineTo(x, by - h - 48); ctx.fill();
 }
 // a tall dark pine: a short trunk under four stacked tiers of needles
 function drawPine(t) {
@@ -180,6 +202,33 @@ function drawOak(t) {
   if (t.c) { ctx.fillStyle = "#e0453b"; for (const [dx, dy] of [[-0.15, -0.6], [0.18, -0.7]]) { ctx.beginPath(); ctx.arc(t.x + dx * h, by + dy * h, 3.2, 0, Math.PI * 2); ctx.fill(); } }
 }
 
+// the airship: a striped balloon on ropes over a wooden hull, bobbing gently, with a spinning propeller
+function drawAirship(x, y) {
+  y += Math.sin(time * 1.4) * 3;
+  ctx.strokeStyle = "rgba(90,60,30,.8)"; ctx.lineWidth = 1.4;
+  for (const dx of [-40, -14, 14, 40]) { ctx.beginPath(); ctx.moveTo(x + dx * 0.9, y - 46); ctx.lineTo(x + dx * 0.7, y - 18); ctx.stroke(); }
+  ctx.beginPath(); ctx.ellipse(x, y - 76, 72, 34, 0, 0, Math.PI * 2); paint(vgrad(y - 110, y - 42, "#ffd27a", "#d8893a"), "rgba(90,45,10,.75)", 1.8);
+  ctx.save(); ctx.clip();
+  ctx.fillStyle = "rgba(200,70,50,.55)";
+  for (const dx of [-48, -16, 16, 48]) { ctx.beginPath(); ctx.ellipse(x + dx, y - 76, 8, 36, 0, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+  ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.beginPath(); ctx.ellipse(x - 26, y - 92, 22, 7, -0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x - 64, y - 20); ctx.lineTo(x + 64, y - 20); ctx.quadraticCurveTo(x + 58, y + 8, x, y + 8); ctx.quadraticCurveTo(x - 58, y + 8, x - 64, y - 20); ctx.closePath();
+  paint(vgrad(y - 20, y + 8, "#a06a3a", "#6a4224"), "rgba(50,30,15,.8)", 1.6);
+  ctx.fillStyle = "#e7c45a"; ctx.fillRect(x - 60, y - 16, 120, 3);
+  ctx.fillStyle = "rgba(60,40,20,.6)"; for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.arc(x + i * 16, y - 6, 2.6, 0, Math.PI * 2); ctx.fill(); }
+  const spin = Math.abs(Math.sin(time * 18));
+  ctx.fillStyle = "rgba(200,210,220,.8)"; ctx.beginPath(); ctx.ellipse(x - 70, y - 10, 3, 14 * spin + 2, 0, 0, Math.PI * 2); ctx.fill();
+}
+// the cloud town: the airship at the dock and a sign welcoming you
+function drawCloudTown() {
+  drawAirship(NPCS.gray2.x + 40, 640);
+  const x = 520, y = 840;
+  ctx.fillStyle = "#8a6237"; ctx.fillRect(x - 3, y - 60, 6, 60);
+  ctx.beginPath(); rr(x - 46, y - 82, 92, 28, 5); paint(vgrad(y - 82, y - 54, "#fff6e0", "#e8d6a8"), "rgba(90,60,30,.7)", 1.4);
+  ctx.font = `900 13px ${UI}`; ctx.textAlign = "center"; ctx.fillStyle = "#5a3a1a"; ctx.fillText("雲頂城", x, y - 63); ctx.textAlign = "left";
+}
+
 function drawVillage() {
   const hx = 8, hy = 840;
   // chimney behind the roof
@@ -219,6 +268,7 @@ function drawVillage() {
   }
   drawStall(NPCS.molly.x, "#e88aa6", "red_pot");
   drawStall(NPCS.borin.x, "#d9823a", "iron_blade");
+  drawAirship(NPCS.gray.x - 40, 640);
 }
 
 // a market stall behind a shopkeeper: posts, a striped awning, a counter and a hanging sign
@@ -724,6 +774,88 @@ function drawMob(m) {
       ctx.restore();
     };
     claw(-60, false); claw(62, true);
+  } else if (m.t === "sheep") {
+    // a fluffy sheep made of cloud, with a dark face and curled horns
+    const walking = m.state === "walk" || m.aggro > 0, step = walking ? Math.sin(m.ph * 10) * 3 : 0;
+    ctx.scale(f, 1);
+    for (const [x, s2] of [[-14, step], [-6, -step], [6, step], [14, -step]]) { ctx.beginPath(); rr(x - 2.5 + s2 * 0.5, -12, 5, 12, 2); paint("#4a4a5a"); }
+    ctx.translate(0, walking ? -Math.abs(Math.sin(m.ph * 8)) * 3 : 0);
+    const puffs = [[-13, -22, 11], [0, -28, 12], [12, -22, 11], [-7, -14, 10], [7, -14, 10], [0, -19, 12]];
+    ctx.beginPath(); for (const [x, y, r] of puffs) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, Math.PI * 2); }
+    ctx.fillStyle = white ? "#fff" : vgrad(-40, -4, "#ffffff", "#d6e2f2"); ctx.fill();
+    ctx.strokeStyle = "rgba(90,110,150,.45)"; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(21, -22, 8, 10, 0.15, 0, Math.PI * 2); paint(white ? "#fff" : "#4a4a5a");
+    ctx.strokeStyle = "#d8b06a"; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.arc(16, -30, 5, Math.PI * 0.9, Math.PI * 2.3); ctx.stroke();
+    if (!blinking(m.ph * 0.4)) { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(24, -24, 2, 0, Math.PI * 2); ctx.fill(); }
+    if (m.aggro > 0) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(21, -29); ctx.lineTo(26, -27); ctx.stroke(); }
+  } else if (m.t === "sprite") {
+    // a bell-shaped wind spirit floating above the ground on fluttering wings
+    ctx.translate(0, -10 - Math.sin(m.ph * 3) * 4);
+    ctx.scale(f, 1);
+    const flap = Math.sin(m.ph * 14) * 0.4;
+    for (const s2 of [-1, 1]) {
+      ctx.save(); ctx.translate(s2 * 9, -26); ctx.rotate(s2 * (0.5 + flap));
+      ctx.fillStyle = "rgba(210,255,250,.55)"; ctx.beginPath(); ctx.ellipse(s2 * 10, 0, 12, 6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.moveTo(-15, -2); ctx.quadraticCurveTo(-16, -40, 0, -40); ctx.quadraticCurveTo(16, -40, 15, -2); ctx.quadraticCurveTo(0, 2, -15, -2); ctx.closePath();
+    paint(white ? "#fff" : gloss("#7fd8cc", -40, 0), "#2f6f6a", 1.6);
+    ctx.beginPath(); rr(-17, -6, 34, 5, 2.5); paint(white ? "#fff" : "#e7c45a", INK, 1);
+    ctx.beginPath(); ctx.arc(0, 3 + Math.sin(m.ph * 6) * 2, 3.2, 0, Math.PI * 2); paint("#e7c45a", INK, 1);
+    eyes(-1, 7, -22, 2.4, 0.6, blinking(m.ph * 0.5), "#1f4f4a");
+    ctx.strokeStyle = "rgba(255,255,255,.6)"; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(-6, -30, 6, Math.PI, Math.PI * 1.6); ctx.stroke();
+  } else if (m.t === "rhino") {
+    // a heavy storm rhino with a horn that crackles yellow
+    const walking = m.state === "walk" || m.aggro > 0, step = walking ? Math.sin(m.ph * 9) * 3 : 0, hide = "#4a5a80";
+    ctx.scale(f, 1);
+    for (const [x, s2] of [[-22, step], [-10, -step], [12, step], [24, -step]]) { ctx.beginPath(); rr(x - 5 + s2 * 0.5, -16, 10, 16, 3); paint(white ? "#fff" : gloss(shade(hide, -0.15), -16, 0)); }
+    ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-34, -28); ctx.quadraticCurveTo(-42, -24, -40, -16); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, -26, 34, 18, 0, 0, Math.PI * 2); paint(white ? "#fff" : gloss(hide, -44, -8), "#1f2a40", 1.8);
+    ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.lineWidth = 2;
+    for (const x of [-16, -4, 8]) { ctx.beginPath(); ctx.arc(x, -26, 12, Math.PI * 1.2, Math.PI * 1.8); ctx.stroke(); }
+    ctx.beginPath(); ctx.ellipse(32, -24, 14, 12, 0.1, 0, Math.PI * 2); paint(white ? "#fff" : gloss(hide, -36, -12), "#1f2a40", 1.6);
+    ctx.save(); ctx.shadowColor = "#ffe066"; ctx.shadowBlur = m.aggro > 0 ? 12 : 6;
+    ctx.beginPath(); ctx.moveTo(38, -28); ctx.lineTo(54, -46); ctx.lineTo(44, -24); ctx.closePath(); paint(vgrad(-46, -24, "#fff6b0", "#e0b62a"), INK, 1.2);
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(30, -28, 2.8, 0, Math.PI * 2); paint(m.aggro > 0 ? "#ff6a4a" : "#ffe066", INK, 1);
+    ctx.beginPath(); ctx.ellipse(24, -34, 3, 5, -0.4, 0, Math.PI * 2); paint(hide, INK, 1);
+  } else if (m.t === "eagle") {
+    // a storm eagle standing on its altar; its wings spread and crackle before it calls down lightning
+    const wind = m.wind > 0 ? 1 - m.wind / m.T.slam.wind : 0, shake = m.wind > 0 ? Math.sin(m.ph * 60) * 2 : 0;
+    const b = Math.sin(m.ph * 2) * 2, plum = "#5a4a8a";
+    ctx.translate(shake, 0); ctx.scale(f, 1);
+    const wing = (side) => {
+      ctx.save(); ctx.translate(side * 14, -86 + b); ctx.rotate(side * (0.35 + wind * 1.1) - wind * 0.3);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(side * 70, -30, side * 90, 10); ctx.quadraticCurveTo(side * 60, 20, side * 50, 46);
+      ctx.quadraticCurveTo(side * 30, 30, 0, 30); ctx.closePath(); paint(white ? "#fff" : gloss(plum, -30, 46), "#2a1f45", 1.8);
+      ctx.strokeStyle = "rgba(255,255,255,.2)"; ctx.lineWidth = 1.5;
+      for (const k of [0.4, 0.6, 0.8]) { ctx.beginPath(); ctx.moveTo(side * 20 * k, 26 * k); ctx.lineTo(side * 80 * k, 4 + 30 * k); ctx.stroke(); }
+      ctx.restore();
+    };
+    wing(-1);
+    ctx.strokeStyle = "#e0a93a"; ctx.lineWidth = 6; ctx.lineCap = "round";
+    for (const x of [-14, 14]) { ctx.beginPath(); ctx.moveTo(x, -34); ctx.lineTo(x, -4); ctx.moveTo(x - 7, -2); ctx.lineTo(x + 8, -2); ctx.stroke(); }
+    ctx.lineCap = "butt";
+    ctx.beginPath(); ctx.ellipse(0, -74 + b, 40, 46, 0, 0, Math.PI * 2); paint(white ? "#fff" : gloss(plum, -120, -28), "#2a1f45", 2);
+    ctx.fillStyle = white ? "#fff" : "rgba(220,210,250,.5)"; ctx.beginPath(); ctx.ellipse(12, -66 + b, 20, 28, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(26, -118 + b, 20, 0, Math.PI * 2); paint(white ? "#fff" : vgrad(-138, -98, "#ffffff", "#c8c8e0"), "#2a1f45", 1.8);
+    ctx.fillStyle = white ? "#fff" : "#8a7ac8";
+    for (const k of [0, 1, 2]) { ctx.beginPath(); ctx.moveTo(10 + k * 6, -134 + b); ctx.lineTo(2 + k * 8, -152 + b - k * 2); ctx.lineTo(18 + k * 6, -136 + b); ctx.fill(); }
+    ctx.beginPath(); ctx.moveTo(42, -124 + b); ctx.quadraticCurveTo(64, -122 + b, 58, -106 + b); ctx.lineTo(44, -112 + b); ctx.closePath(); paint("#f0c040", INK, 1.4);
+    const glow = m.wind > 0 ? "#ff5a3a" : "#ffe066";
+    ctx.save(); ctx.fillStyle = glow; ctx.shadowColor = glow; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.ellipse(34, -122 + b, 4, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    wing(1);
+    if (m.wind > 0) {
+      ctx.save(); ctx.strokeStyle = "rgba(255,250,180,.9)"; ctx.lineWidth = 2; ctx.shadowColor = "#ffe066"; ctx.shadowBlur = 10;
+      for (let k = 0; k < 3; k++) {
+        ctx.beginPath(); let x = rand(-60, 60), y = -150;
+        ctx.moveTo(x, y); for (let j = 0; j < 4; j++) { x += rand(-14, 14); y += 22; ctx.lineTo(x, y); }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   } else if (m.t === "treant") {
     // an old tree come alive: roots for feet, a bark face that glows, branch arms and a leafy crown
     const wind = m.wind > 0 ? 1 - m.wind / m.T.slam.wind : 0, shake = m.wind > 0 ? Math.sin(m.ph * 60) * 2 : 0;
@@ -1173,8 +1305,8 @@ function drawHUD() {
   const SKILL_COLORS = { atk: "#ff9b5a", buff: "#7fd0ff" };
   const short = a => keyOf(a).replace("Shift", "⇧").replace("Num ", "N");
   const slots = [
-    { key: short("hpPot"), label: "紅藥", sub: "×" + countItem("red_pot"), c: "#e0453b", dim: !countItem("red_pot") },
-    { key: short("mpPot"), label: "藍藥", sub: "×" + countItem("blue_pot"), c: "#3a7be0", dim: !countItem("blue_pot") },
+    ...["hp", "mp"].map(k => { const id = potFor(k), I = ITEMS[id], n = countItem(id);
+      return { key: short(`${k}Pot`), label: I.name.slice(0, 2), sub: "×" + n, c: I.color, dim: !n }; }),
     ...slotSkills().map((s, i) => {
       const l = skLv(s.id);
       return { key: short(`skill${i + 1}`), label: s.name.slice(0, 2), sub: l ? `MP ${s.mp(l)}` : "未學",
@@ -1253,7 +1385,7 @@ function drawHUD() {
     ctx.fillStyle = "rgba(10,14,24,.55)"; ctx.fillRect(0, 0, W, H - 48);
     ctx.textAlign = "center";
     ctx.font = `900 30px ${UI}`; outlinedText("你倒下了", W / 2, H / 2 - 30, "#ffffff", "rgba(0,0,0,.6)", 5);
-    if (P.deadT > 1) { ctx.font = `700 15px ${UI}`; ctx.fillStyle = "#cfe3ff"; ctx.fillText("按 Enter、空白鍵或點一下畫面，回到浮島村", W / 2, H / 2 + 6); }
+    if (P.deadT > 1) { ctx.font = `700 15px ${UI}`; ctx.fillStyle = "#cfe3ff"; ctx.fillText(`按 Enter、空白鍵或點一下畫面，回到${homeOf().name}`, W / 2, H / 2 + 6); }
     ctx.textAlign = "left";
   }
 }
@@ -1265,7 +1397,8 @@ function draw() {
   ctx.save();
   ctx.translate(Math.round(-cam.x + sx), Math.round(-cam.y + sy));
   trees.forEach(drawTree);
-  if (map.town) drawVillage();
+  if (map.scene === "village") drawVillage();
+  else if (map.scene === "cloud") drawCloudTown();
   for (let i = plats.length - 1; i >= 0; i--) drawPlatform(plats[i]);
   ladders.forEach(drawLadder);
   portals.forEach(drawPortal);
@@ -1277,6 +1410,10 @@ function draw() {
   drawFX();
   drawNums();
   ctx.restore();
+  if (map.theme.storm) {
+    const k = time % 7;
+    if (k < 0.18) { ctx.fillStyle = `rgba(230,230,255,${0.35 * (1 - k / 0.18)})`; ctx.fillRect(0, 0, W, H); }
+  }
   if (map.theme.mist) {
     for (let i = 0; i < 4; i++) {
       const x = ((time * (10 + i * 4) + i * 300 - cam.x * 0.4) % 1400 + 1400) % 1400 - 220, y = 250 + i * 70 - cam.y * 0.15;

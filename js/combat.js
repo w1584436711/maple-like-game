@@ -129,7 +129,7 @@ function revive() {
   P.dead = false;
   goToTown();
   P.hp = Math.ceil(maxHp() * 0.5); P.mp = Math.ceil(maxMp() * 0.5); P.inv = 2;
-  msg("在浮島村重新站了起來", "#cfe3ff");
+  msg(`在${map.name}重新站了起來`, "#cfe3ff");
   save();
 }
 
@@ -234,8 +234,8 @@ function playerActions(dt0) {
     if (held.has("attack")) basicAttack();
     else if (slot >= 0) useSkill(slotSkills()[slot], keyOf(`skill${slot + 1}`));
   }
-  if (pressed.has("hpPot")) drink("red_pot");
-  if (pressed.has("mpPot")) drink("blue_pot");
+  if (pressed.has("hpPot")) drink(potFor("hp"));
+  if (pressed.has("mpPot")) drink(potFor("mp"));
 }
 
 const meleeBox = reach => P.face > 0
