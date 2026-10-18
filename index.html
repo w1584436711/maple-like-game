@@ -97,6 +97,13 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 .btn:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
 .money{margin-top:8px;color:var(--muted)}
 .money b{font-family:var(--num);font-weight:400;color:#ffe7a3;font-size:.95rem}
+/* world map: the places as cards joined by a path, the current one in gold */
+.place{border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:rgb(255 255 255 / .03)}
+.place.here{border-color:var(--gold);background:rgb(255 201 74 / .08)}
+.place b{font-size:.88rem}
+.place p{margin:2px 0 0;color:var(--muted);line-height:1.45}
+.place .tag{margin-left:6px;font-size:.72rem;color:#4a2e00;background:var(--gold);border-radius:6px;padding:1px 6px}
+.link{width:2px;height:12px;margin:0 auto;background:var(--line)}
 /* NPC dialog: a parchment card, the one warm surface in the UI */
 .dlg{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:min(460px,92%);max-height:88%;overflow:auto;background:#f7f0de;color:#33281c;border:3px solid #c79a5b;border-radius:12px;padding:12px 16px 14px;box-shadow:0 10px 28px rgb(0 0 0 / .5)}
 .dlg .who{font-weight:900;color:#7a4a1c;margin-bottom:6px;font-size:.9rem}
@@ -127,6 +134,10 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
       <header><h2>裝備</h2><button type="button" class="x" data-close aria-label="關閉裝備">✕</button></header>
       <div id="equipBody"></div>
     </section>
+    <section class="win right" id="worldWin" hidden aria-label="世界地圖">
+      <header><h2>世界地圖</h2><button type="button" class="x" data-close aria-label="關閉世界地圖">✕</button></header>
+      <div id="worldBody"></div>
+    </section>
     <section class="win right" id="invWin" hidden aria-label="背包">
       <header><h2>背包</h2><button type="button" class="x" data-close aria-label="關閉背包">✕</button></header>
       <div id="invBody"></div>
@@ -152,6 +163,8 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
     <li><kbd>K</kbd> 技能視窗</li>
     <li><kbd>I</kbd> 背包</li>
     <li><kbd>E</kbd> 裝備</li>
+    <li><kbd>W</kbd> 世界地圖</li>
+    <li>傳送門前按 <kbd>↑</kbd> 換地圖</li>
     <li>靠近 NPC 按 <kbd>Space</kbd> 或點他說話</li>
   </ul>
 
@@ -181,6 +194,7 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
       <button class="reset" id="openSkills" type="button">技能（K）</button>
       <button class="reset" id="openInv" type="button">背包（I）</button>
       <button class="reset" id="openEquip" type="button">裝備（E）</button>
+      <button class="reset" id="openWorld" type="button">世界地圖（W）</button>
       <button class="reset" id="reset" type="button">重新開始</button>
     </div>
   </div>
@@ -189,7 +203,8 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 <script>
 (() => {
 "use strict";
-const W = 960, H = 540, WORLD_W = 3200, WORLD_H = 900;
+const W = 960, H = 540, WORLD_H = 900;
+let WORLD_W = 1400;  // set by loadMap
 // Movement tuned to the classic side-scroller feel (px and px/s):
 // walk 125, jump launch 555 under gravity 2000 (about 77 px high), fall cap 670, climb 120,
 // almost no air control (only braking against your momentum), 2 s of invincibility after a hit.
@@ -221,80 +236,103 @@ const randi = (a, b) => Math.floor(rand(a, b + 1));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const overlap = (a, b, s = 0) => a.x + s < b.x + b.w && a.x + a.w - s > b.x && a.y + s < b.y + b.h && a.y + a.h - s > b.y;
 
-// ---------- Map ----------
-const plats = [
-  { x: 0, y: 840, w: WORLD_W, ground: true },
-  // steps 60 px apart can be jumped (jump is ~77 px); taller gaps use ropes
-  { x: 280, y: 780, w: 300 },   // 1
-  { x: 480, y: 720, w: 320 },   // 2
-  { x: 700, y: 600, w: 420 },   // 3
-  { x: 1250, y: 780, w: 420 },  // 4
-  { x: 1380, y: 560, w: 420 },  // 5
-  { x: 1900, y: 780, w: 300 },  // 6
-  { x: 2120, y: 720, w: 300 },  // 7
-  { x: 2340, y: 660, w: 340 },  // 8
-  { x: 2400, y: 440, w: 520 },  // 9 boss ledge
-  { x: 2800, y: 780, w: 360 },  // 10
-  { x: 900, y: 420, w: 380 },   // 11
-  { x: 180, y: 540, w: 300 },   // 12
-];
-const ladders = [
-  { x: 240, top: 540, bottom: 840 },
-  { x: 760, top: 600, bottom: 720 },
-  { x: 1080, top: 600, bottom: 840 },
-  { x: 1000, top: 420, bottom: 600 },
-  { x: 1450, top: 560, bottom: 780 },
-  { x: 1720, top: 560, bottom: 840 },
-  { x: 2600, top: 440, bottom: 660 },
-  { x: 2850, top: 440, bottom: 780 },
-];
-// decoration seeds per platform
-plats.forEach((p, i) => {
-  p.tufts = [];
-  let s = i * 977 + 13;
-  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  for (let x = p.x + 10; x < p.x + p.w - 10; x += 26 + rnd() * 40) p.tufts.push({ x, k: rnd() });
-  p.stones = [];
-  for (let x = p.x + 14; x < p.x + p.w - 14; x += 40 + rnd() * 70) p.stones.push({ x, y: rnd(), r: 3 + rnd() * 5 });
-});
+// ---------- Maps ----------
+// Each map lists its platforms (the ground is added for you), ropes, monster zones and portals.
+// Steps 60 px apart can be jumped (jump is ~77 px); taller gaps use ropes. A platform's y is its top.
+// A portal stands on the platform at its y (ground if left out) and leads to portal number tp of map `to`.
+// zones: p is the platform index (0 = ground), x0/x1 narrow a zone on the ground.
+const THEMES = {
+  meadow: { sky: ["#6fb9ea", "#b5e1f6", "#e4f6ee"], far: "#a6cde2", near: "#93caa0", tree: "oak",
+            grass: ["#79d35f", "#4fae3f", "#3f9a36"], dirt: ["#a06a46", "#6a4229", "#7a4e33"], tuft: ["#3f9a36", "#5dbb4a"] },
+  shore:  { sky: ["#5fb3e8", "#a9dcf5", "#f6f0d8"], far: "#4aa3d6", near: "#ead8a6", tree: "palm", sea: true,
+            grass: ["#f6e7b8", "#dcc48c", "#c9ad70"], dirt: ["#d1ad78", "#9a7650", "#b08a5c"], tuft: ["#7f9e42", "#a3c25c"] },
+  ruins:  { sky: ["#7f78c4", "#d9a2b6", "#f6d6ae"], far: "#9b8fb8", near: "#7d968a", tree: "pillar",
+            grass: ["#86b86a", "#5a8f48", "#4a7a3a"], dirt: ["#9a9088", "#5f5650", "#7a706a"], tuft: ["#4a7a3a", "#6a9f52"] },
+};
+const MAPS = {
+  village: {
+    name: "浮島村", area: "浮島", town: true, w: 1400, spawn: 96, theme: THEMES.meadow,
+    plats: [{ x: 420, y: 780, w: 200 }, { x: 660, y: 720, w: 240 }, { x: 960, y: 780, w: 200 }],
+    ladders: [], trees: [300, 560, 900, 1220], zones: [],
+    portals: [{ x: 1350, to: "meadow", tp: 0 }],
+  },
+  meadow: {
+    name: "青草平原", area: "浮島", w: 2400, spawn: 60, theme: THEMES.meadow,
+    plats: [
+      { x: 280, y: 780, w: 300 }, { x: 480, y: 720, w: 320 }, { x: 700, y: 600, w: 420 }, { x: 1250, y: 780, w: 420 },
+      { x: 1380, y: 560, w: 420 }, { x: 1900, y: 780, w: 300 }, { x: 2120, y: 720, w: 250 }, { x: 900, y: 420, w: 380 },
+      { x: 180, y: 540, w: 300 },
+    ],
+    ladders: [
+      { x: 240, top: 540, bottom: 840 }, { x: 760, top: 600, bottom: 720 }, { x: 1080, top: 600, bottom: 840 },
+      { x: 1000, top: 420, bottom: 600 }, { x: 1450, top: 560, bottom: 780 }, { x: 1720, top: 560, bottom: 840 },
+    ],
+    trees: [240, 700, 1180, 1560, 2050],
+    zones: [
+      { p: 0, x0: 300, x1: 1200, t: "jelly", n: 5 }, { p: 0, x0: 1250, x1: 2250, t: "bjelly", n: 4 },
+      { p: 1, t: "jelly", n: 2 }, { p: 2, t: "jelly", n: 2 }, { p: 3, t: "bjelly", n: 3 }, { p: 4, t: "bjelly", n: 3 },
+      { p: 5, t: "bjelly", n: 3 }, { p: 6, t: "bjelly", n: 2 }, { p: 7, t: "bjelly", n: 2 }, { p: 8, t: "jelly", n: 3 },
+      { p: 9, t: "jelly", n: 3 },
+    ],
+    portals: [{ x: 60, to: "village", tp: 0 }, { x: 2350, to: "shore", tp: 0 }],
+  },
+  shore: {
+    name: "刺殼海岸", area: "浮島", w: 2400, spawn: 60, theme: THEMES.shore,
+    plats: [
+      { x: 300, y: 780, w: 320 }, { x: 560, y: 720, w: 300 }, { x: 800, y: 580, w: 460 }, { x: 1350, y: 780, w: 380 },
+      { x: 1500, y: 640, w: 400 }, { x: 1900, y: 780, w: 300 }, { x: 2050, y: 720, w: 330 }, { x: 1050, y: 440, w: 400 },
+      { x: 1950, y: 500, w: 420 },
+    ],
+    ladders: [
+      { x: 840, top: 580, bottom: 720 }, { x: 1180, top: 580, bottom: 840 }, { x: 1120, top: 440, bottom: 580 },
+      { x: 1560, top: 640, bottom: 780 }, { x: 2100, top: 500, bottom: 720 },
+    ],
+    trees: [200, 900, 1700, 2250],
+    zones: [
+      { p: 0, x0: 300, x1: 1300, t: "shell", n: 3 }, { p: 0, x0: 1400, x1: 2300, t: "shell", n: 3 },
+      { p: 1, t: "bjelly", n: 2 }, { p: 2, t: "shell", n: 2 }, { p: 3, t: "shell", n: 3 }, { p: 4, t: "shell", n: 2 },
+      { p: 5, t: "shell", n: 3 }, { p: 6, t: "bjelly", n: 2 }, { p: 7, t: "shell", n: 2 }, { p: 8, t: "shell", n: 3 },
+      { p: 9, t: "shell", n: 2 },
+    ],
+    portals: [{ x: 60, to: "meadow", tp: 1 }, { x: 2320, y: 500, to: "ruins", tp: 0 }],
+  },
+  ruins: {
+    name: "苔岩遺跡", area: "浮島", w: 1800, spawn: 60, theme: THEMES.ruins,
+    plats: [
+      { x: 250, y: 780, w: 300 }, { x: 450, y: 720, w: 300 }, { x: 650, y: 660, w: 340 }, { x: 700, y: 440, w: 820 },
+      { x: 1250, y: 780, w: 400 },
+    ],
+    ladders: [{ x: 900, top: 440, bottom: 660 }, { x: 1450, top: 440, bottom: 780 }],
+    trees: [300, 1100, 1650],
+    zones: [
+      { p: 0, x0: 300, x1: 1700, t: "shell", n: 3 }, { p: 1, t: "shell", n: 2 }, { p: 2, t: "shell", n: 2 },
+      { p: 4, t: "boss", n: 1 }, { p: 5, t: "shell", n: 2 },
+    ],
+    portals: [{ x: 60, to: "shore", tp: 1 }],
+  },
+};
+// the order the world map lists them in, from the village outward
+const MAP_ORDER = ["village", "meadow", "shore", "ruins"];
+let map = MAPS.village, plats = [], ladders = [], trees = [], portals = [];
 const platAt = (x, y) => plats.find(p => Math.abs(p.y - y) < 1.5 && x >= p.x && x <= p.x + p.w) || plats[0];
-
-const trees = [60, 240, 700, 1180, 1560, 2050, 2560, 3000].map((x, i) => ({ x, h: 130 + (i % 3) * 30, c: i % 2 }));
 const clouds = Array.from({ length: 9 }, (_, i) => ({ x: i * 150 + rand(0, 80), y: rand(40, 210), s: rand(0.7, 1.4), v: rand(4, 12) }));
 
 // ---------- Monsters ----------
 // drops: [item id (or a list to pick one from), chance, min count, max count]
 const TYPES = {
   jelly:  { name: "青果凍", lv: 1,  hp: 18,   exp: 6,   dmg: 6,  spd: 40, avoid: 1, acc: 10, w: 34,  h: 28,  coin: [3, 8],
-            drops: [["green_gel", 0.5], ["red_pot", 0.15], ["blue_pot", 0.08], ["leaf_band", 0.03], ["work_gloves", 0.03],
+            drops: [["green_gel", 0.5], ["red_pot", 0.15], ["blue_pot", 0.08], ["town_scroll", 0.02], ["leaf_band", 0.03], ["work_gloves", 0.03],
                     ["arrow", 0.06, 15, 30], ["iron_star", 0.04, 20, 40]] },
   bjelly: { name: "藍果凍", lv: 4,  hp: 55,   exp: 14,  dmg: 12, spd: 50, avoid: 2, acc: 20, w: 38,  h: 32,  coin: [8, 18],
-            drops: [["blue_gel", 0.5], ["red_pot", 0.18], ["blue_pot", 0.12], ["jelly_tunic", 0.03], ["canvas_pants", 0.03],
+            drops: [["blue_gel", 0.5], ["red_pot", 0.18], ["blue_pot", 0.12], ["town_scroll", 0.03], ["jelly_tunic", 0.03], ["canvas_pants", 0.03],
                     ["travel_cape", 0.02], ["arrow", 0.08, 20, 40], ["iron_star", 0.06, 30, 60]] },
   shell:  { name: "刺殼龜", lv: 8,  hp: 160,  exp: 32,  dmg: 20, spd: 35, avoid: 3, acc: 35, w: 48,  h: 34,  coin: [15, 35],
-            drops: [["shell_shard", 0.55], ["red_pot", 0.2], ["blue_pot", 0.12], ["leather_cap", 0.03], ["wind_boots", 0.03],
+            drops: [["shell_shard", 0.55], ["red_pot", 0.2], ["blue_pot", 0.12], ["town_scroll", 0.04], ["leather_cap", 0.03], ["wind_boots", 0.03],
                     ["hunter_gloves", 0.03], ["wood_shield", 0.03], ["arrow", 0.1, 30, 60], ["iron_star", 0.08, 40, 80]] },
   boss:   { name: "苔岩巨像", lv: 15, hp: 2400, exp: 600, dmg: 34, spd: 25, avoid: 6, acc: 60, w: 100, h: 120, coin: [300, 500], respawn: 45,
-            drops: [["moss_core", 1], ["red_pot", 1, 5], ["blue_pot", 1, 5], [["jade_blade", "vine_staff", "hawk_bow", "dark_claw"], 1],
+            drops: [["moss_core", 1], ["red_pot", 1, 5], ["blue_pot", 1, 5], ["town_scroll", 1, 2], [["jade_blade", "vine_staff", "hawk_bow", "dark_claw"], 1],
                     ["moss_cape", 0.5], ["shell_shield", 0.3], ["arrow", 1, 100, 200], ["steel_star", 0.5, 100, 200]] },
 };
-const zones = [
-  { p: 0, x0: 300, x1: 1200, t: "jelly", n: 5 },
-  { p: 0, x0: 1250, x1: 2300, t: "bjelly", n: 4 },
-  { p: 0, x0: 2350, x1: 3180, t: "shell", n: 3 },
-  { p: 1, t: "jelly", n: 2 },
-  { p: 2, t: "jelly", n: 2 },
-  { p: 3, t: "bjelly", n: 3 },
-  { p: 4, t: "bjelly", n: 3 },
-  { p: 5, t: "shell", n: 3 },
-  { p: 6, t: "bjelly", n: 2 },
-  { p: 7, t: "bjelly", n: 2 },
-  { p: 8, t: "shell", n: 2 },
-  { p: 9, t: "boss", n: 1 },
-  { p: 10, t: "shell", n: 2 },
-  { p: 11, t: "shell", n: 3 },
-  { p: 12, t: "jelly", n: 3 },
-];
 const mobs = [];
 function placeMob(m) {
   m.x = rand(m.x0, m.x1);
@@ -302,16 +340,56 @@ function placeMob(m) {
   m.hp = m.T.hp; m.dead = false; m.alpha = 0; m.kb = 0; m.aggro = 0; m.showHp = 0; m.wind = 0; m.slamCd = 3;
   m.dir = Math.random() < 0.5 ? -1 : 1;
 }
-zones.forEach(z => {
-  const p = plats[z.p], T = TYPES[z.t];
-  const x0 = z.x0 ?? p.x + 4, x1 = (z.x1 ?? p.x + p.w - 4) - T.w;
-  for (let i = 0; i < z.n; i++) {
-    const m = { t: z.t, T, p, x0, x1, w: T.w, h: T.h, st: rand(0, 2), state: "idle", ph: rand(0, 6), flash: 0, deadT: 0 };
-    placeMob(m);
-    m.alpha = 1;
-    mobs.push(m);
-  }
-});
+// monster names and levels on a map, for the world map
+const mapMobs = id => [...new Set(MAPS[id].zones.map(z => z.t))].map(t => `${TYPES[t].name} Lv.${TYPES[t].lv}`);
+
+// builds a map and puts the player at x on the platform whose top is y (the ground when left out)
+let fade = 0;
+function loadMap(id, x = MAPS[id].spawn, y = 840) {
+  map = MAPS[id]; P.map = id;
+  WORLD_W = map.w;
+  plats = [{ x: 0, y: 840, w: WORLD_W, ground: true }, ...map.plats.map(p => ({ ...p }))];
+  // decoration seeds per platform
+  plats.forEach((p, i) => {
+    p.tufts = [];
+    let s = i * 977 + 13 + map.w;
+    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    for (let tx = p.x + 10; tx < p.x + p.w - 10; tx += 26 + rnd() * 40) p.tufts.push({ x: tx, k: rnd() });
+    p.stones = [];
+    for (let sx = p.x + 14; sx < p.x + p.w - 14; sx += 40 + rnd() * 70) p.stones.push({ x: sx, y: rnd(), r: 3 + rnd() * 5 });
+  });
+  ladders = map.ladders;
+  trees = map.trees.map((tx, i) => ({ x: tx, h: 130 + (i % 3) * 30, c: i % 2 }));
+  portals = map.portals.map(pt => ({ ...pt, y: pt.y ?? 840 }));
+  mobs.length = 0;
+  map.zones.forEach(z => {
+    const p = plats[z.p], T = TYPES[z.t];
+    const x0 = z.x0 ?? p.x + 4, x1 = (z.x1 ?? p.x + p.w - 4) - T.w;
+    for (let i = 0; i < z.n; i++) {
+      const m = { t: z.t, T, p, x0, x1, w: T.w, h: T.h, st: rand(0, 2), state: "idle", ph: rand(0, 6), flash: 0, deadT: 0 };
+      placeMob(m);
+      m.alpha = 1;
+      mobs.push(m);
+    }
+  });
+  drops.length = 0; shots.length = 0; skyGrad = null;
+  Object.assign(P, { x: x - P.w / 2, y: y - P.h, vx: 0, vy: 0, climb: null, onGround: true, prone: false, knock: 0 });
+  P.ground = platAt(x, y);
+  cam.x = clamp(P.x + P.w / 2 - W / 2, 0, WORLD_W - W);
+  cam.y = clamp(P.y - H * 0.58, 0, WORLD_H - H);
+  fade = 1;
+}
+const portalAt = () => portals.find(pt => Math.abs(P.x + P.w / 2 - pt.x) < 24 && Math.abs(P.y + P.h - pt.y) < 4);
+function usePortal(pt) {
+  const to = MAPS[pt.to], dest = to.portals[pt.tp];
+  loadMap(pt.to, dest.x, dest.y ?? 840);
+  msg(`來到了${to.name}`, "#cfe3ff");
+  refreshPanels(true); save();
+}
+function goToTown() {
+  loadMap("village");
+  refreshPanels(true);
+}
 
 // ---------- Character rules ----------
 // Classic rules: 5 AP per level, 3 SP per level after the first job, damage from the job's main and
@@ -368,6 +446,7 @@ const ITEMS = {
   arrow:         { name: "木箭矢", cat: "use", ammo: "bow", stack: 1000, desc: "弓用的箭，射一次用掉一支" },
   iron_star:     { name: "鐵製飛鏢", cat: "use", ammo: "claw", watk: 15, stack: 500, color: "#c8d2de", desc: "拳爪丟的飛鏢，丟一次用掉一支" },
   steel_star:    { name: "銳角飛鏢", cat: "use", ammo: "claw", watk: 19, stack: 500, color: "#9fd0ff", desc: "更鋒利的飛鏢，丟一次用掉一支" },
+  town_scroll:   { name: "回村卷軸", cat: "use", warp: true, color: "#e8d6a8", desc: "讀了就會立刻回到浮島村" },
   green_gel:     { name: "青果凍凝膠", color: "#7fd36b", desc: "青果凍留下的黏黏凝膠" },
   blue_gel:      { name: "藍果凍凝膠", color: "#5aa8ff", desc: "藍果凍留下的冰涼凝膠" },
   shell_shard:   { name: "刺殼碎片", color: "#b49a6a", desc: "刺殼龜背上掉下來的硬殼" },
@@ -436,13 +515,13 @@ const SLOT_KEYS = ["Shift", "D", "F"];
 function freshCharacter() {
   return {
     lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
-    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {},
+    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village",
     bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"),
   };
 }
 function starterBag(pots) {
   const bag = newBag();
-  addTo(bag, "red_pot", pots.hp); addTo(bag, "blue_pot", pots.mp);
+  addTo(bag, "red_pot", pots.hp); addTo(bag, "blue_pot", pots.mp); addTo(bag, "town_scroll", 2);
   return bag;
 }
 const P = {
@@ -508,9 +587,9 @@ const KEYMAP = {
   ControlLeft: "attack", ControlRight: "attack", KeyX: "attack", KeyZ: "pickup",
   ShiftLeft: "skill1", ShiftRight: "skill1", KeyA: "skill1", KeyD: "skill2", KeyF: "skill3",
   Digit1: "hpPot", Numpad1: "hpPot", Delete: "hpPot", Digit2: "mpPot", Numpad2: "mpPot", End: "mpPot", Enter: "revive",
-  KeyS: "stats", KeyK: "skills", KeyI: "inv", KeyE: "equip", Escape: "esc",
+  KeyS: "stats", KeyK: "skills", KeyI: "inv", KeyE: "equip", KeyW: "world", Escape: "esc",
 };
-const PANEL_KEYS = ["stats", "skills", "inv", "equip", "esc"];
+const PANEL_KEYS = ["stats", "skills", "inv", "equip", "world", "esc"];
 function press(a) { started = true; if (!held.has(a)) pressed.add(a); held.add(a); }
 addEventListener("keydown", e => {
   if (!dlg.hidden) {
@@ -527,7 +606,7 @@ addEventListener("keydown", e => {
   e.preventDefault();
   if (PANEL_KEYS.includes(a)) {
     if (e.repeat) return;
-    const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin };
+    const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin, world: worldWin };
     if (a === "esc") Object.values(wins).forEach(w => { w.hidden = true; });
     else togglePanel(wins[a]);
     return;
@@ -542,7 +621,7 @@ cv.addEventListener("pointerdown", e => {
   // clicking the NPC opens the dialog, like in the original
   const r = cv.getBoundingClientRect();
   const wx = (e.clientX - r.left) / r.width * W + cam.x, wy = (e.clientY - r.top) / r.height * H + cam.y;
-  if (Math.abs(wx - NPC.x) < 22 && wy > NPC.y - 64 && wy < NPC.y + 4) openNpc();
+  if (map.town && Math.abs(wx - NPC.x) < 22 && wy > NPC.y - 64 && wy < NPC.y + 4) openNpc();
 });
 document.querySelectorAll("[data-act]").forEach(b => {
   const a = b.dataset.act;
@@ -556,7 +635,7 @@ document.querySelectorAll("[data-act]").forEach(b => {
 });
 
 // ---------- Save ----------
-const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins"];
+const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins", "map"];
 function serialize() {
   const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, bag: JSON.parse(JSON.stringify(P.bag)), eq: JSON.parse(JSON.stringify(P.eq)) };
   SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
@@ -595,6 +674,7 @@ function load(d) {
   } else {
     SAVE_FIELDS.forEach(k => { if (d[k] !== undefined) c[k] = d[k]; });
     if (!JOBS[c.job]) c.job = "beginner";
+    if (!MAPS[c.map]) c.map = "village";
     c.skills = { ...(d.skills || {}) }; c.buffs = { ...(d.buffs || {}) };
   }
   if (d.bag) { c.bag = cleanBag(d.bag); c.eq = cleanEq(d.eq); }
@@ -613,15 +693,16 @@ resetBtn.addEventListener("click", () => {
   }
   clearTimeout(armT);
   resetBtn.classList.remove("armed"); resetBtn.textContent = "重新開始";
-  Object.assign(P, freshCharacter(), { dead: false, climb: null, x: 96, y: 790, vx: 0, vy: 0 });
-  drops.length = 0; invSel = null; eqSel = null; bagVer++;
+  Object.assign(P, freshCharacter(), { dead: false });
+  loadMap("village");
+  invSel = null; eqSel = null; bagVer++;
   closeDialog(); refreshPanels(true);
   save(); msg("已重新開始冒險", "#ffc94a"); cv.focus();
 });
 
 // ---------- NPC and dialog ----------
 const NPC = { x: 168, y: 840, name: "轉職教官 薇拉" };
-const nearNpc = () => !P.dead && !P.climb && Math.abs(P.x + P.w / 2 - NPC.x) < 50 && Math.abs(P.y + P.h - NPC.y) < 4;
+const nearNpc = () => map.town && !P.dead && !P.climb && Math.abs(P.x + P.w / 2 - NPC.x) < 50 && Math.abs(P.y + P.h - NPC.y) < 4;
 const dlg = document.getElementById("dlg");
 const dlgName = document.getElementById("dlgName"), dlgText = document.getElementById("dlgText"), dlgOpts = document.getElementById("dlgOpts");
 function say(text, options) {
@@ -652,7 +733,7 @@ function refillAmmo() {
   say(`拿去吧，這裡有 ${k} 個${ITEMS[id].name}。打怪的時候也會撿到，省著點用。`, [["謝謝", closeDialog]]);
 }
 function controlsHelp() {
-  say("← → 移動，↑ ↓ 爬繩梯，↓ 趴下。\nAlt 或 Space 跳躍，Ctrl 或 X 攻擊（按住連打），Z 撿東西。\nShift、D、F 放技能，1、2 喝藥水。\nS 能力值，K 技能，I 背包，E 裝備。靠近 NPC 按 Space 或點他，就能說話。",
+  say("← → 移動，↑ ↓ 爬繩梯，↓ 趴下。\nAlt 或 Space 跳躍，Ctrl 或 X 攻擊（按住連打），Z 撿東西。\nShift、D、F 放技能，1、2 喝藥水。\nS 能力值，K 技能，I 背包，E 裝備，W 世界地圖。走到傳送門按 ↑ 換地圖。靠近 NPC 按 Space 或點他，就能說話。",
     [["知道了", openNpc]]);
 }
 const reqText = J => `Lv.${J.req.lv}、${STAT_NAMES[J.req.stat]} ${J.req.min}`;
@@ -700,16 +781,26 @@ const statsWin = document.getElementById("statsWin"), skillsWin = document.getEl
 const statsBody = document.getElementById("statsBody"), skillsBody = document.getElementById("skillsBody");
 const invWin = document.getElementById("invWin"), equipWin = document.getElementById("equipWin");
 const invBody = document.getElementById("invBody"), equipBody = document.getElementById("equipBody");
+const worldWin = document.getElementById("worldWin"), worldBody = document.getElementById("worldBody");
 function togglePanel(w) { w.hidden = !w.hidden; if (!w.hidden) refreshPanels(true); }
 let panelSig = "";
 function refreshPanels(force) {
-  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer]);
+  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer, P.map]);
   if (!force && sig === panelSig) return;
   panelSig = sig;
   if (!statsWin.hidden) renderStats();
   if (!skillsWin.hidden) renderSkills();
   if (!invWin.hidden) renderInv();
   if (!equipWin.hidden) renderEquip();
+  if (!worldWin.hidden) renderWorld();
+}
+function renderWorld() {
+  worldBody.innerHTML = MAP_ORDER.map((id, i) => {
+    const m = MAPS[id], here = m === map;
+    const who = m.town ? "城鎮．轉職教官薇拉在這裡" : mapMobs(id).join("、");
+    return (i ? `<div class="link" aria-hidden="true"></div>` : "")
+      + `<div class="place${here ? " here" : ""}"><b>${esc(m.name)}</b>${here ? `<span class="tag">你在這裡</span>` : ""}<p>${esc(who)}</p></div>`;
+  }).join("") + `<p class="note">走到傳送門按 ↑ 換地圖。讀回村卷軸可以立刻回到浮島村。</p>`;
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const row = (label, value) => `<div class="row"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
@@ -835,6 +926,14 @@ function drink(id, i = P.bag.use.findIndex(s => s?.id === id)) {
   if (hp > 0) nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "+" + hp, kind: "heal", t: 0 });
   if (mp > 0) nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "+" + mp, kind: "mana", t: 0 });
 }
+function readScroll(i) {
+  if (P.dead) return;
+  if (map.town) { hint("你已經在浮島村了"); return; }
+  takeFromSlot("use", i);
+  goToTown();
+  msg("讀了回村卷軸，回到浮島村", "#cfe3ff");
+  save();
+}
 function discard(tab, i) {
   const s = P.bag[tab][i];
   if (!s || P.dead) return;
@@ -880,9 +979,9 @@ function renderInv() {
 }
 function invInfo() {
   const s = invSel !== null && P.bag[invTab][invSel];
-  if (!s) return `<p class="note">${invTab === "equip" ? "點一下看說明，點兩下直接穿上。" : invTab === "use" ? "點兩下喝藥水。箭矢、飛鏢放在這裡，攻擊時自動用掉。" : "打怪撿到的材料。"}</p>`;
+  if (!s) return `<p class="note">${invTab === "equip" ? "點一下看說明，點兩下直接穿上。" : invTab === "use" ? "點兩下喝藥水或讀回村卷軸。箭矢、飛鏢放在這裡，攻擊時自動用掉。" : "打怪撿到的材料。"}</p>`;
   const I = ITEMS[s.id];
-  return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.heal ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"));
+  return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.heal || I.warp ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"));
 }
 // picking a slot only moves the outline and swaps the description, so the slot under the
 // pointer stays the same element and a double click on it still registers
@@ -913,6 +1012,7 @@ function doInv(act) {
   if (!s) return;
   if (act === "equip" && invTab === "equip") equipFrom(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].heal) drink(s.id, i);
+  else if (act === "use" && invTab === "use" && ITEMS[s.id].warp) readScroll(i);
   else if (act === "drop") discard(invTab, i);
   if (!P.bag[invTab][i] || P.bag[invTab][i] !== s) invSel = null;
 }
@@ -948,6 +1048,7 @@ equipBody.addEventListener("dblclick", e => {
 });
 document.getElementById("openInv").addEventListener("click", () => togglePanel(invWin));
 document.getElementById("openEquip").addEventListener("click", () => togglePanel(equipWin));
+document.getElementById("openWorld").addEventListener("click", () => togglePanel(worldWin));
 
 document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => { b.closest(".win").hidden = true; cv.focus({ preventScroll: true }); }));
 document.getElementById("openStats").addEventListener("click", () => togglePanel(statsWin));
@@ -1067,7 +1168,9 @@ function hurt(d, fromX, acc = null) {
   }
 }
 function revive() {
-  P.dead = false; P.climb = null; P.x = 96; P.y = 840 - P.h; P.vx = P.vy = 0;
+  // like the original, you get back up in the nearest town
+  P.dead = false;
+  goToTown();
   P.hp = Math.ceil(maxHp() * 0.5); P.mp = Math.ceil(maxMp() * 0.5); P.inv = 2;
   msg("在浮島村重新站了起來", "#cfe3ff");
   save();
@@ -1099,6 +1202,11 @@ function updatePlayer(dt) {
   }
   P.climbCd -= dt;
 
+  // ↑ in front of a portal goes through it; otherwise ↑ grabs a rope
+  if (pressed.has("up") && P.onGround && !attacking && P.knock <= 0) {
+    const pt = portalAt();
+    if (pt) { usePortal(pt); return; }
+  }
   // grab a rope, on the ground or in mid-air
   if (U_ && !attacking && P.knock <= 0 && P.climbCd <= 0) {
     const L = findLadder(l => Math.abs(cx - l.x) < 14 && P.y + P.h > l.top + 4 && P.y + P.h <= l.bottom + 1);
@@ -1375,6 +1483,7 @@ function update(dt) {
   cam.x += (clamp(P.x + P.w / 2 - W / 2, 0, WORLD_W - W) - cam.x) * k;
   cam.y += (clamp(P.y - H * 0.58, 0, WORLD_H - H) - cam.y) * k;
   cam.shake = Math.max(0, cam.shake - dt * 30);
+  fade = Math.max(0, fade - dt * 2.5);
 
   refreshPanels();
   saveT += dt;
@@ -1427,8 +1536,9 @@ const blinking = ph => (time + ph) % 3.7 < 0.13;
 let skyGrad = null;
 function drawBG() {
   if (!skyGrad) {
+    const sky = map.theme.sky;
     skyGrad = ctx.createLinearGradient(0, 0, 0, H);
-    skyGrad.addColorStop(0, "#6fb9ea"); skyGrad.addColorStop(0.6, "#b5e1f6"); skyGrad.addColorStop(1, "#e4f6ee");
+    skyGrad.addColorStop(0, sky[0]); skyGrad.addColorStop(0.6, sky[1]); skyGrad.addColorStop(1, sky[2]);
   }
   ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, W, H);
   // sun
@@ -1437,11 +1547,33 @@ function drawBG() {
   ctx.fillStyle = "rgba(255,247,214,.25)";
   ctx.beginPath(); ctx.arc(780 - cam.x * 0.02, 90, 60, 0, Math.PI * 2); ctx.fill();
   // far mountains
-  const ox = cam.x * 0.12, oy = cam.y * 0.1;
-  ctx.fillStyle = "#a6cde2";
-  ctx.beginPath(); ctx.moveTo(0, H);
-  for (let x = 0; x <= W + 12; x += 12) { const wx = x + ox; ctx.lineTo(x, 300 - oy + Math.sin(wx * 0.0045) * 50 + Math.sin(wx * 0.013 + 1) * 20); }
-  ctx.lineTo(W, H); ctx.fill();
+  const ox = cam.x * 0.12, oy = cam.y * 0.1, th = map.theme;
+  if (th.sea) {
+    // open sea with slow rolling wave lines
+    const sy = 330 - oy;
+    ctx.fillStyle = vgrad(sy, H, th.far, shade(th.far, -0.3)); ctx.fillRect(0, sy, W, H - sy);
+    ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 1.5;
+    for (let r = 0; r < 5; r++) {
+      const y = sy + 14 + r * 22;
+      ctx.beginPath();
+      for (let x = -20; x <= W + 20; x += 40) { const px = x - ((ox * (1 + r * 0.3) + time * (8 + r * 3)) % 40); ctx.moveTo(px, y); ctx.quadraticCurveTo(px + 10, y - 3, px + 20, y); }
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = th.far;
+    ctx.beginPath(); ctx.moveTo(0, H);
+    for (let x = 0; x <= W + 12; x += 12) { const wx = x + ox; ctx.lineTo(x, 300 - oy + Math.sin(wx * 0.0045) * 50 + Math.sin(wx * 0.013 + 1) * 20); }
+    ctx.lineTo(W, H); ctx.fill();
+  }
+  if (th.tree === "pillar") {
+    // ruined columns standing on the far hills
+    ctx.fillStyle = shade(th.far, -0.18);
+    for (let i = 0; i < 6; i++) {
+      const x = ((i * 230 - ox * 1.4) % 1380 + 1380) % 1380 - 120, h = 90 + (i * 37) % 70, base = 330 - oy;
+      ctx.fillRect(x, base - h, 22, h + 40); ctx.fillRect(x - 5, base - h - 8, 32, 8);
+      if (i % 2) { ctx.beginPath(); ctx.moveTo(x, base - h - 8); ctx.lineTo(x + 32 * 0.6, base - h - 20); ctx.lineTo(x + 27, base - h - 8); ctx.fill(); }
+    }
+  }
   // clouds
   for (const c of clouds) {
     const span = W + 320;
@@ -1456,13 +1588,54 @@ function drawBG() {
   }
   // near hills
   const ox2 = cam.x * 0.32, oy2 = cam.y * 0.28;
-  ctx.fillStyle = "#93caa0";
+  ctx.fillStyle = th.near;
   ctx.beginPath(); ctx.moveTo(0, H);
   for (let x = 0; x <= W + 12; x += 12) { const wx = x + ox2; ctx.lineTo(x, 420 - oy2 + Math.sin(wx * 0.006 + 2) * 34 + Math.sin(wx * 0.017) * 12); }
   ctx.lineTo(W, H); ctx.fill();
 }
 
 function drawTree(t) {
+  const kind = map.theme.tree;
+  if (kind === "palm") drawPalm(t);
+  else if (kind === "pillar") drawPillar(t);
+  else drawOak(t);
+}
+// a palm leaning over the beach, with ringed trunk, drooping fronds and coconuts
+function drawPalm(t) {
+  const by = 840, h = t.h * 1.15, lean = t.c ? 1 : -1;
+  const top = { x: t.x + lean * 26, y: by - h };
+  for (let i = 0; i < 9; i++) {
+    const k0 = i / 9, k1 = (i + 1) / 9;
+    const x0 = t.x + lean * 26 * k0 * k0, y0 = by - h * k0, x1 = t.x + lean * 26 * k1 * k1, y1 = by - h * k1, wdt = 9 - k0 * 3;
+    ctx.beginPath(); ctx.moveTo(x0 - wdt, y0); ctx.lineTo(x1 - wdt + 1, y1); ctx.lineTo(x1 + wdt - 1, y1); ctx.lineTo(x0 + wdt, y0); ctx.closePath();
+    paint(vgrad(y1, y0, "#b88a5a", "#8a6038"), "rgba(60,35,20,.55)", 1.1);
+  }
+  for (let i = 0; i < 7; i++) {
+    const a = -Math.PI / 2 + (i - 3) * 0.5 + Math.sin(time * 1.2 + i) * 0.04, len = 58 + (i % 2) * 10;
+    const ex = top.x + Math.cos(a) * len, ey = top.y + Math.sin(a) * len * 0.45 + 26;
+    ctx.beginPath(); ctx.moveTo(top.x, top.y);
+    ctx.quadraticCurveTo(top.x + Math.cos(a) * len * 0.5, top.y + Math.sin(a) * len * 0.5 - 14, ex, ey);
+    ctx.quadraticCurveTo(top.x + Math.cos(a) * len * 0.5, top.y + Math.sin(a) * len * 0.5 + 2, top.x, top.y + 4);
+    paint(vgrad(top.y - 30, top.y + 30, "#6fc75a", "#3f8f3a"), "rgba(30,70,30,.6)", 1.2);
+  }
+  ctx.fillStyle = "#6b4a2a";
+  for (const [dx, dy] of [[-5, 6], [4, 7], [0, 11]]) { ctx.beginPath(); ctx.arc(top.x + dx, top.y + dy, 4.2, 0, Math.PI * 2); ctx.fill(); }
+}
+// a broken stone column with moss and a trailing vine
+function drawPillar(t) {
+  const by = 840, h = t.h * 0.9, x = t.x;
+  ctx.beginPath(); rr(x - 26, by - 14, 52, 14, 2); paint(vgrad(by - 14, by, "#b3aaa2", "#7d746c"), "rgba(50,40,35,.6)", 1.3);
+  ctx.beginPath(); ctx.moveTo(x - 18, by - 14); ctx.lineTo(x - 18, by - h); ctx.lineTo(x - 6, by - h - 10); ctx.lineTo(x + 4, by - h + 4); ctx.lineTo(x + 18, by - h - 4); ctx.lineTo(x + 18, by - 14); ctx.closePath();
+  const g = ctx.createLinearGradient(x - 18, 0, x + 18, 0); g.addColorStop(0, "#c7beb5"); g.addColorStop(1, "#8a8178");
+  paint(g, "rgba(50,40,35,.6)", 1.3);
+  ctx.strokeStyle = "rgba(60,50,45,.3)"; ctx.lineWidth = 1.4;
+  for (const dx of [-9, 0, 9]) { ctx.beginPath(); ctx.moveTo(x + dx, by - 16); ctx.lineTo(x + dx, by - h + 6); ctx.stroke(); }
+  ctx.fillStyle = "#6a9f52"; ctx.beginPath(); ctx.ellipse(x - 8, by - h - 2, 12, 5, -0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#4a7a3a"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x + 14, by - h); ctx.quadraticCurveTo(x + 22, by - h * 0.6, x + 12, by - h * 0.3); ctx.stroke();
+}
+
+function drawOak(t) {
   const by = 840, h = t.h;
   // trunk with a little flare at the roots and a few bark lines
   ctx.beginPath(); ctx.moveTo(t.x - 8, by); ctx.quadraticCurveTo(t.x - 6, by - h * 0.3, t.x - 6.5, by - h * 0.6);
@@ -1581,11 +1754,12 @@ function drawNpc() {
 }
 
 function drawPlatform(p) {
+  const th = map.theme;
   if (p.ground) {
-    ctx.fillStyle = vgrad(p.y, WORLD_H + 40, "#9a6644", "#5e3b26"); ctx.fillRect(p.x, p.y, p.w, WORLD_H - p.y + 40);
+    ctx.fillStyle = vgrad(p.y, WORLD_H + 40, th.dirt[0], shade(th.dirt[1], -0.1)); ctx.fillRect(p.x, p.y, p.w, WORLD_H - p.y + 40);
     ctx.fillStyle = "rgba(60,35,20,.25)"; ctx.fillRect(p.x, p.y + 8, p.w, 6);
     for (const s of p.stones) {
-      ctx.beginPath(); ctx.ellipse(s.x, p.y + 26 + s.y * 30, s.r * 1.6, s.r, 0, 0, Math.PI * 2); paint("#7a4e33", "rgba(50,30,20,.35)", 1);
+      ctx.beginPath(); ctx.ellipse(s.x, p.y + 26 + s.y * 30, s.r * 1.6, s.r, 0, 0, Math.PI * 2); paint(th.dirt[2], "rgba(50,30,20,.35)", 1);
       ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.beginPath(); ctx.ellipse(s.x - s.r * 0.4, p.y + 25 + s.y * 30 - s.r * 0.3, s.r * 0.6, s.r * 0.3, 0, 0, Math.PI * 2); ctx.fill();
     }
   } else {
@@ -1594,10 +1768,10 @@ function drawPlatform(p) {
     ctx.moveTo(p.x, p.y + 4); ctx.lineTo(p.x + p.w, p.y + 4);
     ctx.lineTo(p.x + p.w - 10, p.y + 22);
     ctx.quadraticCurveTo(p.x + p.w / 2, p.y + 42, p.x + 10, p.y + 22);
-    ctx.closePath(); paint(vgrad(p.y, p.y + 40, "#a06a46", "#6a4229"), "rgba(60,35,20,.7)", 1.6);
+    ctx.closePath(); paint(vgrad(p.y, p.y + 40, th.dirt[0], th.dirt[1]), "rgba(60,35,20,.7)", 1.6);
     ctx.fillStyle = "rgba(60,35,20,.22)"; ctx.fillRect(p.x + 2, p.y + 7, p.w - 4, 4);
     for (const s of p.stones) {
-      ctx.beginPath(); ctx.ellipse(s.x, p.y + 16 + s.y * 6, s.r, s.r * 0.6, 0, 0, Math.PI * 2); paint("#7a4e33", "rgba(50,30,20,.3)", 1);
+      ctx.beginPath(); ctx.ellipse(s.x, p.y + 16 + s.y * 6, s.r, s.r * 0.6, 0, 0, Math.PI * 2); paint(th.dirt[2], "rgba(50,30,20,.3)", 1);
     }
     ctx.strokeStyle = "#5f8a34"; ctx.lineWidth = 2; ctx.lineCap = "round";
     for (const t of p.tufts) if (t.k > 0.7) {
@@ -1607,13 +1781,13 @@ function drawPlatform(p) {
     ctx.lineCap = "butt";
   }
   // grass: a rounded band with a scalloped lip hanging over the dirt and a sunlit top edge
-  ctx.beginPath(); rr(p.x - 2, p.y - 4, p.w + 4, 11, 5); paint(vgrad(p.y - 4, p.y + 7, "#79d35f", "#4fae3f"), "rgba(40,90,30,.7)", 1.3);
-  ctx.fillStyle = "#4fae3f";
+  ctx.beginPath(); rr(p.x - 2, p.y - 4, p.w + 4, 11, 5); paint(vgrad(p.y - 4, p.y + 7, th.grass[0], th.grass[1]), "rgba(40,90,30,.7)", 1.3);
+  ctx.fillStyle = th.grass[1];
   ctx.beginPath(); for (let x = p.x + 4; x < p.x + p.w - 4; x += 10) { ctx.moveTo(x + 5, p.y + 6); ctx.arc(x + 5, p.y + 6, 5, 0, Math.PI); } ctx.fill();
   ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fillRect(p.x + 4, p.y - 3, p.w - 8, 1.6);
   for (const t of p.tufts) {
-    ctx.fillStyle = "#3f9a36"; ctx.beginPath(); ctx.moveTo(t.x - 4, p.y - 2); ctx.lineTo(t.x - 1, p.y - 10 - t.k * 5); ctx.lineTo(t.x + 1, p.y - 2); ctx.fill();
-    ctx.fillStyle = "#5dbb4a"; ctx.beginPath(); ctx.moveTo(t.x - 1, p.y - 2); ctx.lineTo(t.x + 3, p.y - 8 - t.k * 4); ctx.lineTo(t.x + 5, p.y - 2); ctx.fill();
+    ctx.fillStyle = th.tuft[0]; ctx.beginPath(); ctx.moveTo(t.x - 4, p.y - 2); ctx.lineTo(t.x - 1, p.y - 10 - t.k * 5); ctx.lineTo(t.x + 1, p.y - 2); ctx.fill();
+    ctx.fillStyle = th.tuft[1]; ctx.beginPath(); ctx.moveTo(t.x - 1, p.y - 2); ctx.lineTo(t.x + 3, p.y - 8 - t.k * 4); ctx.lineTo(t.x + 5, p.y - 2); ctx.fill();
     if (t.k > 0.82) {
       // a flower: five petals round a yellow middle
       const fx0 = t.x + 9, fy0 = p.y - 7, col = t.k > 0.9 ? "#fff6d0" : "#ff9fc4";
@@ -1621,6 +1795,32 @@ function drawPlatform(p) {
       for (let i = 0; i < 5; i++) { const a = i * Math.PI * 0.4; ctx.beginPath(); ctx.arc(fx0 + Math.cos(a) * 2.4, fy0 + Math.sin(a) * 2.4, 1.8, 0, Math.PI * 2); ctx.fill(); }
       ctx.fillStyle = "#ffcf3d"; ctx.beginPath(); ctx.arc(fx0, fy0, 1.4, 0, Math.PI * 2); ctx.fill();
     }
+  }
+}
+
+// a swirling gate of light; standing in it shows where it leads
+function drawPortal(pt) {
+  ctx.save(); ctx.translate(pt.x, pt.y - 36);
+  const g = ctx.createRadialGradient(0, 0, 2, 0, 0, 30);
+  g.addColorStop(0, "rgba(255,255,255,.95)"); g.addColorStop(0.35, "rgba(150,210,255,.75)"); g.addColorStop(1, "rgba(90,110,255,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, 22, 38, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.75)"; ctx.lineWidth = 2; ctx.lineCap = "round";
+  for (let i = 0; i < 3; i++) { const a = time * 3 + i * 2.1; ctx.beginPath(); ctx.ellipse(0, 0, 17 - i * 4.5, 31 - i * 8, 0, a, a + 2.2); ctx.stroke(); }
+  ctx.lineCap = "butt";
+  ctx.fillStyle = "rgba(255,255,255,.85)";
+  for (let i = 0; i < 5; i++) {
+    const k = (time * 0.7 + i / 5) % 1;
+    ctx.beginPath(); ctx.arc(Math.sin(i * 2.4 + time * 2) * 12, 34 - k * 68, 1.8 * (1 - k) + 0.6, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  if (portalAt() === pt && !P.dead) {
+    const t = `↑ 前往${MAPS[pt.to].name}`;
+    ctx.font = `700 12px ${UI}`; ctx.textAlign = "center";
+    const bw = ctx.measureText(t).width + 18, by = pt.y - 104;
+    ctx.fillStyle = "rgba(14,22,40,.85)"; rr(pt.x - bw / 2, by, bw, 24, 8); ctx.fill();
+    ctx.strokeStyle = "#7fd0ff"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = "#eef3fb"; ctx.fillText(t, pt.x, by + 16);
+    ctx.textAlign = "left";
   }
 }
 
@@ -1694,7 +1894,7 @@ function paintItem(I) {
     drawWeapon(I.wtype, 0, I.color);
     return;
   }
-  const kind = I.slot || (I.heal ? "pot" : I.ammo) || I.id.split("_").pop();
+  const kind = I.slot || (I.heal ? "pot" : I.warp ? "scroll" : I.ammo) || I.id.split("_").pop();
   if (kind === "hat") {
     shape(c, () => { ctx.arc(16, 20, 11, Math.PI, 0); ctx.closePath(); });
     shape(c, () => rr(3, 18, 26, 5, 2.5));
@@ -1722,6 +1922,14 @@ function paintItem(I) {
     ctx.fillStyle = "#8a6237"; ctx.fillRect(12.5, 3, 7, 3);
     shape(c, () => ctx.arc(16, 19, 9, 0, Math.PI * 2));
     ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.beginPath(); ctx.arc(12.5, 16, 3, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === "scroll") {
+    // a parchment with rolled ends and a red wax seal
+    shape(c, () => rr(7, 7, 18, 18, 1.5));
+    shape(shade(c, -0.15), () => rr(4, 4, 24, 5, 2.5));
+    shape(shade(c, -0.15), () => rr(4, 23, 24, 5, 2.5));
+    ctx.strokeStyle = "rgba(90,60,30,.45)"; ctx.lineWidth = 1;
+    for (const y of [12, 15, 18]) { ctx.beginPath(); ctx.moveTo(10, y); ctx.lineTo(22, y); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(21, 21, 3.4, 0, Math.PI * 2); paint("#d23b3b", INK, 1);
   } else if (kind === "bow") {
     // a bundle of three arrows
     for (const o of [-4, 0, 4]) {
@@ -2284,7 +2492,7 @@ function drawHUD() {
 
   // map name + messages
   ctx.font = `900 15px ${UI}`;
-  outlinedText("浮島村．青草平原", 16, 28, "#ffffff", "rgba(20,40,70,.7)", 4);
+  outlinedText(`${map.area}．${map.name}`, 16, 28, "#ffffff", "rgba(20,40,70,.7)", 4);
   ctx.font = `700 13px ${UI}`;
   msgs.forEach((m, i) => {
     ctx.globalAlpha = Math.min(1, m.t);
@@ -2299,6 +2507,8 @@ function drawHUD() {
   for (const p of plats) { ctx.beginPath(); ctx.moveTo(mx + p.x * sx, my + p.y * sy); ctx.lineTo(mx + (p.x + p.w) * sx, my + p.y * sy); ctx.stroke(); }
   ctx.strokeStyle = "#c9a26b"; ctx.lineWidth = 1;
   for (const l of ladders) { ctx.beginPath(); ctx.moveTo(mx + l.x * sx, my + l.top * sy); ctx.lineTo(mx + l.x * sx, my + l.bottom * sy); ctx.stroke(); }
+  ctx.fillStyle = "#7fd0ff";
+  for (const pt of portals) { ctx.beginPath(); ctx.ellipse(mx + pt.x * sx, my + (pt.y - 10) * sy, 2.2, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }
   for (const m of mobs) if (!m.dead) {
     ctx.fillStyle = m.t === "boss" ? "#ff5a3a" : "#ff9b8f";
     const r = m.t === "boss" ? 3.5 : 1.6;
@@ -2343,9 +2553,10 @@ function draw() {
   ctx.save();
   ctx.translate(Math.round(-cam.x + sx), Math.round(-cam.y + sy));
   trees.forEach(drawTree);
-  drawVillage();
+  if (map.town) drawVillage();
   for (let i = plats.length - 1; i >= 0; i--) drawPlatform(plats[i]);
   ladders.forEach(drawLadder);
+  portals.forEach(drawPortal);
   drops.forEach(drawDrop);
   mobs.forEach(drawMob);
   drawShots();
@@ -2353,6 +2564,8 @@ function draw() {
   drawFX();
   drawNums();
   ctx.restore();
+  // a quick fade from black after changing maps
+  if (fade > 0) { ctx.fillStyle = `rgba(8,12,24,${fade})`; ctx.fillRect(0, 0, W, H); }
   drawHUD();
 }
 
@@ -2373,9 +2586,8 @@ let booted = false;
 function boot(data) {
   if (booted) return; booted = true;
   const resumed = load(data && data.save);
-  P.y = 840 - P.h; P.onGround = true;
-  cam.x = 0; cam.y = WORLD_H - H;
-  msg(resumed ? `歡迎回來，Lv.${P.lv} 的冒險者` : "冒險開始！往右走去打青果凍吧", "#ffc94a");
+  loadMap(P.map);
+  msg(resumed ? `歡迎回來，Lv.${P.lv} 的冒險者` : "冒險開始！往右走到傳送門按 ↑，去青草平原打青果凍", "#ffc94a");
   requestAnimationFrame(t => { last = t; loop(t); });
 }
 try { window.claude?.hot?.snapshot?.(() => ({ save: serialize() })); } catch (_) {}

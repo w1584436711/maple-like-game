@@ -70,7 +70,8 @@ test("離開頁面時會把進度存進瀏覽器", async ({ page }) => {
   await page.evaluate(() => dispatchEvent(new Event("pagehide")));
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("floating-isle-v1")));
   expect(saved.lv).toBe(1);
-  expect(saved.bag.use.filter(Boolean)).toEqual([{ id: "red_pot", n: 5 }, { id: "blue_pot", n: 3 }]);
+  expect(saved.bag.use.filter(Boolean)).toEqual([{ id: "red_pot", n: 5 }, { id: "blue_pot", n: 3 }, { id: "town_scroll", n: 2 }]);
+  expect(saved.map).toBe("village");
   expect(saved.eq.weapon).toEqual({ id: "wood_sword", n: 1 });
   expect(errors).toEqual([]);
 });
@@ -266,6 +267,36 @@ test("丟掉的東西會掉在地上，按 Z 可以撿回來", async ({ page }) 
   await page.waitForTimeout(300);
   await page.keyboard.up("z");
   expect(itemCount(await readSave(page), "red_pot")).toBe(5);
+  expect(errors).toEqual([]);
+});
+
+test("站在傳送門按 ↑ 會換地圖，世界地圖標出所在位置", async ({ page }) => {
+  // 從青草平原開始：出生點就在通往浮島村的傳送門上
+  const errors = await openWithSave(page, { ...LV10_BEGINNER, map: "meadow" });
+  await page.locator("#game").click();
+  await page.keyboard.press("w");
+  const world = page.locator("#worldWin");
+  await expect(world.locator(".place.here")).toContainText("青草平原");
+  await page.keyboard.press("ArrowUp");
+  await expect(world.locator(".place.here")).toContainText("浮島村");
+  expect((await readSave(page)).map).toBe("village");
+  expect(errors).toEqual([]);
+});
+
+test("讀回村卷軸會回到浮島村", async ({ page }) => {
+  const errors = await openWithSave(page, {
+    ...LV10_BEGINNER, map: "shore",
+    bag: { equip: [], use: [{ id: "town_scroll", n: 1 }], etc: [] }, eq: { weapon: { id: "wood_sword", n: 1 } },
+  });
+  await page.locator("#game").click();
+  await page.keyboard.press("i");
+  const inv = page.locator("#invWin");
+  await inv.getByRole("tab", { name: "消耗" }).click();
+  await inv.getByRole("button", { name: "回村卷軸" }).click();
+  await inv.getByRole("button", { name: "使用" }).click();
+  const saved = await readSave(page);
+  expect(saved.map).toBe("village");
+  expect(itemCount(saved, "town_scroll")).toBe(0);
   expect(errors).toEqual([]);
 });
 
