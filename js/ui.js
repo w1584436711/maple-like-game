@@ -10,10 +10,11 @@ const invBody = document.getElementById("invBody"), equipBody = document.getElem
 const worldWin = document.getElementById("worldWin"), worldBody = document.getElementById("worldBody");
 const shopWin = document.getElementById("shopWin"), shopBody = document.getElementById("shopBody");
 const questWin = document.getElementById("questWin"), questBody = document.getElementById("questBody");
+const keysWin = document.getElementById("keysWin"), keysBody = document.getElementById("keysBody");
 function togglePanel(w) { w.hidden = !w.hidden; if (!w.hidden) refreshPanels(true); }
 let panelSig = "";
 function refreshPanels(force) {
-  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer, P.map, P.quests, shopMode, shopTab, sellArm]);
+  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer, P.map, P.quests, shopMode, shopTab, sellArm, binding]);
   if (!force && sig === panelSig) return;
   panelSig = sig;
   if (!statsWin.hidden) renderStats();
@@ -23,6 +24,7 @@ function refreshPanels(force) {
   if (!worldWin.hidden) renderWorld();
   if (!shopWin.hidden) renderShop();
   if (!questWin.hidden) renderQuests();
+  if (!keysWin.hidden) renderKeys();
 }
 function renderShop() {
   document.getElementById("shopTitle").textContent = shopNpc.name;
@@ -46,7 +48,7 @@ function renderShop() {
     if (!rows.length) html += `<p class="note">這一欄是空的。</p>`;
     for (const [s, i] of rows) {
       const I = ITEMS[s.id], one = sellPrice(I, 1);
-      html += `<div class="srow"><img src="${itemIcon(s.id).url}" alt=""><div class="what"><b>${esc(I.name)}${s.n > 1 ? ` ×${s.n}` : ""}</b><small>每個 ${one.toLocaleString()} 金幣</small></div>`
+      html += `<div class="srow"><img src="${itemIcon(s.id).url}" alt=""><div class="what"><b>${esc(I.slot ? gearName(s) : I.name)}${s.n > 1 ? ` ×${s.n}` : ""}</b><small>每個 ${one.toLocaleString()} 金幣</small></div>`
         + (s.n > 1
           ? `<button type="button" class="btn" data-sell="${i}" aria-label="賣 1 個${esc(I.name)}">賣 1</button>`
             + `<button type="button" class="btn" data-sell="${i}" data-all="1" aria-label="全部賣掉${esc(I.name)}">全部 ${sellPrice(I, s.n).toLocaleString()}</button>`
@@ -98,13 +100,13 @@ function renderStats() {
   const [mn, mx] = physRange();
   let html = row("職業", job().name) + row("等級", P.lv) + row("經驗值", `${P.exp} / ${need()}`)
     + row("HP", maxHp()) + row("MP", maxMp()) + row("攻擊", `${Math.floor(mn)} ~ ${Math.floor(mx)}`);
-  if (P.job === "magician") html += row("魔力", magic());
+  if (root(P.job) === "magician") html += row("魔力", magic());
   html += row("防禦", gear("def")) + row("命中", Math.floor(accuracy())) + row("迴避", Math.floor(avoidability()));
   html += `<div class="ap">可分配能力值 <b>${P.ap}</b></div>`;
   for (const k of ["str", "dex", "int", "luk"]) {
     // like the original, bonuses from gear show next to the base value: 力量 35 (+2)
     const bonus = gear(k);
-    html += `<div class="row stat${PRIMARY[P.job] === k ? " main" : ""}"><span>${STAT_NAMES[k]}${bonus ? ` <small>(+${bonus})</small>` : ""}</span><b>${P[k]}</b>`
+    html += `<div class="row stat${PRIMARY[root(P.job)] === k ? " main" : ""}"><span>${STAT_NAMES[k]}${bonus ? ` <small>(+${bonus})</small>` : ""}</span><b>${P[k]}</b>`
       + `<button type="button" class="plus" data-stat="${k}" aria-label="${STAT_NAMES[k]}加 1"${P.ap > 0 ? "" : " disabled"}>+</button></div>`;
   }
   statsBody.innerHTML = html;
@@ -117,14 +119,16 @@ function renderSkills() {
     return;
   }
   const slots = slotSkills();
-  let html = `<div class="ap">${esc(job().name)}技能　剩餘 SP <b>${P.sp}</b></div>`;
+  let html = `<div class="ap">剩餘 SP <b>${P.sp}</b></div>`;
+  // first-job skills, then the second job's under their own heading
   for (const s of jobSkills()) {
+    if (SKILLS[root(P.job)][0] === s || SKILLS[P.job]?.[0] === s) html += `<div class="qhead">${esc(JOBS[SKILLS[P.job]?.[0] === s ? P.job : root(P.job)].name)}技能</div>`;
     const l = skLv(s.id), slot = slots.indexOf(s);
     const lock = s.req && skLv(s.req[0]) < s.req[1] ? `需要「${SKILL_BY_ID[s.req[0]].name}」Lv.${s.req[1]}` : "";
     const now = l ? s.desc(l) : "還沒學會";
     const next = l < s.max ? `下一級：${s.desc(l + 1)}` : "已經滿級";
     const cost = s.mp ? `MP ${s.mp(Math.max(1, l))}` : "";
-    html += `<div class="skill"><div class="row"><span><b class="sname">${esc(s.name)}</b> <small>${TYPE_NAMES[s.type]}${slot >= 0 ? `．${SLOT_KEYS[slot]} 鍵` : ""}</small></span>`
+    html += `<div class="skill"><div class="row"><span><b class="sname">${esc(s.name)}</b> <small>${TYPE_NAMES[s.type]}${slot >= 0 ? `．${keyOf(`skill${slot + 1}`)} 鍵` : ""}</small></span>`
       + `<b>${l} / ${s.max}</b><button type="button" class="plus" data-skill="${s.id}" aria-label="${esc(s.name)}加 1"${canLearn(s) ? "" : " disabled"}>+</button></div>`
       + `<p>${esc(now)}${cost ? `．${cost}` : ""}</p><p class="dim">${esc(lock || next)}</p></div>`;
   }
@@ -177,7 +181,7 @@ function reqLines(I) {
   const r = I.req || {}, out = [];
   if (r.lv) out.push({ text: `等級 ${r.lv}`, ok: P.lv >= r.lv });
   for (const k in STAT_NAMES) if (r[k]) out.push({ text: `${STAT_NAMES[k]} ${r[k]}`, ok: P[k] >= r[k] });
-  if (I.jobs) out.push({ text: I.jobs.map(j => JOBS[j].name).join("、") + "可用", ok: I.jobs.includes(P.job) });
+  if (I.jobs) out.push({ text: I.jobs.map(j => JOBS[j].name).join("、") + "可用", ok: I.jobs.includes(root(P.job)) });
   return out;
 }
 const canWear = I => reqLines(I).every(l => l.ok);
@@ -229,21 +233,65 @@ function readScroll(i) {
   msg("讀了回村卷軸，回到浮島村", "#cfe3ff");
   save();
 }
+// a piece of gear keeps its scroll upgrades when it is dropped and picked up again
+function putGear(g) {
+  const j = P.bag.equip.indexOf(null);
+  if (j < 0) return 1;
+  P.bag.equip[j] = g; bagVer++;
+  return 0;
+}
 function discard(tab, i) {
   const s = P.bag[tab][i];
   if (!s || P.dead) return;
   P.bag[tab][i] = null; bagVer++;
   addDrop("item", P.x + P.w / 2 + P.face * 20, P.y + P.h - 20, s.n, s.id);
+  if (ITEMS[s.id].slot) drops[drops.length - 1].gear = s;
   msg(`丟掉了${ITEMS[s.id].name}${s.n > 1 ? ` ×${s.n}` : ""}`, "#9fb0cd");
 }
 
-function itemInfo(I, n, acts) {
-  let h = `<div class="info"><h3>${esc(I.name)}${n > 1 ? ` ×${n}` : ""}</h3>`;
+// ---------- Enhancement scrolls ----------
+const gearLeft = g => g.left ?? ITEMS[g.id].slots;
+const gearName = g => ITEMS[g.id].name + (g.up ? ` +${g.up}` : "");
+let scrollPick = null;  // the bag slot of a scroll waiting for you to pick the gear it goes on
+// gear in the bag and on the body that a scroll can still go on
+function scrollTargets(S) {
+  const out = [];
+  P.bag.equip.forEach((g, i) => { if (g && S.slots.includes(ITEMS[g.id].slot) && gearLeft(g) > 0) out.push([`bag:${i}`, g, ""]); });
+  for (const k of EQ_ORDER) { const g = P.eq[k]; if (g && S.slots.includes(ITEMS[g.id].slot) && gearLeft(g) > 0) out.push([`eq:${k}`, g, "（身上）"]); }
+  return out;
+}
+function applyScroll(si, target) {
+  const sc = P.bag.use[si], S = sc && ITEMS[sc.id].scroll;
+  const [where, key] = target.split(":");
+  const g = where === "eq" ? P.eq[key] : P.bag.equip[Number(key)];
+  if (!S || !g || P.dead) return;
+  const I = ITEMS[g.id];
+  if (!S.slots.includes(I.slot) || gearLeft(g) <= 0) return;
+  takeFromSlot("use", si);
+  // success or not, the scroll uses up one of the gear's upgrade slots
+  g.left = gearLeft(g) - 1;
+  if (Math.random() < S.rate) {
+    g.bonus = g.bonus || {};
+    for (const [k, v] of Object.entries(S.add)) g.bonus[k] = (g.bonus[k] || 0) + v;
+    g.up = (g.up || 0) + 1;
+    msg(`強化成功！${gearName(g)}`, "#ffc94a");
+    fx.push({ k: "lvup", t: 0, text: "SUCCESS!" });
+  } else {
+    msg(`強化失敗……${I.name}的可升級次數少了一次`, "#ff9b8f");
+  }
+  afterGearChange(); save();
+}
+
+// g is the piece of gear itself, when there is one, so its scroll bonuses and upgrade slots show
+function itemInfo(I, n, acts, g) {
+  let h = `<div class="info"><h3>${esc(g ? gearName(g) : I.name)}${n > 1 ? ` ×${n}` : ""}</h3>`;
   if (I.slot) {
     const wt = I.wtype && WTYPES[I.wtype];
     h += `<p class="dim">${EQUIP_SLOTS[I.slot]}${wt ? `．${wt.name}${wt.twoHand ? "（雙手）" : ""}` : ""}</p>`;
-    const bon = Object.keys(GEAR_STATS).filter(k => I[k]).map(k => `${GEAR_STATS[k]} +${I[k]}`);
+    const bon = Object.keys(GEAR_STATS).filter(k => I[k] || g?.bonus?.[k])
+      .map(k => `${GEAR_STATS[k]} +${(I[k] || 0) + (g?.bonus?.[k] || 0)}${g?.bonus?.[k] ? ` <small class="up">(+${g.bonus[k]})</small>` : ""}`);
     if (bon.length) h += `<p>${bon.join("　")}</p>`;
+    h += `<p class="dim">可升級次數 ${g ? gearLeft(g) : I.slots}</p>`;
     const req = reqLines(I);
     if (req.length) h += `<p>需求：${req.map(l => `<span class="${l.ok ? "dim" : "bad"}">${esc(l.text)}</span>`).join("、")}</p>`;
   } else {
@@ -256,7 +304,7 @@ const actBtn = (act, label) => `<button type="button" class="btn" data-do="${act
 function slotBtn(s, attr, sel, bad, label) {
   const I = ITEMS[s.id];
   return `<button type="button" class="slot${sel ? " sel" : ""}${bad ? " bad" : ""}" ${attr} aria-label="${esc(label)}">`
-    + `<img src="${itemIcon(s.id).url}" alt="">${I.stack > 1 ? `<span class="n">${s.n}</span>` : ""}</button>`;
+    + `<img src="${itemIcon(s.id).url}" alt="">${I.stack > 1 ? `<span class="n">${s.n}</span>` : s.up ? `<span class="n up">+${s.up}</span>` : ""}</button>`;
 }
 function renderInv() {
   const tab = P.bag[invTab];
@@ -266,7 +314,7 @@ function renderInv() {
   tab.forEach((s, i) => {
     if (!s) { html += `<span class="slot" aria-hidden="true"></span>`; return; }
     const I = ITEMS[s.id];
-    html += slotBtn(s, `data-i="${i}"`, i === invSel, I.slot && !canWear(I), `${I.name}${s.n > 1 ? ` ×${s.n}` : ""}`);
+    html += slotBtn(s, `data-i="${i}"`, i === invSel, I.slot && !canWear(I), `${I.slot ? gearName(s) : I.name}${s.n > 1 ? ` ×${s.n}` : ""}`);
   });
   html += `</div><div data-info>${invInfo()}</div>`;
   html += `<div class="money">金幣 <b>${P.coins.toLocaleString()}</b>　空格 ${tab.filter(x => !x).length} / ${BAG_SLOTS}</div>`;
@@ -274,9 +322,15 @@ function renderInv() {
 }
 function invInfo() {
   const s = invSel !== null && P.bag[invTab][invSel];
-  if (!s) return `<p class="note">${invTab === "equip" ? "點一下看說明，點兩下直接穿上。" : invTab === "use" ? "點兩下喝藥水或讀回村卷軸。箭矢、飛鏢放在這裡，攻擊時自動用掉。" : "打怪撿到的材料。"}</p>`;
+  if (!s) return `<p class="note">${invTab === "equip" ? "點一下看說明，點兩下直接穿上。" : invTab === "use" ? "點兩下喝藥水、讀卷軸。箭矢、飛鏢放在這裡，攻擊時自動用掉。" : "打怪撿到的材料。"}</p>`;
   const I = ITEMS[s.id];
-  return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.heal || I.warp ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"));
+  if (I.scroll && scrollPick === invSel) {
+    const list = scrollTargets(I.scroll);
+    return `<div class="info"><h3>${esc(I.name)}</h3><p class="dim">要強化哪一件？成功率 ${Math.round(I.scroll.rate * 100)}%，不管成不成功都會用掉一次可升級次數。</p>`
+      + list.map(([t, g, where]) => `<button type="button" class="btn pickgear" data-target="${t}">${esc(gearName(g))}${where}　剩 ${gearLeft(g)} 次</button>`).join("")
+      + `<div class="acts">${actBtn("cancel", "取消")}</div></div>`;
+  }
+  return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.heal || I.warp || I.scroll ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"), I.slot ? s : null);
 }
 // picking a slot only moves the outline and swaps the description, so the slot under the
 // pointer stays the same element and a double click on it still registers
@@ -291,7 +345,7 @@ function renderEquip() {
   let html = `<div class="eqgrid">`;
   for (const k of EQ_ORDER) {
     const s = P.eq[k];
-    html += `<div class="cell">${s ? slotBtn(s, `data-slot="${k}"`, eqSel === k, false, `${EQUIP_SLOTS[k]}：${ITEMS[s.id].name}`) : `<span class="slot" aria-hidden="true"></span>`}${EQUIP_SLOTS[k]}</div>`;
+    html += `<div class="cell">${s ? slotBtn(s, `data-slot="${k}"`, eqSel === k, false, `${EQUIP_SLOTS[k]}：${gearName(s)}`) : `<span class="slot" aria-hidden="true"></span>`}${EQUIP_SLOTS[k]}</div>`;
   }
   html += `</div>`;
   const bon = Object.keys(GEAR_STATS).filter(k => gear(k)).map(k => `${GEAR_STATS[k]} +${gear(k)}`);
@@ -299,7 +353,7 @@ function renderEquip() {
   equipBody.innerHTML = html;
 }
 function equipInfo() {
-  if (eqSel && P.eq[eqSel]) return itemInfo(ITEMS[P.eq[eqSel].id], 1, actBtn("unequip", "卸下"));
+  if (eqSel && P.eq[eqSel]) return itemInfo(ITEMS[P.eq[eqSel].id], 1, actBtn("unequip", "卸下"), P.eq[eqSel]);
   return `<p class="note">點一下看說明，點兩下卸下。要穿上新裝備，到背包（I）的裝備欄點兩下。</p>`;
 }
 function doInv(act) {
@@ -308,14 +362,19 @@ function doInv(act) {
   if (act === "equip" && invTab === "equip") equipFrom(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].heal) drink(s.id, i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].warp) readScroll(i);
+  else if (act === "use" && invTab === "use" && ITEMS[s.id].scroll) {
+    if (scrollTargets(ITEMS[s.id].scroll).length) { scrollPick = i; return; }
+    hint("沒有可以用這張卷軸的裝備");
+  } else if (act === "cancel") { scrollPick = null; return; }
   else if (act === "drop") discard(invTab, i);
   if (!P.bag[invTab][i] || P.bag[invTab][i] !== s) invSel = null;
 }
 invBody.addEventListener("click", e => {
-  const t = e.target.closest("[data-tab],[data-i],[data-do]");
+  const t = e.target.closest("[data-tab],[data-i],[data-do],[data-target]");
   if (!t) return;
-  if (t.dataset.i) { invSel = Number(t.dataset.i); pick(invBody, t, invInfo()); return; }
-  if (t.dataset.tab) { invTab = t.dataset.tab; invSel = null; }
+  if (t.dataset.i) { invSel = Number(t.dataset.i); scrollPick = null; pick(invBody, t, invInfo()); return; }
+  if (t.dataset.tab) { invTab = t.dataset.tab; invSel = null; scrollPick = null; }
+  else if (t.dataset.target) { applyScroll(scrollPick, t.dataset.target); scrollPick = null; if (!P.bag.use[invSel]) invSel = null; }
   else doInv(t.dataset.do);
   refreshPanels(true);
   if (e.detail) cv.focus({ preventScroll: true });
@@ -345,6 +404,30 @@ document.getElementById("openInv").addEventListener("click", () => togglePanel(i
 document.getElementById("openEquip").addEventListener("click", () => togglePanel(equipWin));
 document.getElementById("openWorld").addEventListener("click", () => togglePanel(worldWin));
 document.getElementById("openQuests").addEventListener("click", () => togglePanel(questWin));
+
+// ---------- Key settings ----------
+function renderKeys() {
+  let html = `<p class="note">按「更改」，再按想用的鍵；按 Esc 取消。方向鍵、Space、Enter、Esc 不能改。</p>`;
+  for (const [a, label] of Object.entries(ACTIONS)) {
+    const now = binding === a ? `<span class="dim">按下新按鍵……</span>` : [...new Set(binds[a].map(keyName))].map(k => `<kbd>${esc(k)}</kbd>`).join(" ") || "—";
+    html += `<div class="row keyrow"><span>${label}</span><span class="keys">${now}</span>`
+      + `<button type="button" class="btn" data-rebind="${a}" aria-label="更改${label}的按鍵">${binding === a ? "取消" : "更改"}</button></div>`;
+  }
+  keysBody.innerHTML = html + `<div class="acts">${actBtn("reset", "恢復預設")}</div>`;
+}
+// key names shown around the page (the legend, button labels) follow the current settings
+function renderKeyLabels() {
+  document.querySelectorAll("[data-key]").forEach(el => { el.textContent = keyOf(el.dataset.key); });
+}
+keysBody.addEventListener("click", e => {
+  const t = e.target.closest("[data-rebind],[data-do]");
+  if (!t) return;
+  if (t.dataset.rebind) binding = binding === t.dataset.rebind ? null : t.dataset.rebind;
+  else { binding = null; resetBinds(); renderKeyLabels(); }
+  refreshPanels(true);
+});
+document.getElementById("openKeys").addEventListener("click", () => togglePanel(keysWin));
+renderKeyLabels();
 
 document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => { b.closest(".win").hidden = true; cv.focus({ preventScroll: true }); }));
 document.getElementById("openStats").addEventListener("click", () => togglePanel(statsWin));

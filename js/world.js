@@ -14,6 +14,10 @@ const THEMES = {
             grass: ["#f6e7b8", "#dcc48c", "#c9ad70"], dirt: ["#d1ad78", "#9a7650", "#b08a5c"], tuft: ["#7f9e42", "#a3c25c"] },
   ruins:  { sky: ["#7f78c4", "#d9a2b6", "#f6d6ae"], far: "#9b8fb8", near: "#7d968a", tree: "pillar",
             grass: ["#86b86a", "#5a8f48", "#4a7a3a"], dirt: ["#9a9088", "#5f5650", "#7a706a"], tuft: ["#4a7a3a", "#6a9f52"] },
+  forest: { sky: ["#2f4a5a", "#6a8a8a", "#b9cbb6"], far: "#4f6f6a", near: "#3f5f4a", tree: "pine", mist: true,
+            grass: ["#5f9a52", "#3a6f3a", "#2a552a"], dirt: ["#5f4f42", "#3a3028", "#4a3e34"], tuft: ["#2f5f2f", "#4a7f42"] },
+  reef:   { sky: ["#3f86c0", "#86c4e6", "#d6eef0"], far: "#2f7fb8", near: "#6f98a0", tree: "palm", sea: true,
+            grass: ["#c9d8c8", "#9ab0a8", "#7f968e"], dirt: ["#8a9a9a", "#55666a", "#6f7f80"], tuft: ["#3f8a6a", "#5fb08a"] },
 };
 const MAPS = {
   village: {
@@ -60,7 +64,7 @@ const MAPS = {
       { p: 5, t: "shell", n: 3 }, { p: 6, t: "bjelly", n: 2 }, { p: 7, t: "shell", n: 2 }, { p: 8, t: "shell", n: 3 },
       { p: 9, t: "shell", n: 2 },
     ],
-    portals: [{ x: 60, to: "meadow", tp: 1 }, { x: 2320, y: 500, to: "ruins", tp: 0 }],
+    portals: [{ x: 60, to: "meadow", tp: 1 }, { x: 2320, y: 500, to: "ruins", tp: 0 }, { x: 2350, to: "reef", tp: 0 }],
   },
   ruins: {
     name: "苔岩遺跡", area: "浮島", w: 1800, spawn: 60, theme: THEMES.ruins,
@@ -74,11 +78,45 @@ const MAPS = {
       { p: 0, x0: 300, x1: 1700, t: "shell", n: 3 }, { p: 1, t: "shell", n: 2 }, { p: 2, t: "shell", n: 2 },
       { p: 4, t: "boss", n: 1 }, { p: 5, t: "shell", n: 2 },
     ],
-    portals: [{ x: 60, to: "shore", tp: 1 }],
+    portals: [{ x: 60, to: "shore", tp: 1 }, { x: 1750, to: "forest", tp: 0 }],
+  },
+  reef: {
+    name: "潮汐礁岩", area: "浮島", w: 1600, spawn: 60, theme: THEMES.reef,
+    plats: [{ x: 250, y: 780, w: 240 }, { x: 540, y: 720, w: 260 }, { x: 880, y: 780, w: 240 }, { x: 1180, y: 720, w: 260 }],
+    ladders: [], trees: [180, 760, 1450],
+    zones: [{ p: 0, x0: 500, x1: 1560, t: "crab", n: 1 }, { p: 2, t: "shell", n: 2 }, { p: 4, t: "shell", n: 2 }],
+    portals: [{ x: 60, to: "shore", tp: 2 }],
+  },
+  forest: {
+    name: "霧影森林", area: "浮島", w: 2600, spawn: 60, theme: THEMES.forest,
+    plats: [
+      { x: 300, y: 780, w: 320 }, { x: 560, y: 720, w: 300 }, { x: 800, y: 580, w: 460 }, { x: 1350, y: 780, w: 380 },
+      { x: 1500, y: 640, w: 400 }, { x: 1900, y: 780, w: 300 }, { x: 2050, y: 720, w: 330 }, { x: 1050, y: 440, w: 400 },
+      { x: 1950, y: 500, w: 420 },
+    ],
+    ladders: [
+      { x: 840, top: 580, bottom: 720 }, { x: 1180, top: 580, bottom: 840 }, { x: 1120, top: 440, bottom: 580 },
+      { x: 1560, top: 640, bottom: 780 }, { x: 2100, top: 500, bottom: 720 },
+    ],
+    trees: [180, 650, 1300, 1800, 2350],
+    zones: [
+      { p: 0, x0: 300, x1: 1300, t: "mush", n: 4 }, { p: 0, x0: 1400, x1: 2450, t: "lizard", n: 3 },
+      { p: 1, t: "mush", n: 2 }, { p: 2, t: "mush", n: 2 }, { p: 3, t: "mush", n: 3 }, { p: 4, t: "lizard", n: 2 },
+      { p: 5, t: "lizard", n: 3 }, { p: 6, t: "mush", n: 2 }, { p: 7, t: "lizard", n: 2 }, { p: 8, t: "mush", n: 3 },
+      { p: 9, t: "lizard", n: 3 },
+    ],
+    portals: [{ x: 60, to: "ruins", tp: 1 }, { x: 2540, to: "grove", tp: 0 }],
+  },
+  grove: {
+    name: "古樹深處", area: "浮島", w: 1400, spawn: 60, theme: THEMES.forest,
+    plats: [{ x: 200, y: 780, w: 220 }, { x: 460, y: 720, w: 220 }, { x: 960, y: 780, w: 220 }, { x: 1160, y: 720, w: 200 }],
+    ladders: [], trees: [150, 700, 1300],
+    zones: [{ p: 0, x0: 420, x1: 1200, t: "treant", n: 1 }, { p: 2, t: "lizard", n: 1 }, { p: 4, t: "lizard", n: 1 }],
+    portals: [{ x: 60, to: "forest", tp: 1 }],
   },
 };
 // the order the world map lists them in, from the village outward
-const MAP_ORDER = ["village", "meadow", "shore", "ruins"];
+const MAP_ORDER = ["village", "meadow", "shore", "reef", "ruins", "forest", "grove"];
 let map = MAPS.village, plats = [], ladders = [], trees = [], portals = [];
 const platAt = (x, y) => plats.find(p => Math.abs(p.y - y) < 1.5 && x >= p.x && x <= p.x + p.w) || plats[0];
 const clouds = Array.from({ length: 9 }, (_, i) => ({ x: i * 150 + rand(0, 80), y: rand(40, 210), s: rand(0.7, 1.4), v: rand(4, 12) }));
@@ -94,10 +132,27 @@ const TYPES = {
                     ["travel_cape", 0.02], ["arrow", 0.08, 20, 40], ["iron_star", 0.06, 30, 60]] },
   shell:  { name: "刺殼龜", lv: 8,  hp: 160,  exp: 32,  dmg: 20, spd: 35, avoid: 3, acc: 35, w: 48,  h: 34,  coin: [15, 35],
             drops: [["shell_shard", 0.55], ["red_pot", 0.2], ["blue_pot", 0.12], ["town_scroll", 0.04], ["leather_cap", 0.03], ["wind_boots", 0.03],
-                    ["hunter_gloves", 0.03], ["wood_shield", 0.03], ["arrow", 0.1, 30, 60], ["iron_star", 0.08, 40, 80]] },
+                    ["hunter_gloves", 0.03], ["wood_shield", 0.03], ["scroll_wpn60", 0.01], ["scroll_arm60", 0.01], ["arrow", 0.1, 30, 60], ["iron_star", 0.08, 40, 80]] },
+  // a boss: no knockback, a health bar at the top, and a slam (wind-up seconds, cooldown, reach, damage)
   boss:   { name: "苔岩巨像", lv: 15, hp: 2400, exp: 600, dmg: 34, spd: 25, avoid: 6, acc: 60, w: 100, h: 120, coin: [300, 500], respawn: 45,
+            boss: true, slam: { wind: 0.85, cd: 3.4, range: 300, dmg: 32 },
             drops: [["moss_core", 1], ["red_pot", 1, 5], ["blue_pot", 1, 5], ["town_scroll", 1, 2], [["jade_blade", "vine_staff", "hawk_bow", "dark_claw"], 1],
-                    ["moss_cape", 0.5], ["shell_shield", 0.3], ["arrow", 1, 100, 200], ["steel_star", 0.5, 100, 200]] },
+                    ["moss_cape", 0.5], ["shell_shield", 0.3], ["scroll_wpn60", 0.3], ["scroll_arm60", 0.3], ["arrow", 1, 100, 200], ["steel_star", 0.5, 100, 200]] },
+  mush:   { name: "霧菇", lv: 18, hp: 700, exp: 75, dmg: 45, spd: 45, avoid: 6, acc: 80, w: 40, h: 40, coin: [30, 60],
+            drops: [["fog_spore", 0.5], ["red_pot", 0.2], ["blue_pot", 0.15], ["town_scroll", 0.04], ["fog_hood", 0.02],
+                    ["scroll_wpn60", 0.02], ["scroll_arm60", 0.03], ["arrow", 0.1, 40, 80], ["iron_star", 0.08, 50, 100]] },
+  lizard: { name: "石甲蜥", lv: 25, hp: 1800, exp: 150, dmg: 70, spd: 55, avoid: 9, acc: 110, w: 62, h: 34, coin: [50, 90],
+            drops: [["lizard_scale", 0.5], ["red_pot", 0.2], ["blue_pot", 0.15], ["lizard_mail", 0.02], ["lizard_greaves", 0.02],
+                    ["scroll_wpn60", 0.03], ["scroll_arm60", 0.03], ["scroll_glove60", 0.02], ["scroll_wpn10", 0.01],
+                    [["storm_blade", "star_staff", "gale_bow", "fang_claw"], 0.01], ["steel_star", 0.05, 50, 100]] },
+  crab:   { name: "巨鉗蟹王", lv: 22, hp: 12000, exp: 2500, dmg: 65, spd: 30, avoid: 7, acc: 100, w: 130, h: 90, coin: [600, 900], respawn: 60,
+            boss: true, slam: { wind: 0.7, cd: 3, range: 220, dmg: 90 },
+            drops: [["crab_claw", 1], ["red_pot", 1, 10], ["blue_pot", 1, 10], ["crab_shield", 0.5], ["scroll_wpn60", 0.6], ["scroll_arm60", 0.6],
+                    ["scroll_wpn10", 0.2], ["scroll_arm10", 0.2], ["town_scroll", 1, 2]] },
+  treant: { name: "霧林古樹精", lv: 32, hp: 40000, exp: 8000, dmg: 95, spd: 22, avoid: 10, acc: 150, w: 120, h: 160, coin: [1500, 2500], respawn: 90,
+            boss: true, slam: { wind: 1, cd: 3.6, range: 320, dmg: 140 },
+            drops: [["ancient_ring", 1], [["storm_blade", "star_staff", "gale_bow", "fang_claw"], 1], ["grove_cape", 0.5], ["scroll_wpn10", 0.5],
+                    ["scroll_arm10", 0.5], ["scroll_glove60", 0.6], ["red_pot", 1, 15], ["blue_pot", 1, 15], ["steel_star", 1, 200, 300]] },
 };
 const mobs = [];
 function placeMob(m) {

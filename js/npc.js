@@ -56,11 +56,35 @@ function openNpc(npc) {
 }
 function veraTalk() {
   if (P.job === "beginner") say("你好，冒險者。想選擇自己要走的路，就來找我吧。", [["我想轉職", jobMenu], ["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
-  else say(`你已經是${job().name}了。繼續努力，到 Lv.30 再來找我，我會告訴你下一步。`, [["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
+  else if (SECOND[P.job]) {
+    const next = JOBS[SECOND[P.job]];
+    if (P.lv >= next.req.lv) say(`你已經是很出色的${job().name}了。想更上一層樓，就成為${next.name}吧。`, [["我想二轉", secondJob], ["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
+    else say(`你已經是${job().name}了。繼續努力，到 Lv.${next.req.lv} 再來找我，我會告訴你下一步。`, [["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
+  } else say(`${job().name}，你已經走得很遠了。之後的路，要靠你自己去開拓。`, [["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
+}
+function secondJob() {
+  const id = SECOND[P.job], J = JOBS[id];
+  const preview = SKILLS[id].map(s => `・${s.name}：${s.desc(1)}`).join("\n");
+  say(`${J.blurb}\n\n成為${J.name}之後會學到：\n${preview}`, [[`我要成為${J.name}`, () => advance2(id)], ["再想想", back]]);
+}
+// the second job keeps the weapon and every first-job skill, and adds a new set of skills
+function advance2(id) {
+  const J = JOBS[id];
+  P.job = id;
+  P.sp += 1;
+  P.mhp += J.gain.hp; P.mmp += J.gain.mp;
+  P.hp = maxHp(); P.mp = maxMp();
+  fx.push({ k: "lvup", t: 0, text: "JOB UP!" });
+  msg(`你成為${J.name}了！按 K 學新技能`, "#ffc94a");
+  refreshPanels(true); save();
+  say(`從今天起你就是${J.name}了。\n新的技能在技能視窗（K）的下半部；技能 4、技能 5 預設是 ${keyOf("skill4")}、${keyOf("skill5")} 鍵，按 O 可以改按鍵。`, [["好", closeDialog]]);
 }
 function controlsHelp() {
-  say("← → 移動，↑ ↓ 爬繩梯，↓ 趴下。\nAlt 或 Space 跳躍，Ctrl 或 X 攻擊（按住連打），Z 撿東西。\nShift、D、F 放技能，1、2 喝藥水。\nS 能力值，K 技能，I 背包，E 裝備，W 世界地圖，Q 任務。走到傳送門按 ↑ 換地圖。靠近 NPC 按 Space 或點他，就能說話。",
-    [["知道了", back]]);
+  const k = keyOf;
+  say(`← → 移動，↑ ↓ 爬繩梯，↓ 趴下。\n${k("jump")} 或 Space 跳躍，${k("attack")} 攻擊（按住連打），${k("pickup")} 撿東西。\n`
+    + `${[1, 2, 3, 4, 5].map(i => k(`skill${i}`)).join("、")} 放技能，${k("hpPot")}、${k("mpPot")} 喝藥水。\n`
+    + `${k("stats")} 能力值，${k("skills")} 技能，${k("inv")} 背包，${k("equip")} 裝備，${k("world")} 世界地圖，${k("quests")} 任務，${k("keys")} 鍵位設定。\n`
+    + "走到傳送門按 ↑ 換地圖。靠近 NPC 按 Space 或點他，就能說話。", [["知道了", back]]);
 }
 
 // ---------- Quests ----------
@@ -229,5 +253,5 @@ function advance(id) {
   msg(`你成為${J.name}了！拿到 ${P.sp} 點 SP`, "#ffc94a");
   refreshPanels(true); save();
   const gift = ITEMS[J.weapon].name + (J.ammo ? `和 ${J.ammo[1]} 個${ITEMS[J.ammo[0]].name}` : "");
-  say(`從今天起你就是${J.name}了，這把${gift}送給你。\n按 K 打開技能視窗，用 SP 學技能；學會的技能放在 Shift、D、F 鍵。按 I 看背包，按 E 看身上的裝備。`, [["好", closeDialog]]);
+  say(`從今天起你就是${J.name}了，這把${gift}送給你。\n按 ${keyOf("skills")} 打開技能視窗，用 SP 學技能；學會的技能放在 ${[1, 2, 3].map(i => keyOf(`skill${i}`)).join("、")} 鍵。按 ${keyOf("inv")} 看背包，按 ${keyOf("equip")} 看身上的裝備。`, [["好", closeDialog]]);
 }

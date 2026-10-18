@@ -34,6 +34,10 @@
       <header><h2>任務日誌</h2><button type="button" class="x" data-close aria-label="關閉任務日誌">✕</button></header>
       <div id="questBody"></div>
     </section>
+    <section class="win" id="keysWin" hidden aria-label="鍵位設定">
+      <header><h2>鍵位設定</h2><button type="button" class="x" data-close aria-label="關閉鍵位設定">✕</button></header>
+      <div id="keysBody"></div>
+    </section>
     <section class="win right" id="worldWin" hidden aria-label="世界地圖">
       <header><h2>世界地圖</h2><button type="button" class="x" data-close aria-label="關閉世界地圖">✕</button></header>
       <div id="worldBody"></div>
@@ -49,22 +53,24 @@
     </div>
   </div>
 
+  <!-- key names inside [data-key] follow the key settings (O) -->
   <ul class="legend" aria-label="操作方式">
     <li><kbd>←</kbd><kbd>→</kbd> 移動</li>
     <li><kbd>↑</kbd><kbd>↓</kbd> 爬繩梯</li>
     <li><kbd>↓</kbd> 趴下</li>
-    <li><kbd>Alt</kbd> 或 <kbd>Space</kbd> 跳躍</li>
-    <li><kbd>↓</kbd>＋<kbd>Alt</kbd> 從平台跳下</li>
-    <li><kbd>Ctrl</kbd> 或 <kbd>X</kbd> 攻擊（按住連打）</li>
-    <li><kbd>Z</kbd> 撿東西</li>
-    <li><kbd>Shift</kbd><kbd>D</kbd><kbd>F</kbd> 技能</li>
-    <li><kbd>1</kbd><kbd>2</kbd> 紅／藍藥水</li>
-    <li><kbd>S</kbd> 能力值</li>
-    <li><kbd>K</kbd> 技能視窗</li>
-    <li><kbd>I</kbd> 背包</li>
-    <li><kbd>E</kbd> 裝備</li>
-    <li><kbd>W</kbd> 世界地圖</li>
-    <li><kbd>Q</kbd> 任務日誌</li>
+    <li><kbd data-key="jump">Alt</kbd> 或 <kbd>Space</kbd> 跳躍</li>
+    <li><kbd>↓</kbd>＋<kbd data-key="jump">Alt</kbd> 從平台跳下</li>
+    <li><kbd data-key="attack">Ctrl</kbd> 攻擊（按住連打）</li>
+    <li><kbd data-key="pickup">Z</kbd> 撿東西</li>
+    <li><kbd data-key="skill1">Shift</kbd><kbd data-key="skill2">D</kbd><kbd data-key="skill3">F</kbd><kbd data-key="skill4">G</kbd><kbd data-key="skill5">H</kbd> 技能</li>
+    <li><kbd data-key="hpPot">1</kbd><kbd data-key="mpPot">2</kbd> 紅／藍藥水</li>
+    <li><kbd data-key="stats">S</kbd> 能力值</li>
+    <li><kbd data-key="skills">K</kbd> 技能視窗</li>
+    <li><kbd data-key="inv">I</kbd> 背包</li>
+    <li><kbd data-key="equip">E</kbd> 裝備</li>
+    <li><kbd data-key="world">W</kbd> 世界地圖</li>
+    <li><kbd data-key="quests">Q</kbd> 任務日誌</li>
+    <li><kbd data-key="keys">O</kbd> 鍵位設定</li>
     <li>傳送門前按 <kbd>↑</kbd> 換地圖</li>
     <li>靠近 NPC 按 <kbd>Space</kbd> 或點他說話</li>
   </ul>
@@ -85,18 +91,21 @@
       <button data-act="jump">跳躍</button>
       <button data-act="attack">攻擊</button>
       <button data-act="skill3">技能3</button>
+      <button data-act="skill4">技能4</button>
+      <button data-act="skill5">技能5</button>
     </div>
   </div>
 
   <div class="foot">
     <p>進度會自動存在這台裝置的瀏覽器裡。手機建議橫放。</p>
     <div class="btns">
-      <button class="reset" id="openStats" type="button">能力值（S）</button>
-      <button class="reset" id="openSkills" type="button">技能（K）</button>
-      <button class="reset" id="openInv" type="button">背包（I）</button>
-      <button class="reset" id="openEquip" type="button">裝備（E）</button>
-      <button class="reset" id="openWorld" type="button">世界地圖（W）</button>
-      <button class="reset" id="openQuests" type="button">任務（Q）</button>
+      <button class="reset" id="openStats" type="button">能力值（<span data-key="stats"></span>）</button>
+      <button class="reset" id="openSkills" type="button">技能（<span data-key="skills"></span>）</button>
+      <button class="reset" id="openInv" type="button">背包（<span data-key="inv"></span>）</button>
+      <button class="reset" id="openEquip" type="button">裝備（<span data-key="equip"></span>）</button>
+      <button class="reset" id="openWorld" type="button">世界地圖（<span data-key="world"></span>）</button>
+      <button class="reset" id="openQuests" type="button">任務（<span data-key="quests"></span>）</button>
+      <button class="reset" id="openKeys" type="button">鍵位設定（<span data-key="keys"></span>）</button>
       <button class="reset" id="reset" type="button">重新開始</button>
     </div>
   </div>

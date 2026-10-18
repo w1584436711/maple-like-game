@@ -20,9 +20,9 @@ const P = {
   drop: 0, dropPlat: null, knock: 0, prone: false, climbCd: 0, pickCd: 0, lootHint: false, atkT: 0, atkDur: 0, atkKind: "", atkCd: 0, potCd: 0, inv: 0, anim: 0,
   dead: false, deadT: 0, regen: 0, ...freshCharacter(),
 };
-// gear(k) sums one bonus over everything worn; stat(k) is the base stat plus gear
-const worn = () => Object.values(P.eq).filter(Boolean).map(e => ITEMS[e.id]);
-const gear = k => worn().reduce((s, I) => s + (I[k] || 0), 0);
+// gear(k) sums one bonus over everything worn, scroll bonuses included; stat(k) is the base stat plus gear
+const bonusOf = (e, k) => (ITEMS[e.id][k] || 0) + (e.bonus?.[k] || 0);
+const gear = k => Object.values(P.eq).reduce((s, e) => s + (e ? bonusOf(e, k) : 0), 0);
 const stat = k => P[k] + gear(k);
 const maxHp = () => P.mhp + gear("hp");
 const maxMp = () => P.mmp + gear("mp");
@@ -36,28 +36,33 @@ const skLv = id => P.skills[id] || 0;
 const buffOn = id => (P.buffs[id] || 0) > 0;
 const passive = (id, key) => { const l = skLv(id); return l ? SKILL_BY_ID[id][key](l) : 0; };
 const buffVal = (id, key) => buffOn(id) ? SKILL_BY_ID[id][key](skLv(id)) : 0;
-const jobSkills = () => SKILLS[P.job] || [];
-const slotSkills = () => jobSkills().filter(s => s.type !== "passive").slice(0, 3);
+// a second job keeps its first job's skills and adds its own
+const jobLine = () => [...new Set([root(P.job), P.job])];
+const jobSkills = () => jobLine().flatMap(j => SKILLS[j] || []);
+const SKILL_SLOTS = 5;
+const slotSkills = () => jobSkills().filter(s => s.type !== "passive").slice(0, SKILL_SLOTS);
+// mastery narrows the damage range toward the top: 10% to start, raised by each second job's mastery skill
+const mastery = () => 0.1 + MASTERY_SKILLS.reduce((s, id) => s + passive(id, "mastery"), 0) / 100;
 
 // physical damage range before the skill's percentage
 function physRange() {
   const w = weapon();
   if (!w) return [0, 0];
-  let pri, sec, watk = gear("watk");
+  let pri, sec, watk = gear("watk") + buffVal("k_rage", "watk");
   if (w.wtype === "bow") { pri = stat("dex") * 3.4; sec = stat("str"); }
   else if (w.wtype === "claw") { pri = stat("luk") * 3.6; sec = stat("str") + stat("dex"); watk += ITEMS[ammoStacks()[0]?.id]?.watk || 0; }
   else { pri = stat("str") * 4; sec = stat("dex"); }
-  const mastery = 0.1;
-  return [(pri * 0.9 * mastery + sec) * watk / 100, (pri + sec) * watk / 100];
+  return [(pri * 0.9 * mastery() + sec) * watk / 100, (pri + sec) * watk / 100];
 }
-const magic = () => stat("int") + gear("matk");
+const magic = () => stat("int") + gear("matk") + passive("e_mastery", "matk");
 function magicRange(spell) {
-  const mag = magic(), mastery = 0.1;
-  return [((mag * mag / 1000 + mag * mastery * 0.9) / 30 + stat("int") / 200) * spell,
+  const mag = magic();
+  return [((mag * mag / 1000 + mag * mastery() * 0.9) / 30 + stat("int") / 200) * spell,
           ((mag * mag / 1000 + mag) / 30 + stat("int") / 200) * spell];
 }
-const accuracy = () => stat("dex") * 0.8 + stat("luk") * 0.5 + gear("acc") + buffVal("b_eye", "acc");
-const avoidability = () => stat("dex") * 0.25 + stat("luk") * 0.5 + gear("avoid") + passive("t_agile", "avoid") + buffVal("b_eye", "avoid");
+const accuracy = () => stat("dex") * 0.8 + stat("luk") * 0.5 + gear("acc") + buffVal("b_eye", "acc") + passive("k_mastery", "acc") + passive("h_mastery", "acc");
+const avoidability = () => stat("dex") * 0.25 + stat("luk") * 0.5 + gear("avoid") + passive("t_agile", "avoid") + passive("a_mastery", "avoid") + buffVal("b_eye", "avoid");
+const walkSpeed = () => WALK * (1 + buffVal("a_haste", "speed") / 100);
 const critChance = () => passive("b_crit", "crit") / 100;
 
 // ---------- State ----------
@@ -72,17 +77,61 @@ function msg(text, color = "#eef3fb") {
 
 // ---------- Input ----------
 const held = new Set(), pressed = new Set();
-const KEYMAP = {
-  ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down",
-  Space: "space", KeyC: "jump", AltLeft: "jump", AltRight: "jump",
-  ControlLeft: "attack", ControlRight: "attack", KeyX: "attack", KeyZ: "pickup",
-  ShiftLeft: "skill1", ShiftRight: "skill1", KeyA: "skill1", KeyD: "skill2", KeyF: "skill3",
-  Digit1: "hpPot", Numpad1: "hpPot", Delete: "hpPot", Digit2: "mpPot", Numpad2: "mpPot", End: "mpPot", Enter: "revive",
-  KeyS: "stats", KeyK: "skills", KeyI: "inv", KeyE: "equip", KeyW: "world", KeyQ: "quests", Escape: "esc",
+// Arrows, Space, Enter and Esc always do the same thing; everything in ACTIONS can be moved to another key.
+const FIXED_KEYS = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Space: "space", Enter: "revive", Escape: "esc" };
+const ACTIONS = {
+  jump: "跳躍", attack: "攻擊", pickup: "撿東西", skill1: "技能 1", skill2: "技能 2", skill3: "技能 3", skill4: "技能 4", skill5: "技能 5",
+  hpPot: "紅藥水", mpPot: "藍藥水", stats: "能力值", skills: "技能視窗", inv: "背包", equip: "裝備", world: "世界地圖", quests: "任務日誌", keys: "鍵位設定",
 };
-const PANEL_KEYS = ["stats", "skills", "inv", "equip", "world", "quests", "esc"];
+const DEFAULT_BINDS = {
+  jump: ["AltLeft", "AltRight", "KeyC"], attack: ["ControlLeft", "ControlRight", "KeyX"], pickup: ["KeyZ"],
+  skill1: ["ShiftLeft", "ShiftRight", "KeyA"], skill2: ["KeyD"], skill3: ["KeyF"], skill4: ["KeyG"], skill5: ["KeyH"],
+  hpPot: ["Digit1", "Numpad1", "Delete"], mpPot: ["Digit2", "Numpad2", "End"],
+  stats: ["KeyS"], skills: ["KeyK"], inv: ["KeyI"], equip: ["KeyE"], world: ["KeyW"], quests: ["KeyQ"], keys: ["KeyO"],
+};
+const BINDS_KEY = "floating-isle-keys";
+let binds = {}, KEYMAP = {}, binding = null;
+function loadBinds() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(BINDS_KEY) || "null"); } catch (_) {}
+  binds = {};
+  for (const a in DEFAULT_BINDS) binds[a] = Array.isArray(saved?.[a]) ? saved[a].filter(c => typeof c === "string" && !FIXED_KEYS[c]) : [...DEFAULT_BINDS[a]];
+  rebuildKeymap();
+}
+function rebuildKeymap() {
+  KEYMAP = { ...FIXED_KEYS };
+  for (const a in binds) for (const c of binds[a]) KEYMAP[c] = a;
+}
+// one key does one thing: giving a key to an action takes it away from whatever had it
+function bindKey(action, code) {
+  for (const a in binds) binds[a] = binds[a].filter(c => c !== code);
+  binds[action] = [code];
+  rebuildKeymap();
+  try { localStorage.setItem(BINDS_KEY, JSON.stringify(binds)); } catch (_) {}
+}
+function resetBinds() {
+  try { localStorage.removeItem(BINDS_KEY); } catch (_) {}
+  loadBinds();
+}
+const KEY_NAMES = { ShiftLeft: "Shift", ShiftRight: "Shift", ControlLeft: "Ctrl", ControlRight: "Ctrl", AltLeft: "Alt", AltRight: "Alt", Delete: "Del",
+  Backquote: "`", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]", Backslash: "\\", Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/",
+  Tab: "Tab", CapsLock: "Caps", Backspace: "Back", Insert: "Ins", Home: "Home", End: "End", PageUp: "PgUp", PageDown: "PgDn" };
+const keyName = code => KEY_NAMES[code] || code.replace(/^Key|^Digit/, "").replace(/^Numpad/, "Num ");
+// the key shown for an action: its first binding, or a dash when it has none
+const keyOf = a => binds[a]?.length ? keyName(binds[a][0]) : "—";
+loadBinds();
+const PANEL_KEYS = ["stats", "skills", "inv", "equip", "world", "quests", "keys", "esc"];
 function press(a) { started = true; if (!held.has(a)) pressed.add(a); held.add(a); }
 addEventListener("keydown", e => {
+  if (binding) {
+    // the key window is waiting for the next key press
+    e.preventDefault();
+    if (e.code === "Escape") binding = null;
+    else if (FIXED_KEYS[e.code]) hint(`${keyName(e.code)} 不能改`);
+    else { bindKey(binding, e.code); binding = null; renderKeyLabels(); }
+    refreshPanels(true);
+    return;
+  }
   if (!dlg.hidden) {
     // while the NPC is talking, keys drive the dialog instead of the game
     if (e.code === "Escape") { e.preventDefault(); closeDialog(); }
@@ -97,7 +146,7 @@ addEventListener("keydown", e => {
   e.preventDefault();
   if (PANEL_KEYS.includes(a)) {
     if (e.repeat) return;
-    const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin, world: worldWin, quests: questWin };
+    const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin, world: worldWin, quests: questWin, keys: keysWin };
     if (a === "esc") [...Object.values(wins), shopWin].forEach(w => { w.hidden = true; });
     else togglePanel(wins[a]);
     return;
@@ -138,13 +187,24 @@ function cleanBag(b) {
   const bag = newBag();
   for (const t in bag) (b[t] || []).slice(0, BAG_SLOTS).forEach((s, i) => {
     const I = s && ITEMS[s.id];
-    if (I && I.cat === t && s.n > 0) bag[t][i] = { id: s.id, n: Math.min(s.n | 0, I.stack) };
+    if (I && I.cat === t && s.n > 0) bag[t][i] = I.slot ? cleanGear(s) : { id: s.id, n: Math.min(s.n | 0, I.stack) };
   });
   return bag;
 }
+// a piece of gear: upgrade slots left, successful upgrades, and the bonus they added
+function cleanGear(s) {
+  const I = ITEMS[s.id], g = { id: s.id, n: 1 };
+  if (Number.isInteger(s.left)) g.left = clamp(s.left, 0, I.slots);
+  if (s.up > 0) g.up = s.up | 0;
+  if (s.bonus) {
+    g.bonus = {};
+    for (const k in GEAR_STATS) if (Number(s.bonus[k]) > 0) g.bonus[k] = Number(s.bonus[k]) | 0;
+  }
+  return g;
+}
 function cleanEq(e) {
   const eq = {};
-  for (const k in EQUIP_SLOTS) eq[k] = e?.[k] && ITEMS[e[k].id]?.slot === k ? { id: e[k].id, n: 1 } : null;
+  for (const k in EQUIP_SLOTS) eq[k] = e?.[k] && ITEMS[e[k].id]?.slot === k ? cleanGear(e[k]) : null;
   return eq;
 }
 // saves from before the bag existed: potions move into the bag, and the job's weapon and ammo are handed out

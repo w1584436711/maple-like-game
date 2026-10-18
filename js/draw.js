@@ -109,6 +109,7 @@ function drawBG() {
 function drawTree(t) {
   const kind = map.theme.tree;
   if (kind === "palm") drawPalm(t);
+  else if (kind === "pine") drawPine(t);
   else if (kind === "pillar") drawPillar(t);
   else drawOak(t);
 }
@@ -132,6 +133,16 @@ function drawPalm(t) {
   }
   ctx.fillStyle = "#6b4a2a";
   for (const [dx, dy] of [[-5, 6], [4, 7], [0, 11]]) { ctx.beginPath(); ctx.arc(top.x + dx, top.y + dy, 4.2, 0, Math.PI * 2); ctx.fill(); }
+}
+// a tall dark pine: a short trunk under four stacked tiers of needles
+function drawPine(t) {
+  const by = 840, h = t.h * 1.3, x = t.x;
+  ctx.beginPath(); rr(x - 6, by - h * 0.3, 12, h * 0.3, 2); paint(vgrad(by - h * 0.3, by, "#7a5233", "#4a3020"), "rgba(30,20,10,.6)", 1.2);
+  for (let i = 0; i < 4; i++) {
+    const top = by - h + i * h * 0.17, bottom = top + h * 0.3, w = 18 + i * 15;
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x + w, bottom); ctx.quadraticCurveTo(x, bottom - 8, x - w, bottom); ctx.closePath();
+    paint(vgrad(top, bottom, "#4f8a5a", "#24502f"), "rgba(15,35,20,.6)", 1.2);
+  }
 }
 // a broken stone column with moss and a trailing vine
 function drawPillar(t) {
@@ -297,7 +308,7 @@ function drawNpc(n) {
   ctx.fillStyle = "#ffe48a"; ctx.fillText(n.name, x, y + 17);
   // a bouncing mark over the head: ! for something new, ? when a quest is ready to hand in
   const states = Object.values(QUESTS).filter(q => q.npc === n.id).map(questState);
-  const mark = states.includes("ready") ? "?" : states.includes("available") || (n.id === "vera" && P.job === "beginner" && P.lv >= 8) ? "!" : "";
+  const mark = states.includes("ready") ? "?" : states.includes("available") || (n.id === "vera" && ((P.job === "beginner" && P.lv >= 8) || (SECOND[P.job] && P.lv >= 30))) ? "!" : "";
   if (mark) {
     const by = y - 96 + Math.sin(time * 4) * 3;
     ctx.fillStyle = "#ffc94a"; ctx.beginPath(); ctx.arc(x, by, 11, 0, Math.PI * 2); ctx.fill();
@@ -456,7 +467,7 @@ function paintItem(I) {
     drawWeapon(I.wtype, 0, I.color);
     return;
   }
-  const kind = I.slot || (I.heal ? "pot" : I.warp ? "scroll" : I.ammo) || I.id.split("_").pop();
+  const kind = I.slot || (I.heal ? "pot" : I.warp || I.scroll ? "scroll" : I.ammo) || I.icon || I.id.split("_").pop();
   if (kind === "hat") {
     shape(c, () => { ctx.arc(16, 20, 11, Math.PI, 0); ctx.closePath(); });
     shape(c, () => rr(3, 18, 26, 5, 2.5));
@@ -491,7 +502,7 @@ function paintItem(I) {
     shape(shade(c, -0.15), () => rr(4, 23, 24, 5, 2.5));
     ctx.strokeStyle = "rgba(90,60,30,.45)"; ctx.lineWidth = 1;
     for (const y of [12, 15, 18]) { ctx.beginPath(); ctx.moveTo(10, y); ctx.lineTo(22, y); ctx.stroke(); }
-    ctx.beginPath(); ctx.arc(21, 21, 3.4, 0, Math.PI * 2); paint("#d23b3b", INK, 1);
+    ctx.beginPath(); ctx.arc(21, 21, 3.4, 0, Math.PI * 2); paint(I.seal || "#d23b3b", INK, 1);
   } else if (kind === "bow") {
     // a bundle of three arrows
     for (const o of [-4, 0, 4]) {
@@ -602,7 +613,7 @@ function drawMob(m) {
       paint(white ? "#fff" : vgrad(sy - 8, sy + 3, "#fff8e0", "#d9c28a"), INK, 1);
     }
   } else if (m.t === "boss") {
-    const wind = m.wind > 0 ? 1 - m.wind / 0.85 : 0;
+    const wind = m.wind > 0 ? 1 - m.wind / m.T.slam.wind : 0;
     const shake = m.wind > 0 ? Math.sin(m.ph * 60) * 2 : 0;
     const b = Math.sin(m.ph * 2) * 2;
     ctx.translate(shake, 0);
@@ -648,10 +659,112 @@ function drawMob(m) {
     ctx.beginPath(); ctx.ellipse(11, -84 + b, 6.5, 3.5, 0, 0, Math.PI * 2); ctx.ellipse(32, -84 + b, 6.5, 3.5, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
     ctx.fillStyle = "#fff8d0"; ctx.beginPath(); ctx.arc(12.5, -84.5 + b, 1.6, 0, Math.PI * 2); ctx.arc(33.5, -84.5 + b, 1.6, 0, Math.PI * 2); ctx.fill();
+  } else if (m.t === "mush") {
+    // a hopping mushroom: a pale stem with a face under a spotted violet cap
+    const walking = m.state === "walk" || m.aggro > 0;
+    ctx.translate(0, walking ? -Math.abs(Math.sin(m.ph * 6)) * 7 : 0);
+    ctx.scale(f, 1);
+    ctx.beginPath(); rr(-11, -25, 22, 25, 9); paint(white ? "#fff" : vgrad(-25, 0, "#fff3e0", "#e0caa6"));
+    eyes(1, 8, -14, 2.4, 0.6, blinking(m.ph * 0.4));
+    if (m.aggro > 0) { ctx.strokeStyle = "#3a2a2a"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-2, -20); ctx.lineTo(3, -18); ctx.moveTo(11, -20); ctx.lineTo(6, -18); ctx.stroke(); }
+    ctx.strokeStyle = "#6a3a2a"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(5, -8, 2, 0.2, Math.PI - 0.2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-21, -20); ctx.bezierCurveTo(-23, -47, 23, -47, 21, -20); ctx.quadraticCurveTo(0, -14, -21, -20); ctx.closePath();
+    paint(white ? "#fff" : gloss("#8a6fb8", -44, -18), "#3a2a5a", 1.6);
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    for (const [x, y, rx, ry] of [[-10, -32, 4.5, 3], [6, -37, 5, 3.4], [14, -26, 3.2, 2.4], [-16, -24, 2.6, 2]]) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); }
+  } else if (m.t === "lizard") {
+    // a long lizard with stone plates down its back and a swishing tail
+    const walking = m.state === "walk" || m.aggro > 0, step = walking ? Math.sin(m.ph * 10) * 3 : 0, skin = "#7a8a5a";
+    ctx.scale(f, 1);
+    ctx.beginPath(); ctx.moveTo(-20, -16); ctx.quadraticCurveTo(-40, -14, -46, -4 + Math.sin(m.ph * 4) * 3); ctx.quadraticCurveTo(-34, -6, -18, -6); ctx.closePath();
+    paint(white ? "#fff" : gloss(skin, -16, -4));
+    for (const [x, s2] of [[-15, step], [-5, -step], [10, step], [19, -step]]) { ctx.beginPath(); rr(x - 3 + s2 * 0.5, -9, 6, 9, 2.5); paint(white ? "#fff" : gloss(shade(skin, -0.15), -9, 0)); }
+    ctx.beginPath(); ctx.ellipse(0, -15, 27, 11, 0, 0, Math.PI * 2); paint(white ? "#fff" : gloss(skin, -26, -4));
+    ctx.fillStyle = "rgba(255,240,200,.3)"; ctx.beginPath(); ctx.ellipse(3, -9, 20, 4, 0, 0, Math.PI * 2); ctx.fill();
+    for (const x of [-15, -5, 5, 15]) {
+      ctx.beginPath(); ctx.moveTo(x - 6, -22); ctx.lineTo(x, -31); ctx.lineTo(x + 6, -22); ctx.closePath();
+      paint(white ? "#fff" : vgrad(-31, -22, "#c9cfd6", "#7f8a96"), INK, 1);
+    }
+    ctx.beginPath(); ctx.ellipse(28, -16, 11, 8, 0.1, 0, Math.PI * 2); paint(white ? "#fff" : gloss(skin, -24, -8));
+    ctx.beginPath(); ctx.arc(31, -19, 3.2, 0, Math.PI * 2); paint("#ffe066", INK, 1);
+    ctx.fillStyle = "#1d2a22"; ctx.fillRect(30.4, -21.6, 1.4, 5.2);
+    ctx.strokeStyle = "#2f3a22"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(30, -12); ctx.lineTo(38, -13); ctx.stroke();
+  } else if (m.t === "crab") {
+    // a giant crab: legs, a domed shell, eyes on stalks and two pincers that rise before it smashes
+    const wind = m.wind > 0 ? 1 - m.wind / m.T.slam.wind : 0, shake = m.wind > 0 ? Math.sin(m.ph * 60) * 2 : 0;
+    const b = Math.sin(m.ph * 3) * 1.5, walk = Math.sin(m.ph * 8) * 3, shell = "#d0563a";
+    ctx.translate(shake, 0); ctx.scale(f, 1);
+    ctx.lineCap = "round";
+    for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
+      const path = () => { ctx.beginPath(); ctx.moveTo(side * (24 + i * 12), -32); ctx.lineTo(side * (54 + i * 8), -46 + walk * (i % 2 ? 1 : -1)); ctx.lineTo(side * (60 + i * 7), 0); };
+      path(); ctx.strokeStyle = INK; ctx.lineWidth = 8; ctx.stroke();
+      path(); ctx.strokeStyle = white ? "#fff" : shade(shell, -0.15); ctx.lineWidth = 5; ctx.stroke();
+    }
+    ctx.lineCap = "butt";
+    ctx.beginPath(); ctx.ellipse(0, -42 + b, 56, 32, 0, 0, Math.PI * 2); paint(white ? "#fff" : gloss(shell, -74, -10), "#5a1a10", 2.2);
+    ctx.strokeStyle = "rgba(255,255,255,.22)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(-12, -58 + b, 22, 7, -0.2, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = "rgba(90,20,10,.35)";
+    for (const [x, y] of [[-26, -40], [-8, -32], [14, -44], [30, -34], [4, -54]]) { ctx.beginPath(); ctx.arc(x, y + b, 3.5, 0, Math.PI * 2); ctx.fill(); }
+    for (const x of [-12, 12]) {
+      ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x, -70 + b); ctx.lineTo(x * 1.2, -88 + b); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x * 1.2, -92 + b, 6.5, 0, Math.PI * 2); paint("#ffffff", INK, 1.4);
+      ctx.fillStyle = m.wind > 0 ? "#c0261a" : "#1d1a22"; ctx.beginPath(); ctx.arc(x * 1.2 + 2, -91 + b, 3, 0, Math.PI * 2); ctx.fill();
+    }
+    const claw = (x, big) => {
+      ctx.save(); ctx.translate(x, -40 + b); ctx.rotate((x > 0 ? 1 : -1) * (0.35 + wind * 0.5) - wind * 0.6);
+      ctx.beginPath(); rr(-7, -36, 14, 38, 7); paint(white ? "#fff" : gloss(shell, -36, 2), "#5a1a10", 1.8);
+      ctx.translate(0, -40);
+      const r = big ? 22 : 16, open = 0.25 + wind * 0.45;
+      for (const jaw of [-1, 1]) {
+        ctx.save(); ctx.rotate(jaw * open);
+        ctx.beginPath(); ctx.ellipse(jaw * r * 0.32, -r * 0.55, r * 0.42, r, 0, 0, Math.PI * 2);
+        paint(white ? "#fff" : gloss(shell, -r * 1.6, r * 0.2), "#5a1a10", 1.8);
+        ctx.restore();
+      }
+      ctx.restore();
+    };
+    claw(-60, false); claw(62, true);
+  } else if (m.t === "treant") {
+    // an old tree come alive: roots for feet, a bark face that glows, branch arms and a leafy crown
+    const wind = m.wind > 0 ? 1 - m.wind / m.T.slam.wind : 0, shake = m.wind > 0 ? Math.sin(m.ph * 60) * 2 : 0;
+    const sway = Math.sin(m.ph * 1.5) * 2;
+    ctx.translate(shake, 0); ctx.scale(f, 1);
+    const bark = (x0, x1) => { const g = ctx.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, "#8a6040"); g.addColorStop(1, "#4a3020"); return white ? "#fff" : g; };
+    for (const x of [-44, -16, 14, 42]) {
+      ctx.beginPath(); ctx.moveTo(x - 12, 0); ctx.quadraticCurveTo(x - 2, -18, x + 2, -34); ctx.lineTo(x + 14, -34); ctx.quadraticCurveTo(x + 12, -12, x + 20, 0); ctx.closePath();
+      paint(bark(x - 12, x + 20), "#2a1a10", 1.6);
+    }
+    // branch arms, raised for the slam
+    for (const side of [-1, 1]) {
+      ctx.save(); ctx.translate(side * 38, -104 + sway); ctx.rotate(side * (0.9 - wind * 1.5));
+      ctx.beginPath(); rr(-7, -6, 50, 13, 6); paint(bark(0, 50), "#2a1a10", 1.6);
+      ctx.beginPath(); ctx.moveTo(30, -4); ctx.lineTo(44, -18); ctx.lineTo(48, -14); ctx.lineTo(38, 0); ctx.closePath(); paint(bark(30, 48), "#2a1a10", 1.2);
+      ctx.fillStyle = white ? "#fff" : "#4f8a3a"; ctx.beginPath(); ctx.arc(48, -2, 9, 0, Math.PI * 2); ctx.arc(44, -18, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.moveTo(-44, -24); ctx.quadraticCurveTo(-54, -90, -38, -134 + sway); ctx.lineTo(38, -134 + sway); ctx.quadraticCurveTo(54, -90, 44, -24); ctx.closePath();
+    paint(bark(-50, 50), "#2a1a10", 2.2);
+    ctx.strokeStyle = "rgba(30,15,5,.4)"; ctx.lineWidth = 2;
+    for (const x of [-28, -10, 22, 34]) { ctx.beginPath(); ctx.moveTo(x, -30); ctx.quadraticCurveTo(x + 4, -70, x - 2, -120 + sway); ctx.stroke(); }
+    // hollow eyes and mouth; red just before a slam
+    const glow = m.wind > 0 ? "#ff5a3a" : "#a8f070";
+    ctx.fillStyle = "#1a0f08";
+    ctx.beginPath(); ctx.ellipse(-2, -100 + sway, 9, 11, 0, 0, Math.PI * 2); ctx.ellipse(26, -100 + sway, 9, 11, 0, 0, Math.PI * 2); ctx.ellipse(12, -66 + sway, 14, 8 + wind * 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.fillStyle = glow; ctx.shadowColor = glow; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(0, -100 + sway, 3.6, 0, Math.PI * 2); ctx.arc(28, -100 + sway, 3.6, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    // the crown: dark leaves underneath, lighter clumps on top, and a little moss
+    const crown = [[-40, -150, 34], [0, -170, 42], [40, -150, 34], [-20, -186, 28], [24, -190, 28]];
+    ctx.fillStyle = white ? "#fff" : "#2f5f2a";
+    ctx.beginPath(); for (const [x, y, r] of crown) { ctx.moveTo(x + r, y + 6 + sway); ctx.arc(x, y + 6 + sway, r, 0, Math.PI * 2); } ctx.fill();
+    ctx.fillStyle = white ? "#fff" : vgrad(-220, -120, "#6fae5a", "#3f7a3a");
+    ctx.beginPath(); for (const [x, y, r] of crown) { ctx.moveTo(x + r * 0.9, y + sway); ctx.arc(x, y + sway, r * 0.9, 0, Math.PI * 2); } ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.12)";
+    ctx.beginPath(); for (const [x, y, r] of crown) { ctx.moveTo(x - 6 + r * 0.4, y - 8 + sway); ctx.arc(x - 6, y - 8 + sway, r * 0.4, 0, Math.PI * 2); } ctx.fill();
   }
   ctx.restore();
 
-  if (!m.dead && m.showHp > 0 && m.t !== "boss") {
+  if (!m.dead && m.showHp > 0 && !m.T.boss) {
     const bw = Math.max(40, m.w + 8), bx = cx - bw / 2, by2 = m.y - 14;
     ctx.fillStyle = "rgba(20,24,30,.8)"; ctx.fillRect(bx - 1, by2 - 1, bw + 2, 7);
     ctx.fillStyle = "#e0453b"; ctx.fillRect(bx, by2, bw * Math.max(0, m.hp / m.T.hp), 5);
@@ -731,6 +844,14 @@ function drawShots() {
       ctx.beginPath();
       for (let i = 0; i < 8; i++) { const r = i % 2 ? 3 : 9, a = i * Math.PI / 4; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
       ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (s.kind === "fire") {
+      for (let i = 3; i >= 1; i--) {
+        ctx.fillStyle = `rgba(255,${120 + i * 20},40,${0.35 - i * 0.08})`;
+        ctx.beginPath(); ctx.arc(-s.face * i * 9, Math.sin(s.spin + i) * 2, 13 - i * 2.5, 0, Math.PI * 2); ctx.fill();
+      }
+      const g = ctx.createRadialGradient(0, 0, 1, 0, 0, 14);
+      g.addColorStop(0, "#fff6c0"); g.addColorStop(0.4, "#ffb347"); g.addColorStop(1, "rgba(255,80,30,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
     } else {
       const g = ctx.createRadialGradient(0, 0, 1, 0, 0, 12);
       g.addColorStop(0, "#ffffff"); g.addColorStop(0.4, "#d6b8ff"); g.addColorStop(1, "rgba(150,100,255,0)");
@@ -901,9 +1022,37 @@ function drawFX() {
       ctx.strokeStyle = `rgba(160,220,255,${1 - p})`; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.ellipse(cx, P.y + P.h - p * 60, 26, 7, 0, 0, Math.PI * 2); ctx.stroke();
       ctx.beginPath(); ctx.ellipse(cx, P.y + P.h - p * 30, 22, 6, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (f.k === "nova") {
+      // a ring of frost spreading over the ground, with ice shards flying outward
+      const p = f.t / 0.5;
+      ctx.strokeStyle = `rgba(170,230,255,${1 - p})`; ctx.lineWidth = 6 * (1 - p) + 1;
+      ctx.beginPath(); ctx.ellipse(f.x, f.y - 16, f.r * p, f.r * p * 0.32, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = `rgba(225,248,255,${1 - p})`;
+      for (let i = 0; i < 12; i++) {
+        const a = i * Math.PI / 6, sx = f.x + Math.cos(a) * f.r * p, sy = f.y - 16 + Math.sin(a) * f.r * p * 0.32 - Math.sin(p * Math.PI) * 20;
+        ctx.beginPath(); ctx.moveTo(sx, sy - 7); ctx.lineTo(sx + 3, sy); ctx.lineTo(sx, sy + 7); ctx.lineTo(sx - 3, sy); ctx.closePath(); ctx.fill();
+      }
+    } else if (f.k === "quake") {
+      const p = f.t / 0.5;
+      ctx.strokeStyle = `rgba(220,180,110,${1 - p})`; ctx.lineWidth = 8 * (1 - p) + 1;
+      ctx.beginPath(); ctx.ellipse(f.x, f.y, f.r * p, 8 + p * 12, 0, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < 10; i++) {
+        const dx = (i - 4.5) / 4.5 * f.r * p;
+        ctx.fillStyle = `rgba(140,110,80,${1 - p})`; ctx.fillRect(f.x + dx - 3, f.y - 4 - Math.sin(p * Math.PI) * (16 + (i % 3) * 8), 6, 6);
+      }
+    } else if (f.k === "zap") {
+      // jagged lightning from the sky onto each target
+      const p = f.t / 0.3;
+      ctx.save(); ctx.strokeStyle = `rgba(255,250,180,${1 - p})`; ctx.lineWidth = 3; ctx.shadowColor = "#ffe066"; ctx.shadowBlur = 12; ctx.lineJoin = "round";
+      for (const [tx, ty] of f.pts) {
+        ctx.beginPath(); ctx.moveTo(tx + 10, ty - 170);
+        for (let k = 1; k <= 6; k++) ctx.lineTo(tx + (k < 6 ? rand(-14, 14) : 0), ty - 170 + k * 170 / 6);
+        ctx.stroke();
+      }
+      ctx.restore();
     } else if (f.k === "burst") {
       const p = f.t / 0.3;
-      ctx.fillStyle = `rgba(214,184,255,${0.8 * (1 - p)})`;
+      ctx.fillStyle = f.fire ? `rgba(255,150,60,${0.85 * (1 - p)})` : `rgba(214,184,255,${0.8 * (1 - p)})`;
       ctx.beginPath(); ctx.arc(f.x, f.y, 6 + p * 18, 0, Math.PI * 2); ctx.fill();
     } else if (f.k === "stab" && !P.dead) {
       const p = f.t / 0.2;
@@ -1003,7 +1152,7 @@ function drawHUD() {
   ctx.fillStyle = "#c98a12"; ctx.beginPath(); ctx.arc(96, top + 17, 3, 0, Math.PI * 2); ctx.fill();
   ctx.font = `14px ${NUM}`; ctx.fillStyle = "#ffe7a3"; ctx.fillText(P.coins.toLocaleString(), 106, top + 22);
 
-  const bx = 160, bw = 162, gap = 8;
+  const bx = 160, bw = 136, gap = 8;
   drawBar(bx, top + 10, bw, 18, P.hp / maxHp(), "#ff7a6b", "#d8362b", "HP", `${Math.ceil(P.hp)} / ${maxHp()}`);
   drawBar(bx + bw + gap, top + 10, bw, 18, P.mp / maxMp(), "#7fb6ff", "#2f6fd6", "MP", `${Math.floor(P.mp)} / ${maxMp()}`);
   const er = P.exp / need();
@@ -1020,24 +1169,25 @@ function drawHUD() {
     ctx.fillText(`${ammoName} ${n}`, bx + bw + gap + 8, top + 42);
   }
 
-  // quick slots: two potions, then the three skill keys
+  // quick slots: two potions, then the five skill keys, labelled with whatever keys they are bound to
   const SKILL_COLORS = { atk: "#ff9b5a", buff: "#7fd0ff" };
+  const short = a => keyOf(a).replace("Shift", "⇧").replace("Num ", "N");
   const slots = [
-    { key: "1", label: "紅藥", sub: "×" + countItem("red_pot"), c: "#e0453b", dim: !countItem("red_pot") },
-    { key: "2", label: "藍藥", sub: "×" + countItem("blue_pot"), c: "#3a7be0", dim: !countItem("blue_pot") },
+    { key: short("hpPot"), label: "紅藥", sub: "×" + countItem("red_pot"), c: "#e0453b", dim: !countItem("red_pot") },
+    { key: short("mpPot"), label: "藍藥", sub: "×" + countItem("blue_pot"), c: "#3a7be0", dim: !countItem("blue_pot") },
     ...slotSkills().map((s, i) => {
       const l = skLv(s.id);
-      return { key: ["⇧", "D", "F"][i], label: s.name.slice(0, 2), sub: l ? `MP ${s.mp(l)}` : "未學",
+      return { key: short(`skill${i + 1}`), label: s.name.slice(0, 2), sub: l ? `MP ${s.mp(l)}` : "未學",
                c: SKILL_COLORS[s.type], dim: !l || P.mp < s.mp(Math.max(1, l)), on: buffOn(s.id) };
     }),
   ];
   slots.forEach((s, i) => {
-    const x = 678 + i * 56, y = top + 6;
-    ctx.fillStyle = "#0b1426"; rr(x, y, 52, 36, 7); ctx.fill();
+    const x = 584 + i * 52, y = top + 6;
+    ctx.fillStyle = "#0b1426"; rr(x, y, 49, 36, 7); ctx.fill();
     ctx.strokeStyle = s.on ? "#7fd0ff" : "rgba(255,255,255,.14)"; ctx.lineWidth = s.on ? 2 : 1; ctx.stroke();
-    ctx.fillStyle = s.dim ? "#3b4a63" : s.c; ctx.beginPath(); ctx.arc(x + 13, y + 20, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.font = `700 11px ${UI}`; ctx.fillStyle = s.dim ? "#7d8aa3" : "#dfe8f6"; ctx.fillText(s.label, x + 23, y + 16);
-    ctx.font = `10px ${NUM}`; ctx.fillStyle = "#9fb0cd"; ctx.fillText(s.sub, x + 23, y + 30);
+    ctx.fillStyle = s.dim ? "#3b4a63" : s.c; ctx.beginPath(); ctx.arc(x + 12, y + 20, 6.5, 0, Math.PI * 2); ctx.fill();
+    ctx.font = `700 11px ${UI}`; ctx.fillStyle = s.dim ? "#7d8aa3" : "#dfe8f6"; ctx.fillText(s.label, x + 21, y + 16);
+    ctx.font = `10px ${NUM}`; ctx.fillStyle = "#9fb0cd"; ctx.fillText(s.sub, x + 21, y + 30);
     ctx.font = `10px ${NUM}`; ctx.fillStyle = "#ffc94a"; ctx.fillText(s.key, x + 4, y + 11);
   });
 
@@ -1072,15 +1222,15 @@ function drawHUD() {
   ctx.fillStyle = "#7fd0ff";
   for (const pt of portals) { ctx.beginPath(); ctx.ellipse(mx + pt.x * sx, my + (pt.y - 10) * sy, 2.2, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }
   for (const m of mobs) if (!m.dead) {
-    ctx.fillStyle = m.t === "boss" ? "#ff5a3a" : "#ff9b8f";
-    const r = m.t === "boss" ? 3.5 : 1.6;
+    ctx.fillStyle = m.T.boss ? "#ff5a3a" : "#ff9b8f";
+    const r = m.T.boss ? 3.5 : 1.6;
     ctx.beginPath(); ctx.arc(mx + (m.x + m.w / 2) * sx, my + (m.y + m.h / 2) * sy, r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.fillStyle = "#ffe066"; ctx.beginPath(); ctx.arc(mx + (P.x + P.w / 2) * sx, my + (P.y + P.h / 2) * sy, 3.2, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.strokeRect(mx + cam.x * sx, my + cam.y * sy, W * sx, H * sy);
 
   // boss bar
-  const boss = mobs.find(m => m.t === "boss" && !m.dead && (m.aggro > 0 || m.hp < m.T.hp));
+  const boss = mobs.find(m => m.T.boss && !m.dead && (m.aggro > 0 || m.hp < m.T.hp));
   if (boss) {
     const w = 380, x = (W - w) / 2, y = 96;
     ctx.font = `900 14px ${UI}`; ctx.textAlign = "center";
@@ -1127,6 +1277,12 @@ function draw() {
   drawFX();
   drawNums();
   ctx.restore();
+  if (map.theme.mist) {
+    for (let i = 0; i < 4; i++) {
+      const x = ((time * (10 + i * 4) + i * 300 - cam.x * 0.4) % 1400 + 1400) % 1400 - 220, y = 250 + i * 70 - cam.y * 0.15;
+      ctx.fillStyle = "rgba(225,238,232,.10)"; ctx.beginPath(); ctx.ellipse(x, y, 260, 34, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
   // a quick fade from black after changing maps
   if (fade > 0) { ctx.fillStyle = `rgba(8,12,24,${fade})`; ctx.fillRect(0, 0, W, H); }
   drawHUD();
