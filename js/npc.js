@@ -16,6 +16,12 @@ const NPCS = {
            look: { robe: "#4a63a8", hair: "#dfe3ec", beard: "#eef1f6", prop: "cane" } },
   tuck:  { name: "漁夫 塔克", map: "shore", x: 200, greet: "唉，今天又沒釣到魚。都是那些刺殼龜害的！",
            look: { robe: "#3a7be0", hair: "#6b4a2a", strawHat: true, prop: "rod" } },
+  marin: { name: "潛水員 瑪琳", map: "reef", x: 160, greet: "這片礁岩底下藏著好多寶貝，可惜蟹王一直守在那裡。",
+           look: { robe: "#2f9aa8", hair: "#e8b860", bun: true } },
+  bobo:  { name: "採菇人 波波", map: "forest", x: 200, greet: "噓——小聲點，霧菇很容易被嚇跑的。……好吧，其實牠們會撲過來。",
+           look: { robe: "#8a6fb8", hair: "#6b4a2a", strawHat: true, apron: true } },
+  ed:    { name: "守林人 艾德", map: "grove", x: 130, greet: "古樹精醒過來之後，森林就再也沒安靜過。你是來幫忙的嗎？",
+           look: { robe: "#3f6f3a", hair: "#5a3a24", beard: "#5a3a24", prop: "cane" } },
 };
 for (const [id, n] of Object.entries(NPCS)) { n.id = id; n.y = 840; }
 const npcsHere = () => Object.values(NPCS).filter(n => n.map === P.map);
@@ -48,7 +54,7 @@ function openNpc(npc) {
     const st = questState(q);
     if (st === "ready") opts.push([`【完成】${q.name}`, () => finishQuest(q)]);
     else if (st === "active") opts.push([`【進行中】${q.name}`, () => questProgress(q)]);
-    else if (st === "available") opts.push([`【任務】${q.name}`, () => offerQuest(q)]);
+    else if (st === "available") opts.push([`${q.daily ? "【每日】" : "【任務】"}${q.name}`, () => offerQuest(q)]);
   }
   if (npc.shop) opts.push(["我想買賣東西", () => openShop(npc)]);
   if (npc.talk) { npc.talk(opts); return; }
@@ -116,12 +122,67 @@ const QUESTS = {
              ask: "刺殼海岸再過去有一片遺跡，聽說裡面住著會動的石像。如果你能帶回它的苔岩之心，就證明你是真正的冒險者了。",
              where: "苔岩遺跡在刺殼海岸東邊高台上的傳送門後面。苔岩巨像在遺跡中間的高台上。",
              thanks: "這就是苔岩之心……你真的辦到了！浮島村以你為榮。" },
+  // Lv.15-30: a short chain in each of the three new maps
+  q_crab:   { npc: "marin", name: "礁岩的霸主", lv: 18, kill: { crab: 1 },
+              reward: { exp: 9000, coins: 3000, items: [["scroll_arm60", 2]] },
+              ask: "巨鉗蟹王把整片礁岩當成自己的地盤，我根本沒辦法下水。你能打倒牠嗎？",
+              where: "蟹王就在礁岩的地面上。看到牠舉起鉗子，就趕快拉開距離。",
+              thanks: "太好了，我終於可以去潛水了！這兩張卷軸是我從海底撿到的，給你。" },
+  q_claw:   { npc: "marin", name: "蟹鉗做的工具", lv: 20, after: "q_crab", collect: { crab_claw: 1 },
+              reward: { exp: 7000, coins: 2500, items: [["scroll_wpn60", 2]] },
+              ask: "蟹王又回來了！這次請幫我帶一支蟹王巨鉗回來，我想把它做成撬貝殼的工具。",
+              where: "打倒巨鉗蟹王一定會掉蟹王巨鉗。",
+              thanks: "這支鉗子好結實！謝謝你，這兩張武器卷軸送你。" },
+  q_mush:   { npc: "bobo", name: "霧菇大豐收", lv: 18, kill: { mush: 30 },
+              reward: { exp: 8000, coins: 2000, items: [["red_pot", 20]] },
+              ask: "今年的霧菇長得太多了，把採菇的小路都堵住了。幫我打倒 30 隻好嗎？",
+              where: "霧菇在森林的地面和低處的平台上跳來跳去。",
+              thanks: "小路通了！這些紅藥水給你，森林裡很容易受傷的。" },
+  q_spore:  { npc: "bobo", name: "孢子的祕密", lv: 20, after: "q_mush", collect: { fog_spore: 25 },
+              reward: { exp: 10000, coins: 2500, items: [["fog_hood", 1]] },
+              ask: "霧菇孢子曬乾以後可以做成很香的調味粉。幫我收集 25 個霧菇孢子吧！",
+              where: "打倒霧菇就有機會掉霧菇孢子。",
+              thanks: "這麼多孢子，夠我做一整年的調味粉了。這頂兜帽是用霧林的布做的，送你。" },
+  q_lizard: { npc: "bobo", name: "石甲蜥出沒", lv: 25, after: "q_spore", kill: { lizard: 30 },
+              reward: { exp: 16000, coins: 5000, items: [["scroll_glove60", 1]] },
+              ask: "森林深處的石甲蜥越來越多，連我都不太敢往裡面走了。打倒 30 隻吧！",
+              where: "石甲蜥在森林東半邊和高處的平台上。",
+              thanks: "森林安全多了！這張手套卷軸給你，讓你的拳頭更有力。" },
+  q_scale:  { npc: "ed", name: "守林人的盔甲", lv: 25, collect: { lizard_scale: 30 },
+              reward: { exp: 15000, coins: 4000, items: [["scroll_arm60", 2]] },
+              ask: "我想用石甲鱗片補一補我的盔甲。能幫我收集 30 個石甲鱗片嗎？",
+              where: "打倒石甲蜥有機會掉石甲鱗片，霧影森林裡最多。",
+              thanks: "有了這些鱗片，盔甲就跟新的一樣了。這兩張防具卷軸給你。" },
+  q_treant: { npc: "ed", name: "沉睡吧，古樹精", lv: 28, after: "q_scale", kill: { treant: 1 },
+              reward: { exp: 26000, coins: 10000, items: [["scroll_wpn10", 1]] },
+              ask: "古樹精被霧氣弄得失去理智了。打倒它，讓它重新沉睡吧。這是我能拜託的最後一件事了。",
+              where: "古樹精就在這片空地的中間。它舉起樹枝的時候，就是要重擊地面了。",
+              thanks: "森林終於安靜了……謝謝你，冒險者。這張卷軸很稀有，好好使用吧。" },
+  // daily quests: once a day each, from the next day on they can be taken again
+  d_bjelly: { npc: "owen", name: "藍果凍巡邏", lv: 4, daily: true, kill: { bjelly: 15 },
+              reward: { exp: 800, coins: 600 },
+              ask: "今天也麻煩你去青草平原巡一巡，打倒 15 隻藍果凍。", where: "藍果凍在青草平原東邊。",
+              thanks: "辛苦了，明天也拜託你囉。" },
+  d_shell:  { npc: "tuck", name: "今天的釣魚位置", lv: 8, daily: true, kill: { shell: 20 },
+              reward: { exp: 2500, coins: 1500 },
+              ask: "今天也幫我清一清釣魚的位置吧，打倒 20 隻刺殼龜。", where: "整片刺殼海岸都有刺殼龜。",
+              thanks: "今天一定能釣到大魚！明天再來吧。" },
+  d_mush:   { npc: "bobo", name: "每日採菇", lv: 18, daily: true, kill: { mush: 25 },
+              reward: { exp: 9000, coins: 3000 },
+              ask: "今天的霧菇又長出來了，幫我打倒 25 隻。", where: "霧菇在森林的地面和低處的平台上。",
+              thanks: "謝啦！明天的霧菇也交給你了。" },
+  d_lizard: { npc: "ed", name: "森林巡守", lv: 25, daily: true, kill: { lizard: 20 },
+              reward: { exp: 16000, coins: 5000 },
+              ask: "幫我巡一巡森林，打倒 20 隻石甲蜥。", where: "石甲蜥在霧影森林東半邊，古樹深處的平台上也有。",
+              thanks: "辛苦了，明天見。" },
 };
 for (const [id, q] of Object.entries(QUESTS)) q.id = id;
-// P.quests[id] is { state: "active" | "done", kills: { monster type: count } }
+// P.quests[id] is { state: "active" | "done", kills: { monster type: count } }; a finished daily quest also
+// remembers the day, and opens again on any later day
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 function questState(q) {
   const s = P.quests[q.id];
-  if (s?.state === "done") return "done";
+  if (s?.state === "done") return q.daily && s.day !== today() && P.lv >= q.lv ? "available" : "done";
   if (s) return questGoals(q).every(g => g.have >= g.need) ? "ready" : "active";
   if (P.lv < q.lv || (q.after && P.quests[q.after]?.state !== "done")) return "locked";
   return "available";
@@ -149,7 +210,7 @@ function finishQuest(q) {
   const items = q.reward.items || [];
   if (items.some(([id, n]) => roomFor(id) < n)) { say("你的背包好像放不下我的謝禮了，整理一下再來找我吧。", [["好", closeDialog]]); return; }
   for (const [id, n] of Object.entries(q.collect || {})) removeItem(id, n);
-  P.quests[q.id] = { state: "done" };
+  P.quests[q.id] = q.daily ? { state: "done", day: today() } : { state: "done" };
   P.coins += q.reward.coins;
   items.forEach(([id, n]) => addItem(id, n));
   msg(`完成任務「${q.name}」！`, "#ffc94a");
@@ -178,7 +239,8 @@ function cleanQuests(d) {
   const out = {};
   for (const [id, s] of Object.entries(d || {})) {
     if (!QUESTS[id] || !s) continue;
-    out[id] = s.state === "done" ? { state: "done" } : { state: "active", kills: { ...(s.kills || {}) } };
+    out[id] = s.state !== "done" ? { state: "active", kills: { ...(s.kills || {}) } }
+      : typeof s.day === "string" ? { state: "done", day: s.day } : { state: "done" };
   }
   return out;
 }

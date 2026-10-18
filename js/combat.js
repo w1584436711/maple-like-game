@@ -113,11 +113,14 @@ function hurt(d, fromX, acc = null) {
   }
   if (P.hp <= 0) {
     P.hp = 0; P.dead = true; P.deadT = 0; P.climb = null;
-    const lost = Math.floor(P.exp * 0.1);
+    const lost = Math.floor(P.exp * deathPenalty() / 100);
     P.exp -= lost;
     msg(lost ? `你倒下了…失去 ${lost} 點經驗值` : "你倒下了…", "#ff9b8f");
   }
 }
+// percent of the current exp lost when knocked out: nothing for a beginner, 10% for a new first job,
+// then a quarter of a percent less each level down to 3%, so a long climb is never wiped out at once
+const deathPenalty = () => P.job === "beginner" ? 0 : clamp(10 - (P.lv - 10) * 0.25, 3, 10);
 function revive() {
   // like the original, you get back up in the nearest town
   P.dead = false;
