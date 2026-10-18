@@ -463,6 +463,23 @@ test("世界地圖列出新的三張地圖", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("練功速度：Lv.15 練到 Lv.30 不用打超過 250 隻怪", async ({ page }) => {
+  await openGame(page);
+  // 用遊戲裡的升級公式和怪物經驗值算：Lv.15～17 打刺殼龜、18～24 打霧菇、25～29 打石甲蜥
+  const kills = await page.evaluate(() => {
+    const was = P.lv;
+    let total = 0;
+    for (let lv = 15; lv < 30; lv++) {
+      P.lv = lv;
+      const t = TYPES[lv < 18 ? "shell" : lv < 25 ? "mush" : "lizard"];
+      total += Math.ceil(need() / (t.exp * EXP_RATE));
+    }
+    P.lv = was;
+    return total;
+  });
+  expect(kills).toBeLessThanOrEqual(250);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 
