@@ -368,6 +368,101 @@ test("讀回村卷軸會回到浮島村", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+const LV30_WARRIOR = {
+  ...LV10_BEGINNER, lv: 30, job: "warrior", str: 120, sp: 0, mhp: 900, mmp: 150, hp: 900, mp: 150,
+  skills: { w_heavy: 20, w_sweep: 20, w_iron: 10, w_regen: 10 },
+};
+
+test("Lv.30 找轉職教官二轉，學到新技能", async ({ page }) => {
+  const errors = await openWithSave(page, LV30_WARRIOR);
+  await clickNpc(page);
+  const dlg = page.locator("#dlg");
+  await dlg.getByRole("button", { name: /我想二轉/ }).click();
+  await dlg.getByRole("button", { name: /我要成為狂刃騎士/ }).click();
+  await dlg.getByRole("button", { name: /好/ }).click();
+  await page.keyboard.press("k");
+  const win = page.locator("#skillsWin");
+  await expect(win).toContainText("狂刃騎士技能");
+  await win.locator('[data-skill="k_crush"]').click();
+  const saved = await readSave(page);
+  expect(saved.job).toBe("berserker");
+  expect(saved.skills.k_crush).toBe(1);
+  expect(saved.skills.w_heavy).toBe(20);
+  expect(errors).toEqual([]);
+});
+
+test("狂刃騎士按技能 4 的鍵放出斷岩斬", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV30_WARRIOR, job: "berserker", skills: { ...LV30_WARRIOR.skills, k_crush: 5, k_quake: 5 } });
+  await page.locator("#game").click();
+  await page.keyboard.down("g"); await page.waitForTimeout(200); await page.keyboard.up("g");
+  expect((await readSave(page)).mp).toBeLessThan(150);
+  expect(errors).toEqual([]);
+});
+
+test("元素術士放火焰球、冰霜新星、雷鳴都不出錯", async ({ page }) => {
+  const errors = await openWithSave(page, {
+    ...LV30_WARRIOR, job: "elementalist", str: 4, int: 130, mmp: 900, mp: 900,
+    skills: { m_bolt: 20, m_barrier: 5, e_fire: 5, e_frost: 5, e_thunder: 5 }, eq: { weapon: { id: "oak_wand", n: 1 } },
+  });
+  await page.locator("#game").click();
+  for (const key of ["f", "g", "h"]) {
+    await page.keyboard.down(key); await page.waitForTimeout(700); await page.keyboard.up(key);
+  }
+  expect((await readSave(page)).mp).toBeLessThan(900);
+  expect(errors).toEqual([]);
+});
+
+test("卷軸強化：成功會加攻擊，失敗只扣可升級次數", async ({ page }) => {
+  // 先讓亂數固定成 0，強化一定成功
+  await page.addInitScript(() => { Math.random = () => 0; });
+  const errors = await openWithSave(page, {
+    ...LV10_BEGINNER, bag: { equip: [], use: [{ id: "scroll_wpn60", n: 2 }], etc: [] }, eq: { weapon: { id: "iron_blade", n: 1 } },
+  });
+  await page.locator("#game").click();
+  await page.keyboard.press("i");
+  const inv = page.locator("#invWin");
+  await inv.getByRole("tab", { name: "消耗" }).click();
+  await inv.getByRole("button", { name: /武器攻擊卷軸/ }).click();
+  await inv.getByRole("button", { name: "使用" }).click();
+  await inv.getByRole("button", { name: /精鐵長劍（身上）/ }).click();
+  let saved = await readSave(page);
+  expect(saved.eq.weapon).toEqual({ id: "iron_blade", n: 1, left: 6, up: 1, bonus: { watk: 2, matk: 2 } });
+
+  // 再讓亂數變成 0.99，這次一定失敗
+  await page.evaluate(() => { Math.random = () => 0.99; });
+  await inv.getByRole("button", { name: /武器攻擊卷軸/ }).click();
+  await inv.getByRole("button", { name: "使用" }).click();
+  await inv.getByRole("button", { name: /精鐵長劍 \+1（身上）/ }).click();
+  saved = await readSave(page);
+  expect(saved.eq.weapon).toEqual({ id: "iron_blade", n: 1, left: 5, up: 1, bonus: { watk: 2, matk: 2 } });
+  expect(itemCount(saved, "scroll_wpn60")).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test("鍵位設定：把攻擊改到 J，重新整理後還在", async ({ page }) => {
+  const errors = await openGame(page);
+  await page.locator("#openKeys").click();
+  const win = page.locator("#keysWin");
+  await win.getByRole("button", { name: "更改攻擊的按鍵" }).click();
+  await page.keyboard.press("j");
+  await expect(win.getByRole("button", { name: "更改攻擊的按鍵" })).toHaveText("更改");
+  await expect(page.locator('.legend [data-key="attack"]')).toHaveText("J");
+  const binds = await page.evaluate(() => JSON.parse(localStorage.getItem("floating-isle-keys")));
+  expect(binds.attack).toEqual(["KeyJ"]);
+  await page.reload();
+  await expect(page.locator('.legend [data-key="attack"]')).toHaveText("J");
+  expect(errors).toEqual([]);
+});
+
+test("世界地圖列出新的三張地圖", async ({ page }) => {
+  const errors = await openGame(page);
+  await page.locator("#game").click();
+  await page.keyboard.press("w");
+  const world = page.locator("#worldWin");
+  for (const name of ["潮汐礁岩", "霧影森林", "古樹深處", "巨鉗蟹王", "霧林古樹精"]) await expect(world).toContainText(name);
+  expect(errors).toEqual([]);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 
