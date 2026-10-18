@@ -1,0 +1,124 @@
+/* Layout: one centered column: title row, the game screen, then the key legend. Touch screens swap the legend for an on-screen pad. Deliberate single dark look, like a night-time arcade cabinet around a sunny game world. */
+:root{
+  --night:#131d33;
+  --panel:#1c2b49;
+  --line:#2e4470;
+  --ink:#eef3fb;
+  --muted:#9fb0cd;
+  --gold:#ffc94a;
+  --ui:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
+  --num:"Lilita One","Arial Black",sans-serif;
+  color-scheme:dark;
+}
+html,body{background:var(--night);color:var(--ink)}
+body{font-family:var(--ui);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 32px}
+.wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:6px 16px;flex-wrap:wrap}
+h1{margin:0;font-size:1.65rem;font-weight:900;letter-spacing:.06em;text-wrap:balance}
+h1 small{font-family:var(--num);font-weight:400;font-size:.95rem;color:var(--gold);letter-spacing:.12em;margin-left:10px}
+.sub{color:var(--muted);font-size:.9rem;margin:0}
+.frame{position:relative;border-radius:10px;overflow:hidden;border:2px solid var(--line);box-shadow:0 12px 32px rgb(0 0 0 / .4);background:#0b1220}
+canvas{display:block;width:100%;max-width:100%;aspect-ratio:16/9;touch-action:none;outline:none}
+canvas:focus-visible{outline:3px solid var(--gold);outline-offset:-3px}
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;color:var(--muted);font-size:.9rem;margin:0;padding:0;list-style:none}
+.legend li{display:flex;align-items:center;gap:6px}
+kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);border-bottom-width:3px;border-radius:5px;padding:1px 7px;color:var(--ink);font-size:.85rem;letter-spacing:.03em}
+.pad{display:none;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;user-select:none;-webkit-user-select:none}
+.grp{display:grid;gap:6px}
+.dpad{grid-template-columns:repeat(3,50px);grid-template-rows:repeat(2,50px)}
+.acts{grid-template-columns:repeat(4,54px);grid-template-rows:repeat(2,50px)}
+.pad button{touch-action:none;border-radius:12px;background:var(--panel);border:1px solid var(--line);border-bottom-width:3px;color:var(--ink);font:700 .95rem var(--ui);padding:0}
+.pad button.on{background:var(--line);transform:translateY(1px)}
+.pad .up{grid-column:2}
+@media (hover:none) and (pointer:coarse){.pad{display:flex}.legend{display:none}}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap;color:var(--muted);font-size:.85rem}
+.foot p{margin:0}
+.reset{font:700 .85rem var(--ui);color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+.reset:hover{background:var(--panel)}
+.reset:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.reset.armed{border-color:#e0675a;color:#ffb0a6}
+.foot .btns{display:flex;gap:8px;flex-wrap:wrap}
+/* in-game windows float over the canvas, like the original's stat and skill windows */
+.win{position:absolute;top:6%;left:2%;width:min(270px,48%);max-height:82%;overflow:auto;background:rgb(14 22 40 / .94);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:.82rem;box-shadow:0 8px 24px rgb(0 0 0 / .45)}
+.win.right{left:auto;right:2%}
+.win header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.win h2{margin:0;font-size:.95rem;letter-spacing:.06em}
+.win .x{background:transparent;border:0;color:var(--muted);font-size:1rem;cursor:pointer;padding:2px 6px;border-radius:6px}
+.win .x:hover,.win .x:focus-visible{color:var(--ink);background:var(--panel);outline:none}
+.row{display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid rgb(255 255 255 / .06)}
+.row span{flex:1;min-width:0}
+.row b{font-family:var(--num);font-weight:400;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.row.stat.main span{color:var(--gold)}
+.row.stat.main span::after{content:"（主）";font-size:.75rem}
+.ap{margin:8px 0 4px;color:var(--muted)}
+.ap b{font-family:var(--num);font-weight:400;color:var(--gold);font-size:1rem}
+.plus{width:24px;height:24px;border-radius:6px;border:1px solid var(--gold);background:#3a2d0c;color:var(--gold);font:400 1rem var(--num);cursor:pointer;padding:0;line-height:1}
+.plus:disabled{border-color:var(--line);background:transparent;color:#4b5c7c;cursor:default}
+.plus:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.skill{padding:4px 0 6px;border-bottom:1px solid rgb(255 255 255 / .08)}
+.skill .row{border:0}
+.skill p{margin:2px 0 0;color:var(--ink);line-height:1.4}
+.skill p.dim,.note{color:var(--muted)}
+.sname{font-family:var(--ui);font-weight:700}
+.skill small{color:var(--muted)}
+.note{margin:6px 0;line-height:1.5}
+/* inventory and equipment: square item slots on a dark grid, the picked one outlined in gold */
+#invWin{width:min(292px,62%)}
+.tabs{display:flex;gap:4px;margin-bottom:8px}
+.tabs button{flex:1;font:700 .8rem var(--ui);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:7px;padding:4px 0;cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--line);color:var(--ink)}
+.tabs button:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.slot{position:relative;width:100%;aspect-ratio:1;border-radius:7px;border:1px solid var(--line);background:#0b1426;padding:0;cursor:pointer;display:grid;place-items:center;color:#4b5c7c;font:700 .7rem var(--ui)}
+.slot:disabled{cursor:default}
+.slot img{width:80%;height:80%;pointer-events:none}
+.slot .n{position:absolute;right:3px;bottom:1px;font:400 .72rem var(--num);color:var(--ink);text-shadow:0 1px 2px #000}
+.slot.sel{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.slot.bad{background:#2a1418}
+.slot:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.eqgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 6px}
+.cell{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:.72rem;color:var(--muted)}
+.info{margin-top:8px;padding:8px 9px;border-radius:8px;background:rgb(255 255 255 / .05);line-height:1.55}
+.info h3{margin:0;font-size:.9rem}
+.info p{margin:0}
+.info .dim{color:var(--muted)}
+.info .bad{color:#ff9b8f}
+.info .acts{display:flex;gap:6px;margin-top:6px}
+.btn{font:700 .8rem var(--ui);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:4px 12px;cursor:pointer}
+.btn:hover{background:var(--line)}
+.btn:disabled{color:#4b5c7c;background:transparent;cursor:default}
+.btn:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.money{margin-top:8px;color:var(--muted)}
+.money b{font-family:var(--num);font-weight:400;color:#ffe7a3;font-size:.95rem}
+/* world map: the places as cards joined by a path, the current one in gold */
+.place{border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:rgb(255 255 255 / .03)}
+.place.here{border-color:var(--gold);background:rgb(255 201 74 / .08)}
+.place b{font-size:.88rem}
+.place p{margin:2px 0 0;color:var(--muted);line-height:1.45}
+.place .tag{margin-left:6px;font-size:.72rem;color:#4a2e00;background:var(--gold);border-radius:6px;padding:1px 6px}
+.link{width:2px;height:12px;margin:0 auto;background:var(--line)}
+/* shop: a wider window in the middle, one row per item with its price and buttons */
+.win.shop{left:50%;transform:translateX(-50%);width:min(440px,94%)}
+.srow{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgb(255 255 255 / .06)}
+.srow img{width:32px;height:32px;flex:none}
+.srow .what{flex:1;min-width:0;line-height:1.35}
+.srow .what small{display:block;color:var(--muted)}
+.srow .what .bad{color:#ff9b8f}
+.srow .btn{padding:4px 9px;flex:none}
+.srow .btn.warn{border-color:#e0675a;color:#ffb0a6}
+.price{font-family:var(--num);color:#ffe7a3;letter-spacing:.02em}
+/* quest log */
+.quest{padding:6px 0;border-bottom:1px solid rgb(255 255 255 / .06);line-height:1.5}
+.quest b{font-size:.86rem}
+.quest p{margin:0;color:var(--muted)}
+.quest .ok{color:var(--gold)}
+.quest small{color:var(--muted)}
+.qhead{margin:8px 0 2px;font-size:.8rem;color:var(--muted);font-weight:700;letter-spacing:.08em}
+/* NPC dialog: a parchment card, the one warm surface in the UI */
+.dlg{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:min(460px,92%);max-height:88%;overflow:auto;background:#f7f0de;color:#33281c;border:3px solid #c79a5b;border-radius:12px;padding:12px 16px 14px;box-shadow:0 10px 28px rgb(0 0 0 / .5)}
+.dlg .who{font-weight:900;color:#7a4a1c;margin-bottom:6px;font-size:.9rem}
+.dlg p{margin:0 0 10px;white-space:pre-line;line-height:1.55;font-size:.92rem}
+.dlg .opts{display:flex;flex-direction:column;gap:6px}
+.dlg button{text-align:left;font:700 .88rem var(--ui);color:#33281c;background:#fffaf0;border:1px solid #d8b98a;border-radius:8px;padding:7px 10px;cursor:pointer}
+.dlg button:hover{background:#ffeccc}
+.dlg button:focus-visible{outline:2px solid #7a4a1c;outline-offset:1px}
