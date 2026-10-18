@@ -480,6 +480,55 @@ test("練功速度：Lv.15 練到 Lv.30 不用打超過 250 隻怪", async ({ pa
   expect(kills).toBeLessThanOrEqual(250);
 });
 
+test("任務鏈：回報霧菇大豐收之後，採菇人會給下一個任務", async ({ page }) => {
+  // 從霧影森林開始，鏡頭在地圖左邊，採菇人波波站在 x=200
+  const errors = await openWithSave(page, { ...LV30_WARRIOR, lv: 20, map: "forest", quests: { q_mush: { state: "active", kills: { mush: 30 } } } });
+  await clickNpc(page, 200);
+  const dlg = page.locator("#dlg");
+  await expect(dlg.getByRole("button", { name: /孢子的祕密/ })).toHaveCount(0);
+  await dlg.getByRole("button", { name: /【完成】霧菇大豐收/ }).click();
+  await dlg.getByRole("button", { name: /謝謝/ }).click();
+  await clickNpc(page, 200);
+  await dlg.getByRole("button", { name: /【任務】孢子的祕密/ }).click();
+  await dlg.getByRole("button", { name: /交給我/ }).click();
+  const saved = await readSave(page);
+  expect(saved.quests.q_mush.state).toBe("done");
+  expect(saved.quests.q_spore.state).toBe("active");
+  expect(errors).toEqual([]);
+});
+
+test("每日任務：今天做完就不能再接，隔天又可以接", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV10_BEGINNER, quests: { q_jelly: { state: "done" }, d_bjelly: { state: "active", kills: { bjelly: 15 } } } });
+  await clickNpc(page, 660);
+  const dlg = page.locator("#dlg");
+  await dlg.getByRole("button", { name: /【完成】藍果凍巡邏/ }).click();
+  await dlg.getByRole("button", { name: /謝謝/ }).click();
+  const saved = await readSave(page);
+  const today = await page.evaluate(() => today());
+  expect(saved.quests.d_bjelly).toEqual({ state: "done", day: today });
+
+  // 同一天再去找村長：沒有每日任務可以接
+  await clickNpc(page, 660);
+  await expect(dlg.getByRole("button", { name: /藍果凍巡邏/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // 把完成日期改成以前，就像過了一天
+  await page.evaluate(() => { P.quests.d_bjelly.day = "2000-01-01"; });
+  await clickNpc(page, 660);
+  await expect(dlg.getByRole("button", { name: /【每日】藍果凍巡邏/ })).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test("倒下損失的經驗值隨等級變少，新手不會損失", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV30_WARRIOR, exp: 1000 });
+  await page.evaluate(() => { P.inv = 0; hurt(999999, 0); });
+  // Lv.30：10% - (30 - 10) × 0.25% = 5%
+  expect((await readSave(page)).exp).toBe(950);
+  await page.evaluate(() => { Object.assign(P, { dead: false, hp: 50, job: "beginner", exp: 1000, inv: 0 }); hurt(999999, 0); });
+  expect((await readSave(page)).exp).toBe(1000);
+  expect(errors).toEqual([]);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 

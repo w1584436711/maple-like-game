@@ -81,8 +81,9 @@ function renderQuests() {
     + questGoals(q).map(g => `<p class="${g.have >= g.need ? "ok" : ""}">${esc(g.text)} ${g.have} / ${g.need}</p>`).join("")
     + (questState(q) === "ready" ? `<p class="ok">完成了！回去找${esc(NPCS[q.npc].name)}回報</p>` : "") + `</div>`);
   html += block("可以接的任務", all.filter(q => questState(q) === "available"),
-    q => `<div class="quest"><b>${esc(q.name)}</b><p>去${esc(MAPS[NPCS[q.npc].map].name)}找${esc(NPCS[q.npc].name)}</p></div>`);
-  html += block("已完成", all.filter(q => questState(q) === "done"), q => `<div class="quest"><p>✔ ${esc(q.name)}</p></div>`);
+    q => `<div class="quest"><b>${q.daily ? "【每日】" : ""}${esc(q.name)}</b><p>去${esc(MAPS[NPCS[q.npc].map].name)}找${esc(NPCS[q.npc].name)}</p></div>`);
+  html += block("每日任務（今天已完成，明天再來）", all.filter(q => q.daily && questState(q) === "done"), q => `<div class="quest"><p>✔ ${esc(q.name)}</p></div>`);
+  html += block("已完成", all.filter(q => !q.daily && questState(q) === "done"), q => `<div class="quest"><p>✔ ${esc(q.name)}</p></div>`);
   questBody.innerHTML = html || `<p class="note">現在沒有任務。等級提升後再去村裡找人聊聊吧。</p>`;
 }
 function renderWorld() {
