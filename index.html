@@ -69,6 +69,34 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 .sname{font-family:var(--ui);font-weight:700}
 .skill small{color:var(--muted)}
 .note{margin:6px 0;line-height:1.5}
+/* inventory and equipment: square item slots on a dark grid, the picked one outlined in gold */
+#invWin{width:min(292px,62%)}
+.tabs{display:flex;gap:4px;margin-bottom:8px}
+.tabs button{flex:1;font:700 .8rem var(--ui);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:7px;padding:4px 0;cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--line);color:var(--ink)}
+.tabs button:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.slot{position:relative;width:100%;aspect-ratio:1;border-radius:7px;border:1px solid var(--line);background:#0b1426;padding:0;cursor:pointer;display:grid;place-items:center;color:#4b5c7c;font:700 .7rem var(--ui)}
+.slot:disabled{cursor:default}
+.slot img{width:80%;height:80%;pointer-events:none}
+.slot .n{position:absolute;right:3px;bottom:1px;font:400 .72rem var(--num);color:var(--ink);text-shadow:0 1px 2px #000}
+.slot.sel{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.slot.bad{background:#2a1418}
+.slot:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.eqgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 6px}
+.cell{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:.72rem;color:var(--muted)}
+.info{margin-top:8px;padding:8px 9px;border-radius:8px;background:rgb(255 255 255 / .05);line-height:1.55}
+.info h3{margin:0;font-size:.9rem}
+.info p{margin:0}
+.info .dim{color:var(--muted)}
+.info .bad{color:#ff9b8f}
+.info .acts{display:flex;gap:6px;margin-top:6px}
+.btn{font:700 .8rem var(--ui);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:4px 12px;cursor:pointer}
+.btn:hover{background:var(--line)}
+.btn:disabled{color:#4b5c7c;background:transparent;cursor:default}
+.btn:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.money{margin-top:8px;color:var(--muted)}
+.money b{font-family:var(--num);font-weight:400;color:#ffe7a3;font-size:.95rem}
 /* NPC dialog: a parchment card, the one warm surface in the UI */
 .dlg{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:min(460px,92%);max-height:88%;overflow:auto;background:#f7f0de;color:#33281c;border:3px solid #c79a5b;border-radius:12px;padding:12px 16px 14px;box-shadow:0 10px 28px rgb(0 0 0 / .5)}
 .dlg .who{font-weight:900;color:#7a4a1c;margin-bottom:6px;font-size:.9rem}
@@ -95,6 +123,14 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
       <header><h2>技能</h2><button type="button" class="x" data-close aria-label="關閉技能">✕</button></header>
       <div id="skillsBody"></div>
     </section>
+    <section class="win" id="equipWin" hidden aria-label="裝備">
+      <header><h2>裝備</h2><button type="button" class="x" data-close aria-label="關閉裝備">✕</button></header>
+      <div id="equipBody"></div>
+    </section>
+    <section class="win right" id="invWin" hidden aria-label="背包">
+      <header><h2>背包</h2><button type="button" class="x" data-close aria-label="關閉背包">✕</button></header>
+      <div id="invBody"></div>
+    </section>
     <div class="dlg" id="dlg" role="dialog" aria-labelledby="dlgName" hidden>
       <div class="who" id="dlgName"></div>
       <p id="dlgText"></p>
@@ -114,6 +150,8 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
     <li><kbd>1</kbd><kbd>2</kbd> 紅／藍藥水</li>
     <li><kbd>S</kbd> 能力值</li>
     <li><kbd>K</kbd> 技能視窗</li>
+    <li><kbd>I</kbd> 背包</li>
+    <li><kbd>E</kbd> 裝備</li>
     <li>靠近 NPC 按 <kbd>Space</kbd> 或點他說話</li>
   </ul>
 
@@ -141,6 +179,8 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
     <div class="btns">
       <button class="reset" id="openStats" type="button">能力值（S）</button>
       <button class="reset" id="openSkills" type="button">技能（K）</button>
+      <button class="reset" id="openInv" type="button">背包（I）</button>
+      <button class="reset" id="openEquip" type="button">裝備（E）</button>
       <button class="reset" id="reset" type="button">重新開始</button>
     </div>
   </div>
@@ -163,7 +203,8 @@ const SAVE_KEY = "floating-isle-v1";
 const EXP_RATE = 3;
 
 const cv = document.getElementById("game");
-const ctx = cv.getContext("2d");
+// let, not const: item icons borrow the game's drawing code by pointing ctx at a small canvas for a moment
+let ctx = cv.getContext("2d");
 let scale = 1;
 function fit() {
   const r = cv.getBoundingClientRect();
@@ -222,11 +263,20 @@ const trees = [60, 240, 700, 1180, 1560, 2050, 2560, 3000].map((x, i) => ({ x, h
 const clouds = Array.from({ length: 9 }, (_, i) => ({ x: i * 150 + rand(0, 80), y: rand(40, 210), s: rand(0.7, 1.4), v: rand(4, 12) }));
 
 // ---------- Monsters ----------
+// drops: [item id (or a list to pick one from), chance, min count, max count]
 const TYPES = {
-  jelly:  { name: "青果凍", lv: 1,  hp: 18,   exp: 6,   dmg: 6,  spd: 40, avoid: 1, acc: 10, w: 34,  h: 28,  coin: [3, 8] },
-  bjelly: { name: "藍果凍", lv: 4,  hp: 55,   exp: 14,  dmg: 12, spd: 50, avoid: 2, acc: 20, w: 38,  h: 32,  coin: [8, 18] },
-  shell:  { name: "刺殼龜", lv: 8,  hp: 160,  exp: 32,  dmg: 20, spd: 35, avoid: 3, acc: 35, w: 48,  h: 34,  coin: [15, 35] },
-  boss:   { name: "苔岩巨像", lv: 15, hp: 2400, exp: 600, dmg: 34, spd: 25, avoid: 6, acc: 60, w: 100, h: 120, coin: [300, 500], respawn: 45 },
+  jelly:  { name: "青果凍", lv: 1,  hp: 18,   exp: 6,   dmg: 6,  spd: 40, avoid: 1, acc: 10, w: 34,  h: 28,  coin: [3, 8],
+            drops: [["green_gel", 0.5], ["red_pot", 0.15], ["blue_pot", 0.08], ["leaf_band", 0.03], ["work_gloves", 0.03],
+                    ["arrow", 0.06, 15, 30], ["iron_star", 0.04, 20, 40]] },
+  bjelly: { name: "藍果凍", lv: 4,  hp: 55,   exp: 14,  dmg: 12, spd: 50, avoid: 2, acc: 20, w: 38,  h: 32,  coin: [8, 18],
+            drops: [["blue_gel", 0.5], ["red_pot", 0.18], ["blue_pot", 0.12], ["jelly_tunic", 0.03], ["canvas_pants", 0.03],
+                    ["travel_cape", 0.02], ["arrow", 0.08, 20, 40], ["iron_star", 0.06, 30, 60]] },
+  shell:  { name: "刺殼龜", lv: 8,  hp: 160,  exp: 32,  dmg: 20, spd: 35, avoid: 3, acc: 35, w: 48,  h: 34,  coin: [15, 35],
+            drops: [["shell_shard", 0.55], ["red_pot", 0.2], ["blue_pot", 0.12], ["leather_cap", 0.03], ["wind_boots", 0.03],
+                    ["hunter_gloves", 0.03], ["wood_shield", 0.03], ["arrow", 0.1, 30, 60], ["iron_star", 0.08, 40, 80]] },
+  boss:   { name: "苔岩巨像", lv: 15, hp: 2400, exp: 600, dmg: 34, spd: 25, avoid: 6, acc: 60, w: 100, h: 120, coin: [300, 500], respawn: 45,
+            drops: [["moss_core", 1], ["red_pot", 1, 5], ["blue_pot", 1, 5], [["jade_blade", "vine_staff", "hawk_bow", "dark_claw"], 1],
+                    ["moss_cape", 0.5], ["shell_shield", 0.3], ["arrow", 1, 100, 200], ["steel_star", 0.5, 100, 200]] },
 };
 const zones = [
   { p: 0, x0: 300, x1: 1200, t: "jelly", n: 5 },
@@ -268,30 +318,83 @@ zones.forEach(z => {
 // secondary stats times weapon attack with a low 10% base mastery, and accuracy against monster avoid.
 // Names, numbers of individual skills and weapons are our own.
 const STAT_NAMES = { str: "力量", dex: "敏捷", int: "智力", luk: "幸運" };
-const WEAPONS = {
-  sword: { name: "木劍", type: "sword", watk: 17 },
-  blade: { name: "精鐵長劍", type: "sword", watk: 27 },
-  wand:  { name: "橡木短杖", type: "wand", watk: 12, matk: 25 },
-  bow:   { name: "獵人短弓", type: "bow", watk: 25 },
-  claw:  { name: "鐵指爪", type: "claw", watk: 12, ammo: 15 },
-};
 const JOBS = {
-  beginner: { name: "新手", weapon: "sword", hp: [12, 16], mp: [10, 12] },
-  warrior:  { name: "劍士", weapon: "blade", hp: [24, 28], mp: [4, 6], req: { lv: 10, stat: "str", min: 35 }, gain: { hp: 150, mp: 0 },
+  beginner: { name: "新手", weapon: "wood_sword", hp: [12, 16], mp: [10, 12] },
+  warrior:  { name: "劍士", weapon: "iron_blade", hp: [24, 28], mp: [4, 6], req: { lv: 10, stat: "str", min: 35 }, gain: { hp: 150, mp: 0 },
               blurb: "拿劍近身作戰，血量最厚。主屬性力量，副屬性敏捷。" },
-  magician: { name: "法師", weapon: "wand", hp: [10, 14], mp: [22, 24], req: { lv: 8, stat: "int", min: 20 }, gain: { hp: 0, mp: 120 },
+  magician: { name: "法師", weapon: "oak_wand", hp: [10, 14], mp: [22, 24], req: { lv: 8, stat: "int", min: 20 }, gain: { hp: 0, mp: 120 },
               blurb: "從遠處施放魔法，MP 很多但身體脆弱。主屬性智力，副屬性幸運。" },
-  bowman:   { name: "弓手", weapon: "bow", hp: [20, 24], mp: [14, 16], req: { lv: 10, stat: "dex", min: 25 }, gain: { hp: 60, mp: 40 },
+  bowman:   { name: "弓手", weapon: "hunter_bow", ammo: ["arrow", 1000], hp: [20, 24], mp: [14, 16], req: { lv: 10, stat: "dex", min: 25 }, gain: { hp: 60, mp: 40 },
               blurb: "拉弓射箭，攻擊距離最長。主屬性敏捷，副屬性力量。" },
-  thief:    { name: "盜賊", weapon: "claw", hp: [20, 24], mp: [14, 16], req: { lv: 10, stat: "dex", min: 25 }, gain: { hp: 60, mp: 40 },
+  thief:    { name: "盜賊", weapon: "iron_claw", ammo: ["iron_star", 500], hp: [20, 24], mp: [14, 16], req: { lv: 10, stat: "dex", min: 25 }, gain: { hp: 60, mp: 40 },
               blurb: "丟飛鏢、身手靈活，擅長閃躲。主屬性幸運，副屬性敏捷和力量。" },
 };
+
+// ---------- Items ----------
+// Classic rules: three bag tabs with a fixed number of slots, eight equipment slots with level, job and
+// stat requirements, monster drop tables, and arrows and throwing stars that get used up. Names are our own.
+const BAG_SLOTS = 24;
+const TABS = { equip: "裝備", use: "消耗", etc: "其他" };
+const EQUIP_SLOTS = { hat: "帽子", top: "上衣", bottom: "褲子", shoes: "鞋子", gloves: "手套", cape: "披風", weapon: "武器", shield: "盾牌" };
+const WTYPES = { sword: { name: "劍", jobs: ["beginner", "warrior"] }, wand: { name: "短杖", jobs: ["magician"] },
+                 bow: { name: "弓", jobs: ["bowman"], twoHand: true }, claw: { name: "拳爪", jobs: ["thief"], twoHand: true } };
+const GEAR_STATS = { watk: "攻擊", matk: "魔力", def: "防禦", str: "力量", dex: "敏捷", int: "智力", luk: "幸運", hp: "HP", mp: "MP", acc: "命中", avoid: "迴避" };
+const ITEMS = {
+  wood_sword:    { name: "木劍", slot: "weapon", wtype: "sword", watk: 17 },
+  iron_blade:    { name: "精鐵長劍", slot: "weapon", wtype: "sword", watk: 27, req: { lv: 10, str: 35 } },
+  jade_blade:    { name: "碧鱗大劍", slot: "weapon", wtype: "sword", watk: 38, req: { lv: 15, str: 45 } },
+  oak_wand:      { name: "橡木短杖", slot: "weapon", wtype: "wand", watk: 12, matk: 25, req: { lv: 8, int: 20 } },
+  vine_staff:    { name: "晶藤法杖", slot: "weapon", wtype: "wand", watk: 14, matk: 38, req: { lv: 15, int: 45 } },
+  hunter_bow:    { name: "獵人短弓", slot: "weapon", wtype: "bow", watk: 25, req: { lv: 10, dex: 25 } },
+  hawk_bow:      { name: "鷹羽長弓", slot: "weapon", wtype: "bow", watk: 34, req: { lv: 15, dex: 45 } },
+  iron_claw:     { name: "鐵指爪", slot: "weapon", wtype: "claw", watk: 12, req: { lv: 10, dex: 25 } },
+  dark_claw:     { name: "黑鋼拳爪", slot: "weapon", wtype: "claw", watk: 16, req: { lv: 15, luk: 45 } },
+  plain_tee:     { name: "粗布上衣", slot: "top", def: 3, color: "#e0574a" },
+  jelly_tunic:   { name: "果凍紋上衣", slot: "top", def: 6, hp: 10, color: "#3fa7b8", req: { lv: 5 } },
+  plain_shorts:  { name: "粗布短褲", slot: "bottom", def: 2, color: "#2c3e66" },
+  canvas_pants:  { name: "帆布長褲", slot: "bottom", def: 5, color: "#5c6b3a", req: { lv: 5 } },
+  straw_shoes:   { name: "草編鞋", slot: "shoes", def: 2, color: "#5b3a24" },
+  wind_boots:    { name: "疾風短靴", slot: "shoes", def: 4, dex: 2, avoid: 2, color: "#2f6fd6", req: { lv: 10 } },
+  leaf_band:     { name: "綠葉頭巾", slot: "hat", def: 4, color: "#4fa55a" },
+  leather_cap:   { name: "皮革便帽", slot: "hat", def: 8, hp: 15, color: "#8a5a32", req: { lv: 10 } },
+  work_gloves:   { name: "工作手套", slot: "gloves", def: 2, color: "#c9a26b" },
+  hunter_gloves: { name: "獵人手套", slot: "gloves", def: 3, watk: 1, acc: 3, color: "#6b4a2a", req: { lv: 10 } },
+  travel_cape:   { name: "旅人披風", slot: "cape", def: 4, mp: 15, color: "#6a4bc4", req: { lv: 8 } },
+  moss_cape:     { name: "苔岩斗篷", slot: "cape", def: 8, str: 2, dex: 2, int: 2, luk: 2, color: "#5f7d4a", req: { lv: 15 } },
+  wood_shield:   { name: "圓木盾", slot: "shield", def: 10, hp: 20, color: "#9a6a3a", req: { lv: 10 }, jobs: ["beginner", "warrior", "magician"] },
+  shell_shield:  { name: "刺殼盾", slot: "shield", def: 16, str: 2, color: "#7c8a5c", req: { lv: 15 }, jobs: ["warrior", "magician"] },
+  red_pot:       { name: "紅藥水", cat: "use", heal: { hp: 80 }, color: "#e0453b", desc: "回復 80 HP" },
+  blue_pot:      { name: "藍藥水", cat: "use", heal: { mp: 50 }, color: "#3a7be0", desc: "回復 50 MP" },
+  arrow:         { name: "木箭矢", cat: "use", ammo: "bow", stack: 1000, desc: "弓用的箭，射一次用掉一支" },
+  iron_star:     { name: "鐵製飛鏢", cat: "use", ammo: "claw", watk: 15, stack: 500, color: "#c8d2de", desc: "拳爪丟的飛鏢，丟一次用掉一支" },
+  steel_star:    { name: "銳角飛鏢", cat: "use", ammo: "claw", watk: 19, stack: 500, color: "#9fd0ff", desc: "更鋒利的飛鏢，丟一次用掉一支" },
+  green_gel:     { name: "青果凍凝膠", color: "#7fd36b", desc: "青果凍留下的黏黏凝膠" },
+  blue_gel:      { name: "藍果凍凝膠", color: "#5aa8ff", desc: "藍果凍留下的冰涼凝膠" },
+  shell_shard:   { name: "刺殼碎片", color: "#b49a6a", desc: "刺殼龜背上掉下來的硬殼" },
+  moss_core:     { name: "苔岩之心", color: "#8fe07a", desc: "苔岩巨像體內微微發光的石頭" },
+};
+for (const [id, I] of Object.entries(ITEMS)) {
+  I.id = id;
+  I.cat = I.slot ? "equip" : I.cat || "etc";
+  I.stack = I.slot ? 1 : I.stack || (I.cat === "use" ? 100 : 200);
+  if (I.wtype) I.jobs = WTYPES[I.wtype].jobs;
+}
+const newBag = () => ({ equip: Array(BAG_SLOTS).fill(null), use: Array(BAG_SLOTS).fill(null), etc: Array(BAG_SLOTS).fill(null) });
+// puts n of an item into a bag, filling partly used stacks first; returns how many did not fit
+function addTo(bag, id, n = 1) {
+  const I = ITEMS[id], tab = bag[I.cat];
+  for (const s of tab) if (n > 0 && s && s.id === id && s.n < I.stack) { const k = Math.min(n, I.stack - s.n); s.n += k; n -= k; }
+  for (let i = 0; i < tab.length && n > 0; i++) if (!tab[i]) { const k = Math.min(n, I.stack); tab[i] = { id, n: k }; n -= k; }
+  return n;
+}
+const outfit = weaponId => ({ hat: null, top: { id: "plain_tee", n: 1 }, bottom: { id: "plain_shorts", n: 1 }, shoes: { id: "straw_shoes", n: 1 },
+                              gloves: null, cape: null, weapon: { id: weaponId, n: 1 }, shield: null });
 // type: atk (attack), buff, passive. Every number scales with the skill level l.
 const SKILLS = {
   warrior: [
-    { id: "w_heavy", name: "重擊斬", type: "atk", max: 20, mp: l => 4 + (l >> 2), pct: l => 160 + 5 * l,
+    { id: "w_heavy", name: "重擊斬", type: "atk", weapon: "sword", max: 20, mp: l => 4 + (l >> 2), pct: l => 160 + 5 * l,
       desc: l => `用力砍一隻怪物，造成 ${160 + 5 * l}% 傷害` },
-    { id: "w_sweep", name: "迴旋橫掃", type: "atk", max: 20, req: ["w_heavy", 1], mp: l => 8 + (l >> 2), pct: l => 60 + 4 * l,
+    { id: "w_sweep", name: "迴旋橫掃", type: "atk", weapon: "sword", max: 20, req: ["w_heavy", 1], mp: l => 8 + (l >> 2), pct: l => 60 + 4 * l,
       desc: l => `橫掃前方最多 6 隻怪物，各造成 ${60 + 4 * l}% 傷害` },
     { id: "w_iron", name: "鋼鐵意志", type: "buff", max: 20, mp: () => 10, dur: l => 10 * l, def: l => 2 * l,
       desc: l => `${10 * l} 秒內，受到的傷害減少 ${2 * l}` },
@@ -307,9 +410,9 @@ const SKILLS = {
       desc: l => `自然回復時多回 ${l} MP` },
   ],
   bowman: [
-    { id: "b_double", name: "連珠箭", type: "atk", max: 20, mp: l => 6 + (l >> 3), pct: l => 50 + 3 * l, shots: 2, shot: "arrow",
+    { id: "b_double", name: "連珠箭", type: "atk", weapon: "bow", max: 20, mp: l => 6 + (l >> 3), pct: l => 50 + 3 * l, shots: 2, shot: "arrow",
       desc: l => `連射兩支箭，每支 ${50 + 3 * l}% 傷害` },
-    { id: "b_power", name: "強弓射擊", type: "atk", max: 20, mp: l => 5 + (l >> 2), pct: l => 140 + 6 * l, shots: 1, shot: "arrow",
+    { id: "b_power", name: "強弓射擊", type: "atk", weapon: "bow", max: 20, mp: l => 5 + (l >> 2), pct: l => 140 + 6 * l, shots: 1, shot: "arrow",
       desc: l => `拉滿弓射出一支箭，造成 ${140 + 6 * l}% 傷害` },
     { id: "b_eye", name: "鷹眼", type: "buff", max: 20, mp: () => 10, dur: l => 10 * l, acc: l => l, avoid: l => l,
       desc: l => `${10 * l} 秒內，命中和迴避各加 ${l}` },
@@ -317,7 +420,7 @@ const SKILLS = {
       desc: l => `有 ${2 * l}% 機率打出 1.5 倍的爆擊` },
   ],
   thief: [
-    { id: "t_twin", name: "雙星鏢", type: "atk", max: 20, mp: l => 8 + (l >> 2), pct: l => 60 + 4 * l, shots: 2, shot: "star",
+    { id: "t_twin", name: "雙星鏢", type: "atk", weapon: "claw", max: 20, mp: l => 8 + (l >> 2), pct: l => 60 + 4 * l, shots: 2, shot: "star",
       desc: l => `連丟兩支飛鏢，每支 ${60 + 4 * l}% 傷害` },
     { id: "t_shadow", name: "影遁", type: "buff", max: 20, mp: l => 20 - (l >> 1), dur: l => 10 * l,
       desc: l => `${10 * l} 秒內躲進影子，怪物碰不到你；一攻擊就會現身` },
@@ -333,19 +436,32 @@ const SLOT_KEYS = ["Shift", "D", "F"];
 function freshCharacter() {
   return {
     lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
-    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, pots: { hp: 5, mp: 3 }, skills: {}, buffs: {},
+    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {},
+    bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"),
   };
+}
+function starterBag(pots) {
+  const bag = newBag();
+  addTo(bag, "red_pot", pots.hp); addTo(bag, "blue_pot", pots.mp);
+  return bag;
 }
 const P = {
   x: 96, y: 790, w: 26, h: 50, vx: 0, vy: 0, face: 1, onGround: false, ground: plats[0], climb: null,
   drop: 0, dropPlat: null, knock: 0, prone: false, climbCd: 0, pickCd: 0, lootHint: false, atkT: 0, atkDur: 0, atkKind: "", atkCd: 0, potCd: 0, inv: 0, anim: 0,
   dead: false, deadT: 0, regen: 0, ...freshCharacter(),
 };
-const maxHp = () => P.mhp;
-const maxMp = () => P.mmp;
+// gear(k) sums one bonus over everything worn; stat(k) is the base stat plus gear
+const worn = () => Object.values(P.eq).filter(Boolean).map(e => ITEMS[e.id]);
+const gear = k => worn().reduce((s, I) => s + (I[k] || 0), 0);
+const stat = k => P[k] + gear(k);
+const maxHp = () => P.mhp + gear("hp");
+const maxMp = () => P.mmp + gear("mp");
 const need = () => Math.round(0.6 * P.lv ** 3 + 14 * P.lv);
 const job = () => JOBS[P.job];
-const weapon = () => WEAPONS[job().weapon];
+const weapon = () => P.eq.weapon ? ITEMS[P.eq.weapon.id] : null;
+// arrows for a bow, throwing stars for a claw, in bag order
+const ammoStacks = () => P.bag.use.filter(s => s && s.n > 0 && ITEMS[s.id].ammo === weapon()?.wtype);
+const ammoCount = () => ammoStacks().reduce((n, s) => n + s.n, 0);
 const skLv = id => P.skills[id] || 0;
 const buffOn = id => (P.buffs[id] || 0) > 0;
 const passive = (id, key) => { const l = skLv(id); return l ? SKILL_BY_ID[id][key](l) : 0; };
@@ -356,20 +472,22 @@ const slotSkills = () => jobSkills().filter(s => s.type !== "passive").slice(0, 
 // physical damage range before the skill's percentage
 function physRange() {
   const w = weapon();
-  let pri, sec, watk = w.watk;
-  if (w.type === "bow") { pri = P.dex * 3.4; sec = P.str; }
-  else if (w.type === "claw") { pri = P.luk * 3.6; sec = P.str + P.dex; watk += w.ammo; }
-  else { pri = P.str * 4; sec = P.dex; }
+  if (!w) return [0, 0];
+  let pri, sec, watk = gear("watk");
+  if (w.wtype === "bow") { pri = stat("dex") * 3.4; sec = stat("str"); }
+  else if (w.wtype === "claw") { pri = stat("luk") * 3.6; sec = stat("str") + stat("dex"); watk += ITEMS[ammoStacks()[0]?.id]?.watk || 0; }
+  else { pri = stat("str") * 4; sec = stat("dex"); }
   const mastery = 0.1;
   return [(pri * 0.9 * mastery + sec) * watk / 100, (pri + sec) * watk / 100];
 }
+const magic = () => stat("int") + gear("matk");
 function magicRange(spell) {
-  const mag = P.int + (weapon().matk || 0), mastery = 0.1;
-  return [((mag * mag / 1000 + mag * mastery * 0.9) / 30 + P.int / 200) * spell,
-          ((mag * mag / 1000 + mag) / 30 + P.int / 200) * spell];
+  const mag = magic(), mastery = 0.1;
+  return [((mag * mag / 1000 + mag * mastery * 0.9) / 30 + stat("int") / 200) * spell,
+          ((mag * mag / 1000 + mag) / 30 + stat("int") / 200) * spell];
 }
-const accuracy = () => P.dex * 0.8 + P.luk * 0.5 + buffVal("b_eye", "acc");
-const avoidability = () => P.dex * 0.25 + P.luk * 0.5 + passive("t_agile", "avoid") + buffVal("b_eye", "avoid");
+const accuracy = () => stat("dex") * 0.8 + stat("luk") * 0.5 + gear("acc") + buffVal("b_eye", "acc");
+const avoidability = () => stat("dex") * 0.25 + stat("luk") * 0.5 + gear("avoid") + passive("t_agile", "avoid") + buffVal("b_eye", "avoid");
 const critChance = () => passive("b_crit", "crit") / 100;
 
 // ---------- State ----------
@@ -390,8 +508,9 @@ const KEYMAP = {
   ControlLeft: "attack", ControlRight: "attack", KeyX: "attack", KeyZ: "pickup",
   ShiftLeft: "skill1", ShiftRight: "skill1", KeyA: "skill1", KeyD: "skill2", KeyF: "skill3",
   Digit1: "hpPot", Numpad1: "hpPot", Delete: "hpPot", Digit2: "mpPot", Numpad2: "mpPot", End: "mpPot", Enter: "revive",
-  KeyS: "stats", KeyK: "skills", Escape: "esc",
+  KeyS: "stats", KeyK: "skills", KeyI: "inv", KeyE: "equip", Escape: "esc",
 };
+const PANEL_KEYS = ["stats", "skills", "inv", "equip", "esc"];
 function press(a) { started = true; if (!held.has(a)) pressed.add(a); held.add(a); }
 addEventListener("keydown", e => {
   if (!dlg.hidden) {
@@ -406,10 +525,11 @@ addEventListener("keydown", e => {
   const a = KEYMAP[e.code];
   if (!a) return;
   e.preventDefault();
-  if (a === "stats" || a === "skills" || a === "esc") {
+  if (PANEL_KEYS.includes(a)) {
     if (e.repeat) return;
-    if (a === "esc") { statsWin.hidden = true; skillsWin.hidden = true; }
-    else togglePanel(a === "stats" ? statsWin : skillsWin);
+    const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin };
+    if (a === "esc") Object.values(wins).forEach(w => { w.hidden = true; });
+    else togglePanel(wins[a]);
     return;
   }
   press(a);
@@ -438,9 +558,29 @@ document.querySelectorAll("[data-act]").forEach(b => {
 // ---------- Save ----------
 const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins"];
 function serialize() {
-  const d = { pots: { ...P.pots }, skills: { ...P.skills }, buffs: { ...P.buffs } };
+  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, bag: JSON.parse(JSON.stringify(P.bag)), eq: JSON.parse(JSON.stringify(P.eq)) };
   SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
   return d;
+}
+// keeps only slots holding a known item of the right kind, so a hand-edited or older save cannot break the game
+function cleanBag(b) {
+  const bag = newBag();
+  for (const t in bag) (b[t] || []).slice(0, BAG_SLOTS).forEach((s, i) => {
+    const I = s && ITEMS[s.id];
+    if (I && I.cat === t && s.n > 0) bag[t][i] = { id: s.id, n: Math.min(s.n | 0, I.stack) };
+  });
+  return bag;
+}
+function cleanEq(e) {
+  const eq = {};
+  for (const k in EQUIP_SLOTS) eq[k] = e?.[k] && ITEMS[e[k].id]?.slot === k ? { id: e[k].id, n: 1 } : null;
+  return eq;
+}
+// saves from before the bag existed: potions move into the bag, and the job's weapon and ammo are handed out
+function giveStarterGear(c, pots) {
+  c.bag = starterBag({ hp: pots?.hp ?? 5, mp: pots?.mp ?? 3 });
+  c.eq = outfit(JOBS[c.job].weapon);
+  if (JOBS[c.job].ammo) addTo(c.bag, ...JOBS[c.job].ammo);
 }
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(serialize())); } catch (_) {} }
 function load(d) {
@@ -451,14 +591,14 @@ function load(d) {
     // saves from before jobs existed: keep level, coins and potions, hand back every level's AP
     const lv = Math.max(1, d.lv | 0);
     Object.assign(c, { lv, exp: d.exp || 0, coins: d.coins || 0, ap: 5 * (lv - 1), mhp: 50 + 14 * (lv - 1), mmp: 5 + 11 * (lv - 1) });
-    c.pots = { hp: d.pots?.hp ?? 5, mp: d.pots?.mp ?? 3 };
     c.hp = c.mhp; c.mp = c.mmp;
   } else {
     SAVE_FIELDS.forEach(k => { if (d[k] !== undefined) c[k] = d[k]; });
     if (!JOBS[c.job]) c.job = "beginner";
-    c.pots = { hp: d.pots?.hp ?? 5, mp: d.pots?.mp ?? 3 };
     c.skills = { ...(d.skills || {}) }; c.buffs = { ...(d.buffs || {}) };
   }
+  if (d.bag) { c.bag = cleanBag(d.bag); c.eq = cleanEq(d.eq); }
+  else giveStarterGear(c, d.pots);
   Object.assign(P, c);
   P.hp = clamp(P.hp || maxHp(), 1, maxHp()); P.mp = clamp(P.mp ?? maxMp(), 0, maxMp());
   return true;
@@ -474,7 +614,7 @@ resetBtn.addEventListener("click", () => {
   clearTimeout(armT);
   resetBtn.classList.remove("armed"); resetBtn.textContent = "重新開始";
   Object.assign(P, freshCharacter(), { dead: false, climb: null, x: 96, y: 790, vx: 0, vy: 0 });
-  drops.length = 0;
+  drops.length = 0; invSel = null; eqSel = null; bagVer++;
   closeDialog(); refreshPanels(true);
   save(); msg("已重新開始冒險", "#ffc94a"); cv.focus();
 });
@@ -499,10 +639,20 @@ function say(text, options) {
 function closeDialog() { if (!dlg.hidden) { dlg.hidden = true; cv.focus({ preventScroll: true }); } }
 function openNpc() {
   if (P.job === "beginner") say("你好，冒險者。想選擇自己要走的路，就來找我吧。", [["我想轉職", jobMenu], ["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
-  else say(`你已經是${job().name}了。繼續努力，到 Lv.30 再來找我，我會告訴你下一步。`, [["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
+  else {
+    const J = job(), opts = [["怎麼操作？", controlsHelp], ["再見", closeDialog]];
+    // until shops open, she tops up an empty quiver so a bowman or thief is never stuck
+    if (J.ammo && countItem(J.ammo[0]) === 0) opts.unshift([`我的${ITEMS[J.ammo[0]].name}用完了`, refillAmmo]);
+    say(`你已經是${J.name}了。繼續努力，到 Lv.30 再來找我，我會告訴你下一步。`, opts);
+  }
+}
+function refillAmmo() {
+  const [id, n] = job().ammo, k = n / 4;
+  giveItem(id, k);
+  say(`拿去吧，這裡有 ${k} 個${ITEMS[id].name}。打怪的時候也會撿到，省著點用。`, [["謝謝", closeDialog]]);
 }
 function controlsHelp() {
-  say("← → 移動，↑ ↓ 爬繩梯，↓ 趴下。\nAlt 或 Space 跳躍，Ctrl 或 X 攻擊（按住連打），Z 撿東西。\nShift、D、F 放技能，1、2 喝藥水。\nS 打開能力值，K 打開技能。靠近 NPC 按 Space 或點他，就能說話。",
+  say("← → 移動，↑ ↓ 爬繩梯，↓ 趴下。\nAlt 或 Space 跳躍，Ctrl 或 X 攻擊（按住連打），Z 撿東西。\nShift、D、F 放技能，1、2 喝藥水。\nS 能力值，K 技能，I 背包，E 裝備。靠近 NPC 按 Space 或點他，就能說話。",
     [["知道了", openNpc]]);
 }
 const reqText = J => `Lv.${J.req.lv}、${STAT_NAMES[J.req.stat]} ${J.req.min}`;
@@ -532,24 +682,34 @@ function advance(id) {
   // 1 SP for the advancement, plus the 3 per level you would have earned past the required level
   P.sp += 1 + 3 * (P.lv - J.req.lv);
   P.mhp += J.gain.hp; P.mmp += J.gain.mp;
+  // the new weapon goes straight into the hand, the old one into the bag
+  giveItem(J.weapon);
+  const wi = P.bag.equip.findIndex(s => s?.id === J.weapon);
+  if (wi >= 0) equipFrom(wi, true);
+  if (J.ammo) giveItem(...J.ammo);
   P.hp = maxHp(); P.mp = maxMp();
   fx.push({ k: "lvup", t: 0, text: "JOB UP!" });
   msg(`你成為${J.name}了！拿到 ${P.sp} 點 SP`, "#ffc94a");
   refreshPanels(true); save();
-  say(`從今天起你就是${J.name}了，這把${weapon().name}送給你。\n按 K 打開技能視窗，用 SP 學技能；學會的技能放在 Shift、D、F 鍵。`, [["好", closeDialog]]);
+  const gift = ITEMS[J.weapon].name + (J.ammo ? `和 ${J.ammo[1]} 個${ITEMS[J.ammo[0]].name}` : "");
+  say(`從今天起你就是${J.name}了，這把${gift}送給你。\n按 K 打開技能視窗，用 SP 學技能；學會的技能放在 Shift、D、F 鍵。按 I 看背包，按 E 看身上的裝備。`, [["好", closeDialog]]);
 }
 
 // ---------- Stat and skill windows ----------
 const statsWin = document.getElementById("statsWin"), skillsWin = document.getElementById("skillsWin");
 const statsBody = document.getElementById("statsBody"), skillsBody = document.getElementById("skillsBody");
+const invWin = document.getElementById("invWin"), equipWin = document.getElementById("equipWin");
+const invBody = document.getElementById("invBody"), equipBody = document.getElementById("equipBody");
 function togglePanel(w) { w.hidden = !w.hidden; if (!w.hidden) refreshPanels(true); }
 let panelSig = "";
 function refreshPanels(force) {
-  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills]);
+  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer]);
   if (!force && sig === panelSig) return;
   panelSig = sig;
   if (!statsWin.hidden) renderStats();
   if (!skillsWin.hidden) renderSkills();
+  if (!invWin.hidden) renderInv();
+  if (!equipWin.hidden) renderEquip();
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const row = (label, value) => `<div class="row"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
@@ -558,11 +718,13 @@ function renderStats() {
   const [mn, mx] = physRange();
   let html = row("職業", job().name) + row("等級", P.lv) + row("經驗值", `${P.exp} / ${need()}`)
     + row("HP", maxHp()) + row("MP", maxMp()) + row("攻擊", `${Math.floor(mn)} ~ ${Math.floor(mx)}`);
-  if (P.job === "magician") html += row("魔力", P.int + (weapon().matk || 0));
-  html += row("命中", Math.floor(accuracy())) + row("迴避", Math.floor(avoidability()));
+  if (P.job === "magician") html += row("魔力", magic());
+  html += row("防禦", gear("def")) + row("命中", Math.floor(accuracy())) + row("迴避", Math.floor(avoidability()));
   html += `<div class="ap">可分配能力值 <b>${P.ap}</b></div>`;
   for (const k of ["str", "dex", "int", "luk"]) {
-    html += `<div class="row stat${PRIMARY[P.job] === k ? " main" : ""}"><span>${STAT_NAMES[k]}</span><b>${P[k]}</b>`
+    // like the original, bonuses from gear show next to the base value: 力量 35 (+2)
+    const bonus = gear(k);
+    html += `<div class="row stat${PRIMARY[P.job] === k ? " main" : ""}"><span>${STAT_NAMES[k]}${bonus ? ` <small>(+${bonus})</small>` : ""}</span><b>${P[k]}</b>`
       + `<button type="button" class="plus" data-stat="${k}" aria-label="${STAT_NAMES[k]}加 1"${P.ap > 0 ? "" : " disabled"}>+</button></div>`;
   }
   statsBody.innerHTML = html;
@@ -604,6 +766,189 @@ skillsBody.addEventListener("click", e => {
   refreshPanels(true); save();
   if (e.detail) cv.focus({ preventScroll: true });
 });
+// ---------- Bag and equipment ----------
+let bagVer = 0, invTab = "equip", invSel = null, eqSel = null;
+const countItem = id => P.bag[ITEMS[id].cat].reduce((n, s) => n + (s?.id === id ? s.n : 0), 0);
+// how many more of an item fit: space left in its stacks plus empty slots
+const roomFor = id => { const I = ITEMS[id]; return P.bag[I.cat].reduce((n, s) => n + (!s ? I.stack : s.id === id ? I.stack - s.n : 0), 0); };
+function addItem(id, n = 1) { const left = addTo(P.bag, id, n); if (left < n) bagVer++; return left; }
+// rewards that do not fit fall at your feet instead of disappearing
+function giveItem(id, n = 1) {
+  const left = addItem(id, n);
+  if (left) { addDrop("item", P.x + P.w / 2, P.y + P.h - 20, left, id); msg(`背包滿了，${ITEMS[id].name}掉在地上`, "#ff9b8f"); }
+}
+function takeFromSlot(tab, i, n = 1) {
+  const s = P.bag[tab][i];
+  if ((s.n -= n) <= 0) P.bag[tab][i] = null;
+  bagVer++;
+}
+function useAmmo(n) {
+  for (const s of ammoStacks()) { const k = Math.min(n, s.n); s.n -= k; if (!(n -= k)) break; }
+  P.bag.use.forEach((s, i) => { if (s && s.n <= 0) P.bag.use[i] = null; });
+  bagVer++;
+}
+function reqLines(I) {
+  const r = I.req || {}, out = [];
+  if (r.lv) out.push({ text: `等級 ${r.lv}`, ok: P.lv >= r.lv });
+  for (const k in STAT_NAMES) if (r[k]) out.push({ text: `${STAT_NAMES[k]} ${r[k]}`, ok: P[k] >= r[k] });
+  if (I.jobs) out.push({ text: I.jobs.map(j => JOBS[j].name).join("、") + "可用", ok: I.jobs.includes(P.job) });
+  return out;
+}
+const canWear = I => reqLines(I).every(l => l.ok);
+function afterGearChange() { P.hp = Math.min(P.hp, maxHp()); P.mp = Math.min(P.mp, maxMp()); bagVer++; }
+// force skips the requirement check, for gear the game hands you
+function equipFrom(i, force) {
+  const s = P.bag.equip[i];
+  if (!s || P.dead) return false;
+  const I = ITEMS[s.id], slot = I.slot, held = weapon();
+  if (!force && !canWear(I)) { hint(`還不能裝備「${I.name}」，需要${reqLines(I).filter(l => !l.ok).map(l => l.text).join("、")}`); return false; }
+  if (slot === "shield" && held && WTYPES[held.wtype].twoHand) { hint(`拿著${WTYPES[held.wtype].name}的時候不能用盾牌`); return false; }
+  // the piece you take off goes into this bag slot; a shield pushed off by a two-handed weapon needs one more
+  const off = slot === "weapon" && WTYPES[I.wtype].twoHand ? P.eq.shield : null;
+  const back = [P.eq[slot], off].filter(Boolean);
+  if (back.length > 1 + P.bag.equip.filter(x => !x).length) { hint("背包的裝備欄滿了"); return false; }
+  P.bag.equip[i] = null;
+  P.eq[slot] = s;
+  if (off) P.eq.shield = null;
+  for (const b of back) P.bag.equip[P.bag.equip[i] ? P.bag.equip.indexOf(null) : i] = b;
+  afterGearChange();
+  if (!force) msg(`裝備了「${I.name}」`, "#cfe3ff");
+  return true;
+}
+function unequip(slot) {
+  const s = P.eq[slot], j = P.bag.equip.indexOf(null);
+  if (!s || P.dead) return;
+  if (j < 0) { hint("背包的裝備欄滿了"); return; }
+  P.bag.equip[j] = s; P.eq[slot] = null;
+  afterGearChange();
+  msg(`卸下了「${ITEMS[s.id].name}」`, "#cfe3ff");
+}
+// i picks the bag slot; without it the first stack is used, as with keys 1 and 2
+function drink(id, i = P.bag.use.findIndex(s => s?.id === id)) {
+  const I = ITEMS[id];
+  if (P.dead || P.potCd > 0) return;
+  if (i < 0) { hint(`沒有${I.name}了`); return; }
+  const hp = Math.min(I.heal.hp || 0, maxHp() - P.hp), mp = Math.min(I.heal.mp || 0, maxMp() - P.mp);
+  if (hp <= 0 && mp <= 0) return;
+  takeFromSlot("use", i);
+  P.hp += hp; P.mp += mp; P.potCd = 0.3;
+  if (hp > 0) nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "+" + hp, kind: "heal", t: 0 });
+  if (mp > 0) nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "+" + mp, kind: "mana", t: 0 });
+}
+function discard(tab, i) {
+  const s = P.bag[tab][i];
+  if (!s || P.dead) return;
+  P.bag[tab][i] = null; bagVer++;
+  addDrop("item", P.x + P.w / 2 + P.face * 20, P.y + P.h - 20, s.n, s.id);
+  msg(`丟掉了${ITEMS[s.id].name}${s.n > 1 ? ` ×${s.n}` : ""}`, "#9fb0cd");
+}
+
+function itemInfo(I, n, acts) {
+  let h = `<div class="info"><h3>${esc(I.name)}${n > 1 ? ` ×${n}` : ""}</h3>`;
+  if (I.slot) {
+    const wt = I.wtype && WTYPES[I.wtype];
+    h += `<p class="dim">${EQUIP_SLOTS[I.slot]}${wt ? `．${wt.name}${wt.twoHand ? "（雙手）" : ""}` : ""}</p>`;
+    const bon = Object.keys(GEAR_STATS).filter(k => I[k]).map(k => `${GEAR_STATS[k]} +${I[k]}`);
+    if (bon.length) h += `<p>${bon.join("　")}</p>`;
+    const req = reqLines(I);
+    if (req.length) h += `<p>需求：${req.map(l => `<span class="${l.ok ? "dim" : "bad"}">${esc(l.text)}</span>`).join("、")}</p>`;
+  } else {
+    h += `<p class="dim">${esc(I.desc)}</p>`;
+    if (I.watk) h += `<p>攻擊 +${I.watk}</p>`;
+  }
+  return h + `<div class="acts">${acts}</div></div>`;
+}
+const actBtn = (act, label) => `<button type="button" class="btn" data-do="${act}">${label}</button>`;
+function slotBtn(s, attr, sel, bad, label) {
+  const I = ITEMS[s.id];
+  return `<button type="button" class="slot${sel ? " sel" : ""}${bad ? " bad" : ""}" ${attr} aria-label="${esc(label)}">`
+    + `<img src="${itemIcon(s.id).url}" alt="">${I.stack > 1 ? `<span class="n">${s.n}</span>` : ""}</button>`;
+}
+function renderInv() {
+  const tab = P.bag[invTab];
+  let html = `<div class="tabs" role="tablist" aria-label="背包分頁">`
+    + Object.entries(TABS).map(([k, name]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === invTab}">${name}</button>`).join("")
+    + `</div><div class="grid">`;
+  tab.forEach((s, i) => {
+    if (!s) { html += `<span class="slot" aria-hidden="true"></span>`; return; }
+    const I = ITEMS[s.id];
+    html += slotBtn(s, `data-i="${i}"`, i === invSel, I.slot && !canWear(I), `${I.name}${s.n > 1 ? ` ×${s.n}` : ""}`);
+  });
+  html += `</div><div data-info>${invInfo()}</div>`;
+  html += `<div class="money">金幣 <b>${P.coins.toLocaleString()}</b>　空格 ${tab.filter(x => !x).length} / ${BAG_SLOTS}</div>`;
+  invBody.innerHTML = html;
+}
+function invInfo() {
+  const s = invSel !== null && P.bag[invTab][invSel];
+  if (!s) return `<p class="note">${invTab === "equip" ? "點一下看說明，點兩下直接穿上。" : invTab === "use" ? "點兩下喝藥水。箭矢、飛鏢放在這裡，攻擊時自動用掉。" : "打怪撿到的材料。"}</p>`;
+  const I = ITEMS[s.id];
+  return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.heal ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"));
+}
+// picking a slot only moves the outline and swaps the description, so the slot under the
+// pointer stays the same element and a double click on it still registers
+function pick(body, btn, infoHtml) {
+  body.querySelectorAll(".slot.sel").forEach(b => b.classList.remove("sel"));
+  btn.classList.add("sel");
+  body.querySelector("[data-info]").innerHTML = infoHtml;
+}
+// laid out like a paper doll: head, body and legs top to bottom
+const EQ_ORDER = ["hat", "cape", "top", "gloves", "weapon", "bottom", "shield", "shoes"];
+function renderEquip() {
+  let html = `<div class="eqgrid">`;
+  for (const k of EQ_ORDER) {
+    const s = P.eq[k];
+    html += `<div class="cell">${s ? slotBtn(s, `data-slot="${k}"`, eqSel === k, false, `${EQUIP_SLOTS[k]}：${ITEMS[s.id].name}`) : `<span class="slot" aria-hidden="true"></span>`}${EQUIP_SLOTS[k]}</div>`;
+  }
+  html += `</div>`;
+  const bon = Object.keys(GEAR_STATS).filter(k => gear(k)).map(k => `${GEAR_STATS[k]} +${gear(k)}`);
+  html += `<p class="note">裝備加成：${bon.join("、") || "沒有"}</p><div data-info>${equipInfo()}</div>`;
+  equipBody.innerHTML = html;
+}
+function equipInfo() {
+  if (eqSel && P.eq[eqSel]) return itemInfo(ITEMS[P.eq[eqSel].id], 1, actBtn("unequip", "卸下"));
+  return `<p class="note">點一下看說明，點兩下卸下。要穿上新裝備，到背包（I）的裝備欄點兩下。</p>`;
+}
+function doInv(act) {
+  const i = invSel, s = i !== null && P.bag[invTab][i];
+  if (!s) return;
+  if (act === "equip" && invTab === "equip") equipFrom(i);
+  else if (act === "use" && invTab === "use" && ITEMS[s.id].heal) drink(s.id, i);
+  else if (act === "drop") discard(invTab, i);
+  if (!P.bag[invTab][i] || P.bag[invTab][i] !== s) invSel = null;
+}
+invBody.addEventListener("click", e => {
+  const t = e.target.closest("[data-tab],[data-i],[data-do]");
+  if (!t) return;
+  if (t.dataset.i) { invSel = Number(t.dataset.i); pick(invBody, t, invInfo()); return; }
+  if (t.dataset.tab) { invTab = t.dataset.tab; invSel = null; }
+  else doInv(t.dataset.do);
+  refreshPanels(true);
+  if (e.detail) cv.focus({ preventScroll: true });
+});
+invBody.addEventListener("dblclick", e => {
+  const t = e.target.closest("[data-i]");
+  if (!t) return;
+  invSel = Number(t.dataset.i);
+  doInv(invTab === "equip" ? "equip" : "use");
+  refreshPanels(true);
+});
+equipBody.addEventListener("click", e => {
+  const t = e.target.closest("[data-slot],[data-do]");
+  if (!t) return;
+  if (t.dataset.slot) { eqSel = t.dataset.slot; pick(equipBody, t, equipInfo()); return; }
+  if (eqSel) { unequip(eqSel); if (!P.eq[eqSel]) eqSel = null; }
+  refreshPanels(true);
+  if (e.detail) cv.focus({ preventScroll: true });
+});
+equipBody.addEventListener("dblclick", e => {
+  const t = e.target.closest("[data-slot]");
+  if (!t) return;
+  unequip(t.dataset.slot); eqSel = null;
+  refreshPanels(true);
+});
+document.getElementById("openInv").addEventListener("click", () => togglePanel(invWin));
+document.getElementById("openEquip").addEventListener("click", () => togglePanel(equipWin));
+
 document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => { b.closest(".win").hidden = true; cv.focus({ preventScroll: true }); }));
 document.getElementById("openStats").addEventListener("click", () => togglePanel(statsWin));
 document.getElementById("openSkills").addEventListener("click", () => togglePanel(skillsWin));
@@ -650,20 +995,27 @@ function kill(m) {
   const boss = m.t === "boss", items = [];
   const coinDrops = boss ? 8 : (Math.random() < 0.9 ? 1 : 0);
   for (let i = 0; i < coinDrops; i++) items.push(["coin", randi(m.T.coin[0], m.T.coin[1]) / (boss ? 8 : 1) | 0]);
-  if (Math.random() < (boss ? 1 : 0.18)) items.push(["hp", boss ? 5 : 1]);
-  if (Math.random() < (boss ? 1 : 0.1)) items.push(["mp", boss ? 5 : 1]);
+  for (const [id, chance, a = 1, b = a] of m.T.drops) {
+    if (Math.random() < chance) items.push(["item", randi(a, b), Array.isArray(id) ? id[randi(0, id.length - 1)] : id]);
+  }
   // items pop up and land side by side in a row, centred on the monster
-  items.forEach(([kind, value], i) => addDrop(kind, mcx + (i - (items.length - 1) / 2) * 24, my, value));
+  items.forEach(([kind, value, id], i) => addDrop(kind, mcx + (i - (items.length - 1) / 2) * 24, my, value, id));
   if (items.length && !P.lootHint) { P.lootHint = true; msg("按 Z 撿起地上的東西", "#ffc94a"); }
   if (boss) { msg("打倒了苔岩巨像！", "#ffc94a"); cam.shake = 10; }
 }
-function addDrop(kind, x, y, value) {
-  drops.push({ kind, x: clamp(x, 8, WORLD_W - 8), y, value: Math.max(1, value), vx: 0, vy: -420, landed: false, age: 0, ph: rand(0, 6) });
+// kind "coin" carries an amount in value; kind "item" carries an item id and a count in value
+function addDrop(kind, x, y, value, id) {
+  drops.push({ kind, id, x: clamp(x, 8, WORLD_W - 8), y, value: Math.max(1, value), vx: 0, vy: -420, landed: false, age: 0, ph: rand(0, 6) });
 }
+const PICK_COLORS = { equip: "#ffd97a", use: "#9fd0ff", etc: "#cfe3ff" };
 function collect(d) {
   if (d.kind === "coin") { P.coins += d.value; msg(`撿到金幣 ${d.value}`, "#ffd97a"); }
-  else if (d.kind === "hp") { P.pots.hp += d.value; msg(`撿到紅藥水 ×${d.value}`, "#ff9b8f"); }
-  else { P.pots.mp += d.value; msg(`撿到藍藥水 ×${d.value}`, "#9fd0ff"); }
+  else {
+    // a stack that only partly fits leaves the rest on the ground
+    const I = ITEMS[d.id], left = addItem(d.id, d.value), got = d.value - left;
+    msg(`撿到${I.name}${got > 1 ? ` ×${got}` : ""}`, PICK_COLORS[I.cat]);
+    if (left) { d.value = left; msg(`背包的${TABS[I.cat]}欄滿了`, "#ff9b8f"); return; }
+  }
   fx.push({ k: "spark", x: d.x, y: d.y - 8, t: 0 });
   drops.splice(drops.indexOf(d), 1);
 }
@@ -697,7 +1049,7 @@ function hurt(d, fromX, acc = null) {
     P.inv = 0.6;
     return;
   }
-  let dmg = Math.max(1, Math.round(d * rand(0.9, 1.1) - P.lv * 0.6 - buffVal("w_iron", "def")));
+  let dmg = Math.max(1, Math.round(d * rand(0.9, 1.1) - P.lv * 0.6 - gear("def") * 0.4 - buffVal("w_iron", "def")));
   const toMp = Math.min(P.mp, Math.round(dmg * buffVal("m_barrier", "absorb") / 100));
   P.mp -= toMp; dmg -= toMp;
   P.hp -= dmg;
@@ -801,9 +1153,12 @@ function playerActions(dt0) {
   P.pickCd -= dt0;
   if (held.has("pickup") && P.pickCd <= 0 && !P.climb) {
     const cx = P.x + P.w / 2;
-    const d = drops.filter(d => d.landed && Math.abs(d.x - cx) < 32 && d.y >= P.y && d.y <= P.y + P.h + 4)
-      .sort((a, b) => Math.abs(a.x - cx) - Math.abs(b.x - cx))[0];
+    const near = drops.filter(d => d.landed && Math.abs(d.x - cx) < 32 && d.y >= P.y && d.y <= P.y + P.h + 4)
+      .sort((a, b) => Math.abs(a.x - cx) - Math.abs(b.x - cx));
+    // skip what the bag has no room for, so one stuck item does not block the coins next to it
+    const d = near.find(d => d.kind === "coin" || roomFor(d.id) > 0);
     if (d) { collect(d); P.pickCd = 0.12; }
+    else if (near.length) hint(`背包的${TABS[ITEMS[near[0].id].cat]}欄滿了，按 I 整理背包`);
   }
   if (P.climb) return;
   if (pressed.has("space") && nearNpc() && P.onGround) { openNpc(); return; }
@@ -813,20 +1168,8 @@ function playerActions(dt0) {
     if (held.has("attack")) basicAttack();
     else if (slot >= 0) useSkill(slotSkills()[slot], SLOT_KEYS[slot]);
   }
-  if (P.potCd <= 0) {
-    if (pressed.has("hpPot")) {
-      if (P.pots.hp > 0 && P.hp < maxHp()) {
-        P.pots.hp--; const v = Math.min(80, maxHp() - P.hp); P.hp += v; P.potCd = 0.3;
-        nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "+" + v, kind: "heal", t: 0 });
-      } else if (P.pots.hp <= 0) msg("沒有紅藥水了", "#9fb0cd");
-    }
-    if (pressed.has("mpPot")) {
-      if (P.pots.mp > 0 && P.mp < maxMp()) {
-        P.pots.mp--; const v = Math.min(50, maxMp() - P.mp); P.mp += v; P.potCd = 0.3;
-        nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "+" + v, kind: "mana", t: 0 });
-      } else if (P.pots.mp <= 0) msg("沒有藍藥水了", "#9fb0cd");
-    }
-  }
+  if (pressed.has("hpPot")) drink("red_pot");
+  if (pressed.has("mpPot")) drink("blue_pot");
 }
 
 const meleeBox = reach => P.face > 0
@@ -836,9 +1179,19 @@ function startAction(kind, t) { P.atkT = P.atkDur = t; P.atkKind = kind; P.atkCd
 function revealFromShadow() { if (buffOn("t_shadow")) { P.buffs.t_shadow = 0; msg("從影子裡現身了", "#9fb0cd"); } }
 function hint(text) { if (!P.hintT || P.hintT < time) { msg(text, "#9fb0cd"); P.hintT = time + 1.5; } }
 
+const AMMO_NAMES = { bow: "箭矢", claw: "飛鏢" };
+// bows and claws need something to shoot; false means the attack should not happen
+function haveAmmo(n) {
+  const wt = weapon().wtype;
+  if (!AMMO_NAMES[wt] || ammoCount() >= n) return true;
+  hint(ammoCount() ? `${AMMO_NAMES[wt]}不夠了` : `沒有${AMMO_NAMES[wt]}了，回浮島村找轉職教官薇拉`);
+  return false;
+}
 function basicAttack() {
+  if (!weapon()) { hint("手上沒有武器，按 E 打開裝備、按 I 從背包穿上"); P.atkCd = 0.3; return; }
+  const type = weapon().wtype;
+  if (!P.prone && AMMO_NAMES[type] && !haveAmmo(1)) { P.atkCd = 0.3; return; }
   revealFromShadow();
-  const type = weapon().type;
   if (P.prone) {
     // lying down, every weapon does a short stab
     startAction("stab", STAB_T);
@@ -847,6 +1200,7 @@ function basicAttack() {
     fx.push({ k: "stab", t: 0 });
   } else if (type === "bow" || type === "claw") {
     startAction("shoot", 0.5);
+    useAmmo(1);
     fire(type === "bow" ? "arrow" : "star", {}, 0, 0.12);
   } else {
     startAction("slash", SLASH_T);
@@ -859,9 +1213,12 @@ function useSkill(s, key) {
   if (!s) { hint(P.job === "beginner" ? "新手還沒有技能，Lv.10 去找轉職教官薇拉" : `${key} 鍵還沒有技能`); return; }
   const l = skLv(s.id);
   if (!l) { hint(`還沒學會「${s.name}」，按 K 用 SP 學`); return; }
+  if (s.weapon && weapon()?.wtype !== s.weapon) { hint(`「${s.name}」要拿著${WTYPES[s.weapon].name}才能用`); return; }
+  if (s.shot && !haveAmmo(s.shots)) return;
   const cost = s.mp(l);
   if (P.mp < cost) { hint("MP 不夠了，按 2 喝藍藥水"); return; }
   P.mp -= cost; P.prone = false;
+  if (s.shot) useAmmo(s.shots);
   if (s.type === "buff") {
     startAction("buff", 0.5);
     P.buffs[s.id] = s.dur(l);
@@ -1189,12 +1546,90 @@ function drawDrop(d) {
     ctx.fillStyle = "#c98a12"; ctx.beginPath(); ctx.ellipse(x, y, r * (0.35 + 0.65 * sq), r, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#ffcf3d"; ctx.beginPath(); ctx.ellipse(x, y, r * (0.35 + 0.65 * sq) - 1.6, r - 1.6, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.fillRect(x - 1.5, y - r + 3, 2, 3);
+  } else ctx.drawImage(itemIcon(d.id).canvas, x - 13, y - 20, 26, 26);
+}
+
+// Item icons are painted once into a 32x32 box (64 px canvas) with the same code as the world,
+// then reused for drops on the ground and as images in the bag and equipment windows.
+const iconCache = {};
+function itemIcon(id) {
+  if (!iconCache[id]) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const g = c.getContext("2d");
+    g.scale(2, 2);
+    const main = ctx;
+    ctx = g;
+    try { paintItem(ITEMS[id]); } finally { ctx = main; }
+    iconCache[id] = { canvas: c, url: c.toDataURL() };
+  }
+  return iconCache[id];
+}
+function shape(color, path) {
+  ctx.fillStyle = color; ctx.beginPath(); path(); ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = 1.2; ctx.stroke();
+}
+const poly = (...pts) => () => { for (let i = 0; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.closePath(); };
+function paintItem(I) {
+  const c = I.color || "#9fb0cd";
+  if (I.wtype) {
+    // [scale, angle, offset along the weapon to its middle]
+    const [s, a, mid] = { sword: [0.68, 0.785, 16], wand: [0.7, 0.785, 16], bow: [0.78, -0.785, -6], claw: [1.35, 0.4, 6] }[I.wtype];
+    ctx.translate(16, 16); ctx.scale(s, s); ctx.rotate(a); ctx.translate(0, mid);
+    drawWeapon(I.wtype, 0);
+    return;
+  }
+  const kind = I.slot || (I.heal ? "pot" : I.ammo) || I.id.split("_").pop();
+  if (kind === "hat") {
+    shape(c, () => { ctx.arc(16, 20, 11, Math.PI, 0); ctx.closePath(); });
+    shape(c, () => rr(3, 18, 26, 5, 2.5));
+  } else if (kind === "top") {
+    shape(c, poly(10, 6, 22, 6, 29, 12, 25, 17, 23, 15, 23, 27, 9, 27, 9, 15, 7, 17, 3, 12));
+    ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.fillRect(13, 6, 6, 3);
+  } else if (kind === "bottom") {
+    shape(c, poly(8, 5, 24, 5, 25, 28, 18, 28, 16, 13, 14, 28, 7, 28));
+  } else if (kind === "shoes") {
+    shape(c, poly(7, 7, 16, 7, 16, 17, 27, 20, 27, 26, 7, 26));
+    ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.fillRect(7, 23, 20, 3);
+  } else if (kind === "gloves") {
+    shape(c, () => rr(5, 12, 7, 9, 3.5));
+    shape(c, () => rr(10, 6, 13, 18, 6));
+    ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.fillRect(10, 22, 13, 5);
+  } else if (kind === "cape") {
+    shape(c, poly(11, 5, 21, 5, 27, 28, 5, 28));
+    ctx.fillStyle = "#ffc94a"; ctx.beginPath(); ctx.arc(16, 7, 2.6, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === "shield") {
+    shape(c, () => ctx.arc(16, 16, 12, 0, Math.PI * 2));
+    ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(16, 16, 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = "#cfd8e3"; ctx.beginPath(); ctx.arc(16, 16, 3.5, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === "pot") {
+    ctx.fillStyle = "#e9eef5"; ctx.fillRect(13, 5, 6, 6);
+    ctx.fillStyle = "#8a6237"; ctx.fillRect(12.5, 3, 7, 3);
+    shape(c, () => ctx.arc(16, 19, 9, 0, Math.PI * 2));
+    ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.beginPath(); ctx.arc(12.5, 16, 3, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === "bow") {
+    // a bundle of three arrows
+    for (const o of [-4, 0, 4]) {
+      ctx.save(); ctx.translate(16 + o, 16); ctx.rotate(-0.785);
+      ctx.strokeStyle = "#8a5a32"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-11, 0); ctx.lineTo(9, 0); ctx.stroke();
+      ctx.fillStyle = "#cfd8e3"; ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(8, -3); ctx.lineTo(8, 3); ctx.fill();
+      ctx.fillStyle = "#f1ead8"; ctx.fillRect(-13, -2.5, 4, 1.6); ctx.fillRect(-13, 1, 4, 1.6);
+      ctx.restore();
+    }
+  } else if (kind === "claw") {
+    ctx.translate(16, 16);
+    shape(c, () => { for (let i = 0; i < 8; i++) { const r = i % 2 ? 4.5 : 13, a = i * Math.PI / 4; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); });
+    ctx.fillStyle = "#3b4a63"; ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === "gel") {
+    shape(c, () => ctx.ellipse(16, 19, 11, 8, 0, 0, Math.PI * 2));
+    ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.beginPath(); ctx.ellipse(12, 16, 3.5, 2, -0.4, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === "shard") {
+    shape(c, poly(16, 4, 27, 24, 19, 28, 5, 20));
+    ctx.strokeStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.moveTo(16, 4); ctx.lineTo(14, 22); ctx.stroke();
   } else {
-    const c = d.kind === "hp" ? ["#e0453b", "#ff8a7a"] : ["#3a7be0", "#86b8ff"];
-    ctx.fillStyle = "#e9eef5"; ctx.fillRect(x - 3, y - 13, 6, 5);
-    ctx.fillStyle = "#8a6237"; ctx.fillRect(x - 3.5, y - 15, 7, 3);
-    ctx.fillStyle = c[0]; ctx.beginPath(); ctx.arc(x, y - 2, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = c[1]; ctx.beginPath(); ctx.arc(x - 2.5, y - 4, 2.5, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createRadialGradient(16, 16, 1, 16, 16, 13);
+    g.addColorStop(0, "#ffffff"); g.addColorStop(0.45, c); g.addColorStop(1, "rgba(80,140,60,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(16, 16, 13, 0, Math.PI * 2); ctx.fill();
   }
 }
 
@@ -1287,6 +1722,7 @@ function drawMob(m) {
 
 // drawn pointing "up" (-y) from the hand, then rotated by angle
 function drawWeapon(type, angle) {
+  if (!type) return;
   ctx.save(); ctx.rotate(angle);
   if (type === "wand") {
     ctx.fillStyle = "#8a5a32"; ctx.fillRect(-1.8, -30, 3.6, 36);
@@ -1349,15 +1785,20 @@ function drawPlayer() {
   ctx.translate(cx, by);
   ctx.fillStyle = "rgba(0,0,0,.15)"; ctx.beginPath(); ctx.ellipse(0, 0, 14, 4, 0, 0, Math.PI * 2); ctx.fill();
 
-  const shirt = { beginner: "#e0574a", warrior: "#b8462f", magician: "#6a4bc4", bowman: "#3f9a52", thief: "#4a4f6a" }[P.job];
-  const skin = "#ffd8b5", hair = "#3b2a52", pants = "#2c3e66", shoe = "#5b3a24";
+  // clothes take their colour from what is worn; without them you see the undershirt and bare skin
+  const skin = "#ffd8b5", hair = "#3b2a52";
+  const wear = (slot, bare) => P.eq[slot] ? ITEMS[P.eq[slot].id].color : bare;
+  const shirt = wear("top", "#f1ead8"), pants = wear("bottom", "#e8dcc4"), shoe = wear("shoes", skin);
+  const hat = wear("hat", null), cape = wear("cape", null), shield = wear("shield", null), glove = wear("gloves", skin);
   if (P.climb) {
     const s = Math.sin(P.anim * 14);
     ctx.fillStyle = pants; ctx.fillRect(-8, -14 + s * 2, 7, 14); ctx.fillRect(1, -14 - s * 2, 7, 14);
     ctx.fillStyle = shirt; rr(-10, -32, 20, 20, 5); ctx.fill();
     ctx.fillStyle = skin; ctx.fillRect(-13, -42 + s * 4, 6, 14); ctx.fillRect(7, -42 - s * 4, 6, 14);
+    if (cape) { ctx.fillStyle = cape; ctx.beginPath(); ctx.moveTo(-9, -32); ctx.lineTo(9, -32); ctx.lineTo(12, -6); ctx.lineTo(-12, -6); ctx.fill(); }
     ctx.fillStyle = hair; ctx.beginPath(); ctx.arc(0, -43, 13, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#4b3866"; ctx.beginPath(); ctx.arc(-3, -47, 5, 0, Math.PI * 2); ctx.fill();
+    if (hat) { ctx.fillStyle = hat; ctx.beginPath(); ctx.arc(0, -47, 13.5, Math.PI, 0); ctx.fill(); ctx.fillRect(-15, -48, 30, 4); }
     ctx.restore();
     return;
   }
@@ -1368,10 +1809,11 @@ function drawPlayer() {
     ctx.fillStyle = shoe; ctx.fillRect(-30, -10, 5, 9);
     ctx.fillStyle = shirt; rr(-8, -15, 22, 14, 5); ctx.fill();
     const thrust = P.atkKind === "stab" && P.atkT > 0 ? Math.sin((1 - P.atkT / P.atkDur) * Math.PI) * 16 : 0;
-    ctx.save(); ctx.translate(14 + thrust, -6); drawWeapon(weapon().type, Math.PI / 2); ctx.restore();
-    ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(14 + thrust, -6, 3.4, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.translate(14 + thrust, -6); drawWeapon(weapon()?.wtype, Math.PI / 2); ctx.restore();
+    ctx.fillStyle = glove; ctx.beginPath(); ctx.arc(14 + thrust, -6, 3.4, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(24, -14, 12, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = hair; ctx.beginPath(); ctx.arc(22, -17, 12.5, Math.PI * 0.95, Math.PI * 2.08); ctx.fill();
+    if (hat) { ctx.fillStyle = hat; ctx.beginPath(); ctx.arc(23, -19, 12.5, Math.PI * 1.05, Math.PI * 1.95); ctx.fill(); }
     ctx.beginPath(); ctx.moveTo(10, -17); ctx.lineTo(8, -6); ctx.lineTo(15, -13); ctx.fill();
     ctx.fillStyle = "#2a2233"; ctx.fillRect(28, -16, 2.6, 5);
     ctx.restore();
@@ -1380,6 +1822,11 @@ function drawPlayer() {
   const moving = P.onGround && Math.abs(P.vx) > 10;
   const sw = moving ? Math.sin(P.anim * 13) : 0;
   const air = !P.onGround;
+  // cape hangs behind everything and sways a little while walking
+  if (cape) {
+    ctx.fillStyle = cape;
+    ctx.beginPath(); ctx.moveTo(-6, -32); ctx.lineTo(-2, -32); ctx.lineTo(-10 - sw * 2 - (air ? 4 : 0), -6); ctx.lineTo(-17 - sw * 2 - (air ? 4 : 0), -8); ctx.fill();
+  }
   // legs
   const leg = (x, a) => { ctx.save(); ctx.translate(x, -14); ctx.rotate(a); ctx.fillStyle = pants; ctx.fillRect(-3.5, 0, 7, 11); ctx.fillStyle = shoe; ctx.fillRect(-3.5, 10, 9, 4); ctx.restore(); };
   leg(-4, air ? 0.5 : sw * 0.6);
@@ -1388,8 +1835,14 @@ function drawPlayer() {
   ctx.fillStyle = shirt; rr(-10, -32, 20, 20, 5); ctx.fill();
   ctx.fillStyle = "#6b4a2a"; ctx.fillRect(-10, -16, 20, 3);
   ctx.fillStyle = "#f6e3a3"; ctx.fillRect(-2, -16, 4, 3);
+  // shield on the back arm
+  if (shield) {
+    ctx.fillStyle = shield; ctx.beginPath(); ctx.ellipse(-9, -21, 7, 9, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,.3)"; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = "#cfd8e3"; ctx.beginPath(); ctx.arc(-9, -21, 2.2, 0, Math.PI * 2); ctx.fill();
+  }
   // weapon arm
-  const wt = weapon().type;
+  const wt = weapon()?.wtype;
   let ang = wt === "bow" ? 2.7 : 2.3;
   if (P.atkT > 0) {
     const prog = 1 - P.atkT / P.atkDur;
@@ -1401,14 +1854,17 @@ function drawPlayer() {
   } else if (moving) ang += sw * 0.15;
   ctx.save(); ctx.translate(5, -24);
   drawWeapon(wt, ang);
-  ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(0, 0, 3.6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = glove; ctx.beginPath(); ctx.arc(0, 0, 3.6, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
   // head
   ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(1, -43, 13, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = hair;
   ctx.beginPath(); ctx.arc(0, -46, 13.5, Math.PI * 0.95, Math.PI * 2.08); ctx.fill();
   ctx.beginPath(); ctx.moveTo(-13, -46); ctx.lineTo(-15, -34); ctx.lineTo(-7, -42); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(2, -54); ctx.lineTo(13, -46); ctx.lineTo(4, -47); ctx.fill();
+  if (hat) {
+    ctx.fillStyle = hat; ctx.beginPath(); ctx.arc(0, -49, 13.5, Math.PI, 0); ctx.fill();
+    ctx.fillRect(-15, -50, 30, 4);
+  } else { ctx.beginPath(); ctx.moveTo(2, -54); ctx.lineTo(13, -46); ctx.lineTo(4, -47); ctx.fill(); }
   ctx.fillStyle = "#2a2233"; ctx.fillRect(6, -45, 2.6, 5);
   ctx.fillStyle = "rgba(255,120,120,.45)"; ctx.beginPath(); ctx.arc(9, -37, 2.4, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
@@ -1540,12 +1996,19 @@ function drawHUD() {
   ctx.fillText(`${P.exp} / ${need()}`, bx + (bw + gap) * 2 + 8, top + 42);
   const [dmgMin, dmgMax] = physRange();
   ctx.fillText(`攻擊 ${Math.floor(dmgMin)}～${Math.floor(dmgMax)}`, bx + 8, top + 42);
+  // arrows or stars left, red when running low
+  const ammoName = AMMO_NAMES[weapon()?.wtype];
+  if (ammoName) {
+    const n = ammoCount();
+    ctx.fillStyle = n < 50 ? "#ff9b8f" : "#9fb0cd";
+    ctx.fillText(`${ammoName} ${n}`, bx + bw + gap + 8, top + 42);
+  }
 
   // quick slots: two potions, then the three skill keys
   const SKILL_COLORS = { atk: "#ff9b5a", buff: "#7fd0ff" };
   const slots = [
-    { key: "1", label: "紅藥", sub: "×" + P.pots.hp, c: "#e0453b" },
-    { key: "2", label: "藍藥", sub: "×" + P.pots.mp, c: "#3a7be0" },
+    { key: "1", label: "紅藥", sub: "×" + countItem("red_pot"), c: "#e0453b", dim: !countItem("red_pot") },
+    { key: "2", label: "藍藥", sub: "×" + countItem("blue_pot"), c: "#3a7be0", dim: !countItem("blue_pot") },
     ...slotSkills().map((s, i) => {
       const l = skLv(s.id);
       return { key: ["⇧", "D", "F"][i], label: s.name.slice(0, 2), sub: l ? `MP ${s.mp(l)}` : "未學",
