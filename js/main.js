@@ -8,6 +8,7 @@ function loop(now) {
   const dt = Math.min(0.033, (now - last) / 1000 || 0);
   last = now;
   update(dt);
+  musicTick();
   draw();
   pressed.clear();
   requestAnimationFrame(loop);

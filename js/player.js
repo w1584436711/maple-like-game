@@ -98,13 +98,13 @@ const held = new Set(), pressed = new Set();
 const FIXED_KEYS = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Space: "space", Enter: "revive", Escape: "esc" };
 const ACTIONS = {
   jump: "跳躍", attack: "攻擊", pickup: "撿東西", skill1: "技能 1", skill2: "技能 2", skill3: "技能 3", skill4: "技能 4", skill5: "技能 5", skill6: "技能 6", skill7: "技能 7",
-  hpPot: "紅藥水", mpPot: "藍藥水", stats: "能力值", skills: "技能視窗", inv: "背包", equip: "裝備", world: "世界地圖", quests: "任務日誌", keys: "鍵位設定",
+  hpPot: "紅藥水", mpPot: "藍藥水", stats: "能力值", skills: "技能視窗", inv: "背包", equip: "裝備", world: "世界地圖", quests: "任務日誌", keys: "鍵位設定", settings: "設定",
 };
 const DEFAULT_BINDS = {
   jump: ["AltLeft", "AltRight", "KeyC"], attack: ["ControlLeft", "ControlRight", "KeyX"], pickup: ["KeyZ"],
   skill1: ["ShiftLeft", "ShiftRight", "KeyA"], skill2: ["KeyD"], skill3: ["KeyF"], skill4: ["KeyG"], skill5: ["KeyH"], skill6: ["KeyV"], skill7: ["KeyB"],
   hpPot: ["Digit1", "Numpad1", "Delete"], mpPot: ["Digit2", "Numpad2", "End"],
-  stats: ["KeyS"], skills: ["KeyK"], inv: ["KeyI"], equip: ["KeyE"], world: ["KeyW"], quests: ["KeyQ"], keys: ["KeyO"],
+  stats: ["KeyS"], skills: ["KeyK"], inv: ["KeyI"], equip: ["KeyE"], world: ["KeyW"], quests: ["KeyQ"], keys: ["KeyO"], settings: ["KeyP"],
 };
 const BINDS_KEY = "floating-isle-keys";
 let binds = {}, KEYMAP = {}, binding = null;
@@ -137,9 +137,11 @@ const keyName = code => KEY_NAMES[code] || code.replace(/^Key|^Digit/, "").repla
 // the key shown for an action: its first binding, or a dash when it has none
 const keyOf = a => binds[a]?.length ? keyName(binds[a][0]) : "—";
 loadBinds();
-const PANEL_KEYS = ["stats", "skills", "inv", "equip", "world", "quests", "keys", "esc"];
-function press(a) { started = true; if (!held.has(a)) pressed.add(a); held.add(a); }
+const PANEL_KEYS = ["stats", "skills", "inv", "equip", "world", "quests", "keys", "settings", "esc"];
+function press(a) { started = true; startAudio(); if (!held.has(a)) pressed.add(a); held.add(a); }
 addEventListener("keydown", e => {
+  // typing in the settings window (pasting a save) must not move the character
+  if (e.target instanceof HTMLElement && e.target.matches("input, textarea, select") && e.code !== "Escape") return;
   if (binding) {
     // the key window is waiting for the next key press
     e.preventDefault();
@@ -163,7 +165,7 @@ addEventListener("keydown", e => {
   e.preventDefault();
   if (PANEL_KEYS.includes(a)) {
     if (e.repeat) return;
-    const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin, world: worldWin, quests: questWin, keys: keysWin };
+    const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin, world: worldWin, quests: questWin, keys: keysWin, settings: setWin };
     if (a === "esc") [...Object.values(wins), shopWin].forEach(w => { w.hidden = true; });
     else togglePanel(wins[a]);
     return;
@@ -173,7 +175,7 @@ addEventListener("keydown", e => {
 addEventListener("keyup", e => { const a = KEYMAP[e.code]; if (a) { held.delete(a); e.preventDefault(); } });
 addEventListener("blur", () => held.clear());
 cv.addEventListener("pointerdown", e => {
-  cv.focus(); started = true;
+  cv.focus(); started = true; startAudio();
   if (P.dead) { pressed.add("revive"); return; }
   // clicking the NPC opens the dialog, like in the original
   const r = cv.getBoundingClientRect();
@@ -244,9 +246,14 @@ function giveStarterGear(c, pots) {
   c.eq = outfit(JOBS[c.job].weapon);
   if (JOBS[c.job].ammo) addTo(c.bag, ...JOBS[c.job].ammo);
 }
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(serialize())); } catch (_) {} }
+// three save slots: slot 1 keeps the original key, so saves from before slots existed stay where they were
+const SLOT_KEY = "floating-isle-slot";
+const slotKey = n => n === 1 ? SAVE_KEY : `${SAVE_KEY}-${n}`;
+let saveSlot = 1;
+try { saveSlot = clamp(Number(localStorage.getItem(SLOT_KEY)) || 1, 1, 3); } catch (_) {}
+function save() { try { localStorage.setItem(slotKey(saveSlot), JSON.stringify(serialize())); } catch (_) {} }
 function load(d) {
-  if (!d) { try { d = JSON.parse(localStorage.getItem(SAVE_KEY) || "null"); } catch (_) { d = null; } }
+  if (!d) { try { d = JSON.parse(localStorage.getItem(slotKey(saveSlot)) || "null"); } catch (_) { d = null; } }
   if (!d || !d.lv) return false;
   const c = freshCharacter();
   if (!d.job) {
@@ -267,6 +274,43 @@ function load(d) {
   else giveStarterGear(c, d.pots);
   Object.assign(P, c);
   P.hp = clamp(P.hp || maxHp(), 1, maxHp()); P.mp = clamp(P.mp ?? maxMp(), 0, maxMp());
+  return true;
+}
+// a line about a slot for the settings window: level, job and where the character is
+function slotSummary(n) {
+  let d = n === saveSlot ? P : null;
+  if (!d) { try { d = JSON.parse(localStorage.getItem(slotKey(n)) || "null"); } catch (_) {} }
+  return d?.lv ? `Lv.${d.lv} ${JOBS[d.job]?.name || "新手"}．${MAPS[d.map]?.name || "浮島村"}` : "空的";
+}
+// a fresh start in the new slot when it is empty
+function switchSlot(n) {
+  if (n === saveSlot) return;
+  save();
+  saveSlot = n;
+  try { localStorage.setItem(SLOT_KEY, String(n)); } catch (_) {}
+  const had = load();
+  if (!had) Object.assign(P, freshCharacter());
+  P.dead = false;
+  loadMap(P.map);
+  invSel = null; eqSel = null; bagVer++;
+  closeDialog(); shopWin.hidden = true;
+  msg(had ? `切換到存檔 ${n}：Lv.${P.lv} 的${job().name}` : `存檔 ${n} 是空的，開始新的冒險`, "#ffc94a");
+  refreshPanels(true); save();
+}
+// a save as one line of text, to carry to another device; the prefix marks it as this game's
+function exportSave() {
+  return "FI1:" + btoa(unescape(encodeURIComponent(JSON.stringify(serialize()))));
+}
+function importSave(text) {
+  let d = null;
+  try { d = JSON.parse(decodeURIComponent(escape(atob(text.trim().replace(/^FI1:/, ""))))); } catch (_) {}
+  if (!d || !d.lv || !load(d)) { hint("存檔文字不對，請把整段文字完整貼上"); return false; }
+  P.dead = false;
+  loadMap(P.map);
+  invSel = null; eqSel = null; bagVer++;
+  save();
+  msg(`匯入完成：Lv.${P.lv} 的${job().name}`, "#ffc94a");
+  refreshPanels(true);
   return true;
 }
 const resetBtn = document.getElementById("reset");
