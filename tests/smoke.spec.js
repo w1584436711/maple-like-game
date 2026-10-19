@@ -723,6 +723,64 @@ test("技能視窗可以把技能放到第 7 個鍵，按 B 就放得出來", as
   expect(errors).toEqual([]);
 });
 
+test("設定：音量、傷害數字、畫面震動，重新整理後還在", async ({ page }) => {
+  const errors = await openGame(page);
+  await page.locator("#openSettings").click();
+  const win = page.locator("#setWin");
+  await win.getByRole("slider", { name: "音樂音量" }).fill("0");
+  await win.getByRole("checkbox", { name: "顯示傷害數字" }).uncheck();
+  await win.getByRole("combobox", { name: "畫面震動" }).selectOption("0");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("floating-isle-settings")))).toEqual({ sfx: 70, music: 0, nums: false, shake: 0 });
+  await page.reload();
+  await page.locator("#openSettings").click();
+  await expect(win.getByRole("checkbox", { name: "顯示傷害數字" })).not.toBeChecked();
+  await expect(win.getByRole("slider", { name: "音樂音量" })).toHaveValue("0");
+  expect(errors).toEqual([]);
+});
+
+test("存檔欄位：切到空的存檔 2 是新角色，切回存檔 1 還是原本的角色", async ({ page }) => {
+  const errors = await openWithSave(page, LV10_BEGINNER);
+  await page.locator("#openSettings").click();
+  const win = page.locator("#setWin");
+  await expect(win).toContainText("Lv.10 新手");
+  await win.getByRole("button", { name: "切換到存檔 2" }).click();
+  expect(await page.evaluate(() => [P.lv, saveSlot])).toEqual([1, 2]);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("floating-isle-v1-2")).lv)).toBe(1);
+  await win.getByRole("button", { name: "切換到存檔 1" }).click();
+  expect(await page.evaluate(() => [P.lv, saveSlot])).toEqual([10, 1]);
+  expect(errors).toEqual([]);
+});
+
+test("匯出存檔再匯入到另一個欄位，角色一模一樣", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV30_WARRIOR, coins: 4321 });
+  await page.locator("#openSettings").click();
+  const win = page.locator("#setWin");
+  await win.getByRole("button", { name: "匯出目前存檔" }).click();
+  const text = await win.getByRole("textbox", { name: "存檔文字" }).inputValue();
+  expect(text.startsWith("FI1:")).toBe(true);
+  await win.getByRole("button", { name: "切換到存檔 3" }).click();
+  await win.getByRole("textbox", { name: "存檔文字" }).fill(text);
+  await win.getByRole("button", { name: "匯入到目前存檔" }).click();
+  expect(await page.evaluate(() => [P.lv, P.job, P.coins, saveSlot])).toEqual([30, "warrior", 4321, 3]);
+  // 亂貼的文字不會蓋掉角色
+  await win.getByRole("textbox", { name: "存檔文字" }).fill("不是存檔");
+  await win.getByRole("button", { name: "匯入到目前存檔" }).click();
+  expect(await page.evaluate(() => P.lv)).toBe(30);
+  expect(errors).toEqual([]);
+});
+
+test("點一下畫面就會開始有聲音，在文字框打字不會觸發遊戲按鍵", async ({ page }) => {
+  const errors = await openGame(page);
+  await page.locator("#game").click();
+  expect(await page.evaluate(() => { sfx("levelup"); musicTick(); return actx?.state; })).toBe("running");
+  await page.locator("#openSettings").click();
+  await page.locator("#saveText").click();
+  await page.keyboard.type("iek");
+  await expect(page.locator("#invWin")).toBeHidden();
+  await expect(page.locator("#saveText")).toHaveValue("iek");
+  expect(errors).toEqual([]);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 

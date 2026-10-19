@@ -11,6 +11,7 @@ const worldWin = document.getElementById("worldWin"), worldBody = document.getEl
 const shopWin = document.getElementById("shopWin"), shopBody = document.getElementById("shopBody");
 const questWin = document.getElementById("questWin"), questBody = document.getElementById("questBody");
 const keysWin = document.getElementById("keysWin"), keysBody = document.getElementById("keysBody");
+const setWin = document.getElementById("setWin"), setBody = document.getElementById("setBody");
 function togglePanel(w) { w.hidden = !w.hidden; if (!w.hidden) refreshPanels(true); }
 let panelSig = "";
 function refreshPanels(force) {
@@ -25,6 +26,7 @@ function refreshPanels(force) {
   if (!shopWin.hidden) renderShop();
   if (!questWin.hidden) renderQuests();
   if (!keysWin.hidden) renderKeys();
+  if (force && !setWin.hidden) renderSettings();
 }
 function renderShop() {
   document.getElementById("shopTitle").textContent = shopNpc.name;
@@ -267,6 +269,7 @@ function drink(id, i = P.bag.use.findIndex(s => s?.id === id)) {
   if (hp <= 0 && mp <= 0) return;
   takeFromSlot("use", i);
   P.hp += hp; P.mp += mp; P.potCd = 0.3;
+  sfx("potion");
   if (hp > 0) nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "+" + hp, kind: "heal", t: 0 });
   if (mp > 0) nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "+" + mp, kind: "mana", t: 0 });
 }
@@ -340,13 +343,13 @@ function applyScroll(si, target) {
     g.bonus = g.bonus || {};
     for (const [k, v] of Object.entries(S.add)) g.bonus[k] = (g.bonus[k] || 0) + v;
     g.up = (g.up || 0) + 1;
-    msg(`強化成功！${gearName(g)}`, "#ffc94a");
+    msg(`強化成功！${gearName(g)}`, "#ffc94a"); sfx("quest");
     fx.push({ k: "lvup", t: 0, text: "SUCCESS!" });
   } else if (g.guard) {
     msg(`強化失敗，但防爆卷軸保住了${I.name}的可升級次數`, "#cfe3ff");
   } else {
     g.left = gearLeft(g) - 1;
-    msg(`強化失敗……${I.name}的可升級次數少了一次`, "#ff9b8f");
+    msg(`強化失敗……${I.name}的可升級次數少了一次`, "#ff9b8f"); sfx("fail");
   }
   // a guard scroll is used up by the next enhancement scroll, whether it works or not
   if (!S.kind) delete g.guard;
@@ -512,6 +515,47 @@ keysBody.addEventListener("click", e => {
   refreshPanels(true);
 });
 document.getElementById("openKeys").addEventListener("click", () => togglePanel(keysWin));
+
+// ---------- Settings window ----------
+let saveText = "";
+function renderSettings() {
+  const range = (k, label) => `<label class="setrow"><span>${label}</span>`
+    + `<input type="range" min="0" max="100" step="5" value="${settings[k]}" data-set="${k}" aria-label="${label}音量"><b>${settings[k]}</b></label>`;
+  setBody.innerHTML = `<div class="qhead">聲音</div>` + range("sfx", "音效") + range("music", "音樂")
+    + `<div class="qhead">畫面</div>`
+    + `<label class="setrow"><span>顯示傷害數字</span><input type="checkbox" data-set="nums" aria-label="顯示傷害數字"${settings.nums ? " checked" : ""}></label>`
+    + `<label class="setrow"><span>畫面震動</span><select class="keysel" data-set="shake" aria-label="畫面震動">`
+    + [[1, "正常"], [0.5, "小一點"], [0, "關閉"]].map(([v, n]) => `<option value="${v}"${settings.shake === v ? " selected" : ""}>${n}</option>`).join("")
+    + `</select></label>`
+    + `<div class="qhead">存檔</div>`
+    + [1, 2, 3].map(n => `<div class="setrow"><span>存檔 ${n}${n === saveSlot ? "（使用中）" : ""}<small>${esc(slotSummary(n))}</small></span>`
+      + (n === saveSlot ? "" : `<button type="button" class="btn" data-slot-switch="${n}" aria-label="切換到存檔 ${n}">切換</button>`) + `</div>`).join("")
+    + `<div class="acts">${actBtn("export", "匯出目前存檔")}${actBtn("import", "匯入到目前存檔")}</div>`
+    + `<textarea id="saveText" rows="3" aria-label="存檔文字" placeholder="按「匯出」，存檔文字會出現在這裡；要匯入，就把文字貼進來">${esc(saveText)}</textarea>`
+    + `<p class="note">匯入會換掉目前這個存檔欄位的角色。音量和畫面設定所有存檔共用。</p>`;
+}
+setBody.addEventListener("input", e => {
+  const t = e.target;
+  if (t.id === "saveText") { saveText = t.value; return; }
+  // sliders update as they move, without redrawing the window under the pointer
+  if (t.type === "range") { settings[t.dataset.set] = Number(t.value); t.nextElementSibling.textContent = t.value; saveSettings(); }
+});
+setBody.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.set === "nums") settings.nums = t.checked;
+  else if (t.dataset.set === "shake") settings.shake = Number(t.value);
+  else return;
+  saveSettings();
+});
+setBody.addEventListener("click", e => {
+  const t = e.target.closest("[data-slot-switch],[data-do]");
+  if (!t) return;
+  if (t.dataset.slotSwitch) switchSlot(Number(t.dataset.slotSwitch));
+  else if (t.dataset.do === "export") { saveText = exportSave(); renderSettings(); setBody.querySelector("#saveText").select(); return; }
+  else if (t.dataset.do === "import" && importSave(saveText)) saveText = "";
+  renderSettings();
+});
+document.getElementById("openSettings").addEventListener("click", () => togglePanel(setWin));
 renderKeyLabels();
 
 document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => { b.closest(".win").hidden = true; cv.focus({ preventScroll: true }); }));

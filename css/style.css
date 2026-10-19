@@ -134,3 +134,13 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 /* picking which key a skill goes on */
 .keysel{flex:none;font:700 .72rem var(--ui);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 2px;max-width:92px}
 .keysel:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+/* settings: sliders, a checkbox, save slots and the export box */
+#setWin{width:min(300px,62%)}
+.setrow{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgb(255 255 255 / .06)}
+.setrow span{flex:1;min-width:0}
+.setrow small{display:block;color:var(--muted)}
+.setrow input[type=range]{width:110px;accent-color:var(--gold)}
+.setrow input[type=checkbox]{width:18px;height:18px;accent-color:var(--gold)}
+.setrow b{font-family:var(--num);font-weight:400;min-width:26px;text-align:right}
+#saveText{width:100%;margin-top:6px;box-sizing:border-box;font:.72rem/1.4 ui-monospace,monospace;color:var(--ink);background:#0b1426;border:1px solid var(--line);border-radius:7px;padding:6px;resize:vertical}
+#saveText:focus-visible{outline:2px solid var(--gold);outline-offset:1px}

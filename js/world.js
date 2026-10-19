@@ -287,6 +287,7 @@ function loadMap(id, x = MAPS[id].spawn, y = 840) {
 }
 const portalAt = () => portals.find(pt => Math.abs(P.x + P.w / 2 - pt.x) < 24 && Math.abs(P.y + P.h - pt.y) < 4);
 function usePortal(pt) {
+  sfx("portal");
   const to = MAPS[pt.to], dest = to.portals[pt.tp];
   loadMap(pt.to, dest.x, dest.y ?? 840);
   msg(`來到了${to.name}`, "#cfe3ff");

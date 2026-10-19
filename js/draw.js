@@ -1265,6 +1265,7 @@ function drawFX() {
 }
 
 function drawNums() {
+  if (!settings.nums) return;
   ctx.textAlign = "center";
   const style = {
     hit: [26, "#ffb636", "#6b2a00"], crit: [32, "#ff6a3d", "#4a0c00"],
@@ -1427,7 +1428,8 @@ function drawHUD() {
 function draw() {
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   drawBG();
-  const sx = cam.shake ? rand(-cam.shake, cam.shake) * 0.5 : 0, sy = cam.shake ? rand(-cam.shake, cam.shake) * 0.5 : 0;
+  const shake = cam.shake * settings.shake;
+  const sx = shake ? rand(-shake, shake) * 0.5 : 0, sy = shake ? rand(-shake, shake) * 0.5 : 0;
   ctx.save();
   ctx.translate(Math.round(-cam.x + sx), Math.round(-cam.y + sy));
   trees.forEach(drawTree);

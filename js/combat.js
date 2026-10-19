@@ -29,11 +29,12 @@ function dealDamage(m, o = {}) {
   const mcx = m.x + m.w / 2, ny = m.y - 8 - (o.stack || 0) * 28;
   m.aggro = 10; m.showHp = 4;
   const r = rollDamage(m, o);
-  if (!r) { nums.push({ x: mcx, y: ny, text: "MISS", kind: "miss", t: 0 }); return; }
+  if (!r) { nums.push({ x: mcx, y: ny, text: "MISS", kind: "miss", t: 0 }); sfx("miss"); return; }
   const d = Math.max(1, Math.round(r.d));
   m.hp -= d; m.flash = 0.12;
   if (!m.T.boss) m.kb = (mcx > P.x + P.w / 2 ? 1 : -1) * 170;
   nums.push({ x: mcx, y: ny, text: String(d), kind: r.crit ? "crit" : "hit", t: 0 });
+  sfx("hit");
   fx.push({ k: "spark", x: mcx + rand(-8, 8), y: m.y + m.h / 2 + rand(-8, 8), t: 0 });
   if (m.hp <= 0) kill(m);
 }
@@ -62,6 +63,7 @@ function addDrop(kind, x, y, value, id) {
 }
 const PICK_COLORS = { equip: "#ffd97a", use: "#9fd0ff", etc: "#cfe3ff" };
 function collect(d) {
+  sfx(d.kind === "coin" ? "coin" : "pickup");
   if (d.kind === "coin") { P.coins += d.value; msg(`撿到金幣 ${d.value}`, "#ffd97a"); }
   else {
     // a stack that only partly fits leaves the rest on the ground
@@ -89,6 +91,7 @@ function levelUp() {
   P.mmp += randi(J.mp[0], J.mp[1]) + (root(P.job) === "magician" ? Math.floor(P.int / 10) : 0);
   P.hp = maxHp(); P.mp = maxMp();
   fx.push({ k: "lvup", t: 0 });
+  sfx("levelup");
   msg(`等級提升！現在是 Lv.${P.lv}，按 S 分配 5 點能力值`, "#ffc94a");
   if (P.job === "beginner" && (P.lv === 8 || P.lv === 10)) msg("可以回浮島村找轉職教官薇拉轉職了", "#ffc94a");
   if (SECOND[P.job] && P.lv === 30) msg("可以回浮島村找轉職教官薇拉二轉了", "#ffc94a");
@@ -110,12 +113,14 @@ function hurt(d, fromX, acc = null) {
   P.hp -= dmg;
   nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: String(dmg), kind: "hurt", t: 0 });
   P.inv = INV_TIME;
+  sfx("hurt");
   if (!P.climb) {
     P.knock = 0.35; P.prone = false; P.atkT = 0;
     P.vx = (P.x + P.w / 2 < fromX ? -1 : 1) * KB_VX; P.vy = -KB_VY; P.onGround = false;
   }
   if (P.hp <= 0) {
     P.hp = 0; P.dead = true; P.deadT = 0; P.climb = null;
+    sfx("death");
     const lost = Math.floor(P.exp * deathPenalty() / 100);
     P.exp -= lost;
     msg(lost ? `你倒下了…失去 ${lost} 點經驗值` : "你倒下了…", "#ff9b8f");
@@ -192,7 +197,7 @@ function updatePlayer(dt) {
   if (jumpPressed() && P.onGround && !attacking && P.knock <= 0) {
     if (D_) {
       if (!P.ground.ground) { P.drop = 0.3; P.dropPlat = P.ground; P.onGround = false; P.prone = false; P.vy = -180; }
-    } else { P.vy = -JUMP; P.onGround = false; }
+    } else { P.vy = -JUMP; P.onGround = false; sfx("jump"); }
   }
 
   P.vy = Math.min(P.vy + G * dt, FALL_MAX);
@@ -266,10 +271,12 @@ function basicAttack() {
     fx.push({ k: "stab", t: 0 });
   } else if (type === "bow" || type === "claw") {
     startAction("shoot", 0.5);
+    sfx("shoot");
     useAmmo(1);
     fire(type === "bow" ? "arrow" : "star", {}, 0, 0.12);
   } else {
     startAction("slash", SLASH_T);
+    sfx("swing");
     targetsIn(meleeBox(80), 1).forEach(m => dealDamage(m));
     fx.push({ k: "slash", t: 0 });
   }
@@ -291,11 +298,13 @@ function useSkill(s, key) {
     startAction("buff", 0.5);
     P.buffs[s.id] = s.dur(l);
     fx.push({ k: "buff", t: 0 });
+    sfx("buff");
     msg(`${s.name}：${s.dur(l)} 秒`, "#cfe3ff");
     return;
   }
   revealFromShadow();
   const dmg = s.spell ? { magic: true, spell: s.spell(l) } : { pct: s.pct(l) };
+  sfx(s.spell ? "magic" : "skill");
   const cx = P.x + P.w / 2;
   if (s.shot) {
     const spell = s.shot === "bolt" || s.shot === "fire";
@@ -391,7 +400,7 @@ function updateMobs(dt) {
       if (m.wind > 0) {
         m.wind -= dt;
         if (m.wind <= 0) {
-          cam.shake = 14;
+          cam.shake = 14; sfx("slam");
           fx.push({ k: "ring", x: m.x + m.w / 2, y: m.p.y, t: 0 });
           if (P.onGround && P.ground === m.p && Math.abs(pcx - (m.x + m.w / 2)) < S.range) { P.inv = 0; hurt(S.dmg, m.x + m.w / 2); }
         }

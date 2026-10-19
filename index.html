@@ -34,6 +34,10 @@
       <header><h2>任務日誌</h2><button type="button" class="x" data-close aria-label="關閉任務日誌">✕</button></header>
       <div id="questBody"></div>
     </section>
+    <section class="win" id="setWin" hidden aria-label="設定">
+      <header><h2>設定</h2><button type="button" class="x" data-close aria-label="關閉設定">✕</button></header>
+      <div id="setBody"></div>
+    </section>
     <section class="win" id="keysWin" hidden aria-label="鍵位設定">
       <header><h2>鍵位設定</h2><button type="button" class="x" data-close aria-label="關閉鍵位設定">✕</button></header>
       <div id="keysBody"></div>
@@ -71,6 +75,7 @@
     <li><kbd data-key="world">W</kbd> 世界地圖</li>
     <li><kbd data-key="quests">Q</kbd> 任務日誌</li>
     <li><kbd data-key="keys">O</kbd> 鍵位設定</li>
+    <li><kbd data-key="settings">P</kbd> 設定（聲音、畫面、存檔）</li>
     <li>傳送門前按 <kbd>↑</kbd> 換地圖</li>
     <li>靠近 NPC 按 <kbd>Space</kbd> 或點他說話</li>
   </ul>
@@ -108,12 +113,14 @@
       <button class="reset" id="openWorld" type="button">世界地圖（<span data-key="world"></span>）</button>
       <button class="reset" id="openQuests" type="button">任務（<span data-key="quests"></span>）</button>
       <button class="reset" id="openKeys" type="button">鍵位設定（<span data-key="keys"></span>）</button>
+      <button class="reset" id="openSettings" type="button">設定（<span data-key="settings"></span>）</button>
       <button class="reset" id="reset" type="button">重新開始</button>
     </div>
   </div>
 </div>
 
 <script src="js/core.js"></script>
+<script src="js/audio.js"></script>
 <script src="js/world.js"></script>
 <script src="js/rules.js"></script>
 <script src="js/player.js"></script>

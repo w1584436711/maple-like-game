@@ -82,6 +82,7 @@ function sail(npc) {
   closeDialog();
   const to = MAPS[npc.ship];
   loadMap(npc.ship, to.dock ?? to.spawn);
+  sfx("portal");
   msg(`搭飛船來到了${to.name}`, "#cfe3ff");
   refreshPanels(true); save();
 }
@@ -309,6 +310,7 @@ function finishQuest(q) {
   items.forEach(([id, n]) => addItem(id, n));
   msg(`完成任務「${q.name}」！`, "#ffc94a");
   fx.push({ k: "lvup", t: 0, text: "QUEST CLEAR!" });
+  sfx("quest");
   gainExp(q.reward.exp);
   refreshPanels(true); save();
   say(`${q.thanks}\n\n獲得：${rewardText(q)}`, [["謝謝", closeDialog]]);
@@ -359,7 +361,7 @@ function buy(k, times) {
   const [id, per] = SHOPS[shopNpc.shop][k], I = ITEMS[id], n = per * times, cost = I.price * n;
   if (P.coins < cost) { hint("金幣不夠"); return; }
   if (roomFor(id) < n) { hint(`背包的${TABS[I.cat]}欄放不下了`); return; }
-  P.coins -= cost; addItem(id, n);
+  P.coins -= cost; addItem(id, n); sfx("coin");
   msg(`買了${I.name}${n > 1 ? ` ×${n}` : ""}，花了 ${cost} 金幣`, "#ffd97a");
   save();
 }
@@ -369,7 +371,7 @@ function sell(i, all) {
   if (!s) return;
   const I = ITEMS[s.id], n = all ? s.n : 1, gain = sellPrice(I, n);
   takeFromSlot(shopTab, i, n);
-  P.coins += gain; sellArm = -1;
+  P.coins += gain; sellArm = -1; sfx("coin");
   msg(`賣掉${I.name}${n > 1 ? ` ×${n}` : ""}，得到 ${gain} 金幣`, "#ffd97a");
   save();
 }
