@@ -29,6 +29,8 @@ const NPCS = {
            look: { robe: "#2f4a7a", hair: "#3a2a20", beard: "#3a2a20", strawHat: true } },
   nina:  { name: "雲商 妮娜", map: "cloudtown", x: 400, shop: "cloud", greet: "歡迎來到雲頂城！高級藥水和雲絲裝備，這裡都買得到。",
            look: { robe: "#7ab8f0", hair: "#f0c8d8", long: true, apron: true } },
+  aura:  { name: "賢者 奧菈", map: "cloudtown", x: 780, talk: auraTalk,
+           look: { robe: "#3a2a6a", hair: "#e6e6f6", long: true, prop: "staff" } },
   ryan:  { name: "雲守衛 雷恩", map: "cloudtown", x: 620, greet: "雲頂城最近不太平靜，雷雲祭壇那邊一直在打雷。",
            look: { robe: "#c8a040", hair: "#f0e0b0", prop: "staff" } },
   ed:    { name: "守林人 艾德", map: "grove", x: 130, greet: "古樹精醒過來之後，森林就再也沒安靜過。你是來幫忙的嗎？",
@@ -82,6 +84,31 @@ function sail(npc) {
   loadMap(npc.ship, to.dock ?? to.spawn);
   msg(`搭飛船來到了${to.name}`, "#cfe3ff");
   refreshPanels(true); save();
+}
+// the sage hands out the shadow trial, and once it is done, the third job
+function auraTalk(opts) {
+  const next = THIRD[P.job] && JOBS[THIRD[P.job]];
+  if (next && P.quests.q_trial?.state === "done") {
+    say(`你戰勝了自己的影子。現在，你可以成為${next.name}了。`, [...opts, ["我想三轉", thirdJob], ["再見", closeDialog]]);
+  } else if (next && P.lv >= next.req.lv) {
+    say("你身上有很強的力量……想再往上走一步，就得先戰勝自己的影子。", [...opts, ["再見", closeDialog]]);
+  } else say("我是看守星空的賢者。二轉之後到了 Lv.50，再來找我吧。", [...opts, ["再見", closeDialog]]);
+}
+function thirdJob() {
+  const id = THIRD[P.job], J = JOBS[id];
+  const preview = SKILLS[id].map(s => `・${s.name}：${s.desc(1)}`).join("\n");
+  say(`${J.blurb}\n\n成為${J.name}之後會學到：\n${preview}`, [[`我要成為${J.name}`, () => advance3(id)], ["再想想", back]]);
+}
+function advance3(id) {
+  const J = JOBS[id];
+  P.job = id;
+  P.sp += 1;
+  P.mhp += J.gain.hp; P.mmp += J.gain.mp;
+  P.hp = maxHp(); P.mp = maxMp();
+  fx.push({ k: "lvup", t: 0, text: "JOB UP!" });
+  msg(`你成為${J.name}了！按 ${keyOf("skills")} 學新技能`, "#ffc94a");
+  refreshPanels(true); save();
+  say(`從今天起你就是${J.name}了。\n技能鍵增加到 7 個（預設 ${[6, 7].map(i => keyOf(`skill${i}`)).join("、")} 是技能 6、7）。在技能視窗可以自己決定每個技能放在哪個鍵。`, [["好", closeDialog]]);
 }
 function veraTalk() {
   if (P.job === "beginner") say("你好，冒險者。想選擇自己要走的路，就來找我吧。", [["我想轉職", jobMenu], ["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
@@ -198,6 +225,12 @@ const QUESTS = {
               reward: { exp: 16000, coins: 5000 },
               ask: "幫我巡一巡森林，打倒 20 隻石甲蜥。", where: "石甲蜥在霧影森林東半邊，古樹深處的平台上也有。",
               thanks: "辛苦了，明天見。" },
+  // the third job's trial: accepting sends you into the trial ground to face your own shadow
+  q_trial:  { npc: "aura", name: "影之試煉", lv: 50, when: () => !!THIRD[P.job], kill: { shadow: 1 },
+              reward: { exp: 20000, coins: 0 }, enter: "trial",
+              ask: "在試煉場裡，你會遇見自己的影子。它用你的武器、懂你的招式。打敗它，回來告訴我。",
+              where: "試煉場只有你和你的影子。打不過也沒關係，倒下會回到雲頂城，隨時可以再來。",
+              thanks: "你戰勝了自己的影子……很好。" },
   // the cloud island: one chain from the town guard, Lv.30 to 50
   q_sheep:  { npc: "ryan", name: "雲海上的羊群", lv: 30, kill: { sheep: 40 },
               reward: { exp: 30000, coins: 8000, items: [["white_pot", 30]] },
@@ -237,7 +270,7 @@ function questState(q) {
   const s = P.quests[q.id];
   if (s?.state === "done") return q.daily && s.day !== today() && P.lv >= q.lv ? "available" : "done";
   if (s) return questGoals(q).every(g => g.have >= g.need) ? "ready" : "active";
-  if (P.lv < q.lv || (q.after && P.quests[q.after]?.state !== "done")) return "locked";
+  if (P.lv < q.lv || (q.after && P.quests[q.after]?.state !== "done") || (q.when && !q.when())) return "locked";
   return "available";
 }
 const questGoals = q => [
@@ -254,10 +287,18 @@ function acceptQuest(q) {
   P.quests[q.id] = { state: "active", kills: {} };
   msg(`接下任務「${q.name}」，按 Q 看任務日誌`, "#ffc94a");
   refreshPanels(true); save();
+  if (q.enter) { enterQuestMap(q); return; }
   say(`謝謝你！${q.where}`, [["知道了", closeDialog]]);
 }
+// quests with their own map (the trial) send you there, and can send you again while they are open
+function enterQuestMap(q) {
+  closeDialog();
+  loadMap(q.enter);
+  msg(`來到了${MAPS[q.enter].name}`, "#cfe3ff");
+  save();
+}
 function questProgress(q) {
-  say(`${q.where}\n\n${goalText(q)}`, [["我再去努力", closeDialog]]);
+  say(`${q.where}\n\n${goalText(q)}`, [...(q.enter ? [[`送我去${MAPS[q.enter].name}`, () => enterQuestMap(q)]] : []), ["我再去努力", closeDialog]]);
 }
 function finishQuest(q) {
   const items = q.reward.items || [];

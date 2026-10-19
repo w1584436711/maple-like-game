@@ -14,7 +14,7 @@ const keysWin = document.getElementById("keysWin"), keysBody = document.getEleme
 function togglePanel(w) { w.hidden = !w.hidden; if (!w.hidden) refreshPanels(true); }
 let panelSig = "";
 function refreshPanels(force) {
-  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer, P.map, P.quests, shopMode, shopTab, sellArm, binding]);
+  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer, P.map, P.quests, shopMode, shopTab, sellArm, binding, P.slots]);
   if (!force && sig === panelSig) return;
   panelSig = sig;
   if (!statsWin.hidden) renderStats();
@@ -148,20 +148,34 @@ function renderSkills() {
   }
   const slots = slotSkills();
   let html = `<div class="ap">剩餘 SP <b>${P.sp}</b></div>`;
-  // first-job skills, then the second job's under their own heading
-  for (const s of jobSkills()) {
-    if (SKILLS[root(P.job)][0] === s || SKILLS[P.job]?.[0] === s) html += `<div class="qhead">${esc(JOBS[SKILLS[P.job]?.[0] === s ? P.job : root(P.job)].name)}技能</div>`;
-    const l = skLv(s.id), slot = slots.indexOf(s);
-    const lock = s.req && skLv(s.req[0]) < s.req[1] ? `需要「${SKILL_BY_ID[s.req[0]].name}」Lv.${s.req[1]}` : "";
-    const now = l ? s.desc(l) : "還沒學會";
-    const next = l < s.max ? `下一級：${s.desc(l + 1)}` : "已經滿級";
-    const cost = s.mp ? `MP ${s.mp(Math.max(1, l))}` : "";
-    html += `<div class="skill"><div class="row"><span><b class="sname">${esc(s.name)}</b> <small>${TYPE_NAMES[s.type]}${slot >= 0 ? `．${keyOf(`skill${slot + 1}`)} 鍵` : ""}</small></span>`
-      + `<b>${l} / ${s.max}</b><button type="button" class="plus" data-skill="${s.id}" aria-label="${esc(s.name)}加 1"${canLearn(s) ? "" : " disabled"}>+</button></div>`
-      + `<p>${esc(now)}${cost ? `．${cost}` : ""}</p><p class="dim">${esc(lock || next)}</p></div>`;
+  // one heading per job in the line: first, second, third
+  for (const j of jobLine()) {
+    html += `<div class="qhead">${esc(JOBS[j].name)}技能</div>`;
+    for (const s of SKILLS[j] || []) {
+      const l = skLv(s.id), slot = slots.indexOf(s);
+      const lock = s.req && skLv(s.req[0]) < s.req[1] ? `需要「${SKILL_BY_ID[s.req[0]].name}」Lv.${s.req[1]}` : "";
+      const now = l ? s.desc(l) : "還沒學會";
+      const next = l < s.max ? `下一級：${s.desc(l + 1)}` : "已經滿級";
+      const cost = s.mp ? `MP ${s.mp(Math.max(1, l))}` : "";
+      // active skills pick their key from a list: skill 1 to 7, or none
+      const keySel = s.type === "passive" ? "" : `<select class="keysel" data-slot-of="${s.id}" aria-label="${esc(s.name)}放在哪個鍵">`
+        + `<option value="-1"${slot < 0 ? " selected" : ""}>不放</option>`
+        + Array.from({ length: SKILL_SLOTS }, (_, k) => `<option value="${k}"${slot === k ? " selected" : ""}>${k + 1}．${esc(keyOf(`skill${k + 1}`))} 鍵</option>`).join("")
+        + `</select>`;
+      html += `<div class="skill"><div class="row"><span><b class="sname">${esc(s.name)}</b> <small>${TYPE_NAMES[s.type]}</small></span>`
+        + `${keySel}<b>${l} / ${s.max}</b><button type="button" class="plus" data-skill="${s.id}" aria-label="${esc(s.name)}加 1"${canLearn(s) ? "" : " disabled"}>+</button></div>`
+        + `<p>${esc(now)}${cost ? `．${cost}` : ""}</p><p class="dim">${esc(lock || next)}</p></div>`;
+    }
   }
   skillsBody.innerHTML = html;
 }
+skillsBody.addEventListener("change", e => {
+  const sel = e.target.closest("[data-slot-of]");
+  if (!sel) return;
+  assignSlot(sel.dataset.slotOf, Number(sel.value));
+  refreshPanels(true); save();
+  cv.focus({ preventScroll: true });
+});
 statsBody.addEventListener("click", e => {
   const b = e.target.closest("[data-stat]");
   if (!b || P.ap <= 0) return;

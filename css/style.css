@@ -26,7 +26,7 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 .pad{display:none;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;user-select:none;-webkit-user-select:none}
 .grp{display:grid;gap:6px}
 .dpad{grid-template-columns:repeat(3,50px);grid-template-rows:repeat(2,50px)}
-.acts{grid-template-columns:repeat(5,54px);grid-template-rows:repeat(2,50px)}
+.acts{grid-template-columns:repeat(5,54px);grid-auto-rows:50px}
 .pad button{touch-action:none;border-radius:12px;background:var(--panel);border:1px solid var(--line);border-bottom-width:3px;color:var(--ink);font:700 .95rem var(--ui);padding:0}
 .pad button.on{background:var(--line);transform:translateY(1px)}
 .pad .up{grid-column:2}
@@ -131,3 +131,6 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 /* rolled stats and sets */
 .info .lucky{color:#8fe07a}
 .info .set,.note.set{color:#9fd0ff}
+/* picking which key a skill goes on */
+.keysel{flex:none;font:700 .72rem var(--ui);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 2px;max-width:92px}
+.keysel:focus-visible{outline:2px solid var(--gold);outline-offset:1px}

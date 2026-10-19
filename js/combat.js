@@ -283,7 +283,7 @@ function useSkill(s, key) {
   // bow and claw skills use one arrow or star per shot
   const ammo = AMMO_NAMES[s.weapon] ? (s.shots || 1) : 0;
   if (ammo && !haveAmmo(ammo)) return;
-  const cost = s.mp(l);
+  const cost = buffOn("x_infinity") ? 0 : s.mp(l);
   if (P.mp < cost) { hint("MP 不夠了，按 2 喝藍藥水"); return; }
   P.mp -= cost; P.prone = false;
   if (ammo) useAmmo(ammo);
@@ -304,8 +304,9 @@ function useSkill(s, key) {
   } else if (s.area) {
     // everything within the radius, on both sides
     startAction(s.spell ? "cast" : "spin", SKILL_T);
-    targetsIn({ x: cx - s.area, y: P.y - 40, w: s.area * 2, h: 110 }, s.targets).forEach(m => dealDamage(m, dmg));
-    fx.push({ k: s.spell ? "nova" : "quake", x: cx, y: P.y + P.h, r: s.area, t: 0 });
+    targetsIn({ x: cx - s.area, y: P.y - 40, w: s.area * 2, h: 110 }, s.targets)
+      .forEach(m => { for (let h = 0; h < (s.hits || 1); h++) dealDamage(m, { ...dmg, stack: h }); });
+    fx.push({ k: s.fx || (s.spell ? "nova" : "quake"), rain: s.rain, x: cx, y: P.y + P.h, r: s.area, t: 0 });
     if (!s.spell) cam.shake = 6;
   } else if (s.melee) {
     startAction(s.spell ? "cast" : "slash", SLASH_T);
@@ -445,7 +446,7 @@ function update(dt) {
   for (let i = nums.length - 1; i >= 0; i--) if ((nums[i].t += dt) > 1.1) nums.splice(i, 1);
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt;
-    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3, buff: 0.7, burst: 0.3, nova: 0.5, quake: 0.5, zap: 0.3 }[f.k];
+    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3, buff: 0.7, burst: 0.3, nova: 0.5, quake: 0.5, zap: 0.3, rain: 0.6 }[f.k];
     if (f.t > life) fx.splice(i, 1);
   }
   for (let i = msgs.length - 1; i >= 0; i--) if ((msgs[i].t -= dt) <= 0) msgs.splice(i, 1);
