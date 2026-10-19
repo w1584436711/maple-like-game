@@ -6,7 +6,7 @@
 function freshCharacter() {
   return {
     lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
-    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {},
+    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [],
     bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"), storage: Array(BAG_SLOTS).fill(null),
   };
 }
@@ -42,11 +42,22 @@ const skLv = id => P.skills[id] || 0;
 const buffOn = id => (P.buffs[id] || 0) > 0;
 const passive = (id, key) => { const l = skLv(id); return l ? SKILL_BY_ID[id][key](l) : 0; };
 const buffVal = (id, key) => buffOn(id) ? SKILL_BY_ID[id][key](skLv(id)) : 0;
-// a second job keeps its first job's skills and adds its own
-const jobLine = () => [...new Set([root(P.job), P.job])];
+// every job keeps the skills of the jobs before it: first, then second, then third
+const jobLine = () => [...new Set([root(P.job), JOBS[P.job].prev, P.job].filter(Boolean))];
 const jobSkills = () => jobLine().flatMap(j => SKILLS[j] || []);
-const SKILL_SLOTS = 5;
-const slotSkills = () => jobSkills().filter(s => s.type !== "passive").slice(0, SKILL_SLOTS);
+// seven skill keys; until you place skills yourself (P.slots), they fill with your active skills in order
+const SKILL_SLOTS = 7;
+const autoSlots = () => jobSkills().filter(s => s.type !== "passive").slice(0, SKILL_SLOTS).map(s => s.id);
+function slotSkills() {
+  const own = jobSkills(), ids = P.slots.length ? P.slots : autoSlots();
+  return Array.from({ length: SKILL_SLOTS }, (_, i) => own.find(s => s.id === ids[i]) || null);
+}
+// puts a skill on key k (0-6), or takes it off every key when k is -1
+function assignSlot(id, k) {
+  const ids = Array.from({ length: SKILL_SLOTS }, (_, i) => slotSkills()[i]?.id || null).map(x => x === id ? null : x);
+  if (k >= 0) ids[k] = id;
+  P.slots = ids;
+}
 // mastery narrows the damage range toward the top: 10% to start, raised by each second job's mastery skill
 const mastery = () => 0.1 + MASTERY_SKILLS.reduce((s, id) => s + passive(id, "mastery"), 0) / 100;
 
@@ -54,22 +65,22 @@ const mastery = () => 0.1 + MASTERY_SKILLS.reduce((s, id) => s + passive(id, "ma
 function physRange() {
   const w = weapon();
   if (!w) return [0, 0];
-  let pri, sec, watk = gear("watk") + buffVal("k_rage", "watk");
+  let pri, sec, watk = gear("watk") + buffVal("k_rage", "watk") + buffVal("s_soul", "watk");
   if (w.wtype === "bow") { pri = stat("dex") * 3.4; sec = stat("str"); }
   else if (w.wtype === "claw") { pri = stat("luk") * 3.6; sec = stat("str") + stat("dex"); watk += ITEMS[ammoStacks()[0]?.id]?.watk || 0; }
   else { pri = stat("str") * 4; sec = stat("dex"); }
   return [(pri * 0.9 * mastery() + sec) * watk / 100, (pri + sec) * watk / 100];
 }
-const magic = () => stat("int") + gear("matk") + passive("e_mastery", "matk");
+const magic = () => stat("int") + gear("matk") + passive("e_mastery", "matk") + passive("x_wisdom", "matk");
 function magicRange(spell) {
   const mag = magic();
   return [((mag * mag / 1000 + mag * mastery() * 0.9) / 30 + stat("int") / 200) * spell,
           ((mag * mag / 1000 + mag) / 30 + stat("int") / 200) * spell];
 }
-const accuracy = () => stat("dex") * 0.8 + stat("luk") * 0.5 + gear("acc") + buffVal("b_eye", "acc") + passive("k_mastery", "acc") + passive("h_mastery", "acc");
-const avoidability = () => stat("dex") * 0.25 + stat("luk") * 0.5 + gear("avoid") + passive("t_agile", "avoid") + passive("a_mastery", "avoid") + buffVal("b_eye", "avoid");
+const accuracy = () => stat("dex") * 0.8 + stat("luk") * 0.5 + gear("acc") + buffVal("b_eye", "acc") + passive("k_mastery", "acc") + passive("h_mastery", "acc") + passive("g_sharp", "acc");
+const avoidability = () => stat("dex") * 0.25 + stat("luk") * 0.5 + gear("avoid") + passive("t_agile", "avoid") + passive("a_mastery", "avoid") + buffVal("b_eye", "avoid") + buffVal("n_dark", "avoid");
 const walkSpeed = () => WALK * (1 + buffVal("a_haste", "speed") / 100);
-const critChance = () => passive("b_crit", "crit") / 100;
+const critChance = () => (CRIT_SKILLS.reduce((s, id) => s + passive(id, "crit"), 0) + buffVal("g_focus", "crit")) / 100;
 
 // ---------- State ----------
 const cam = { x: 0, y: WORLD_H - H, shake: 0 };
@@ -86,12 +97,12 @@ const held = new Set(), pressed = new Set();
 // Arrows, Space, Enter and Esc always do the same thing; everything in ACTIONS can be moved to another key.
 const FIXED_KEYS = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Space: "space", Enter: "revive", Escape: "esc" };
 const ACTIONS = {
-  jump: "跳躍", attack: "攻擊", pickup: "撿東西", skill1: "技能 1", skill2: "技能 2", skill3: "技能 3", skill4: "技能 4", skill5: "技能 5",
+  jump: "跳躍", attack: "攻擊", pickup: "撿東西", skill1: "技能 1", skill2: "技能 2", skill3: "技能 3", skill4: "技能 4", skill5: "技能 5", skill6: "技能 6", skill7: "技能 7",
   hpPot: "紅藥水", mpPot: "藍藥水", stats: "能力值", skills: "技能視窗", inv: "背包", equip: "裝備", world: "世界地圖", quests: "任務日誌", keys: "鍵位設定",
 };
 const DEFAULT_BINDS = {
   jump: ["AltLeft", "AltRight", "KeyC"], attack: ["ControlLeft", "ControlRight", "KeyX"], pickup: ["KeyZ"],
-  skill1: ["ShiftLeft", "ShiftRight", "KeyA"], skill2: ["KeyD"], skill3: ["KeyF"], skill4: ["KeyG"], skill5: ["KeyH"],
+  skill1: ["ShiftLeft", "ShiftRight", "KeyA"], skill2: ["KeyD"], skill3: ["KeyF"], skill4: ["KeyG"], skill5: ["KeyH"], skill6: ["KeyV"], skill7: ["KeyB"],
   hpPot: ["Digit1", "Numpad1", "Delete"], mpPot: ["Digit2", "Numpad2", "End"],
   stats: ["KeyS"], skills: ["KeyK"], inv: ["KeyI"], equip: ["KeyE"], world: ["KeyW"], quests: ["KeyQ"], keys: ["KeyO"],
 };
@@ -185,7 +196,7 @@ document.querySelectorAll("[data-act]").forEach(b => {
 const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins", "map"];
 function serialize() {
   const copy = v => JSON.parse(JSON.stringify(v));
-  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage) };
+  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage) };
   SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
   return d;
 }
@@ -248,6 +259,7 @@ function load(d) {
     if (!JOBS[c.job]) c.job = "beginner";
     if (!MAPS[c.map]) c.map = "village";
     c.skills = { ...(d.skills || {}) }; c.buffs = { ...(d.buffs || {}) };
+    c.slots = Array.isArray(d.slots) ? d.slots.slice(0, SKILL_SLOTS).map(x => SKILL_BY_ID[x] ? x : null) : [];
   }
   c.quests = cleanQuests(d.quests);
   c.storage = cleanStorage(d.storage);

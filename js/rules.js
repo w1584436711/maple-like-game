@@ -26,11 +26,21 @@ const JOBS = {
                   blurb: "箭快得像獵鷹，連射三箭，還能一箭射穿好幾隻怪物。" },
   assassin:     { name: "影刃刺客", base: "thief", hp: [22, 26], mp: [16, 18], req: { lv: 30 }, gain: { hp: 150, mp: 100 },
                   blurb: "像影子一樣快，飛鏢連發，還能貫穿整排敵人。" },
+  // third jobs at Lv.50, after the shadow trial; prev is the second job they grow from
+  swordsaint:   { name: "破陣劍豪", base: "warrior", prev: "berserker", hp: [32, 36], mp: [8, 10], req: { lv: 50 }, gain: { hp: 600, mp: 0 },
+                  blurb: "劍氣能劈開戰陣，一個人就能擋住一整群怪物。" },
+  starsage:     { name: "星辰賢者", base: "magician", prev: "elementalist", hp: [14, 18], mp: [30, 34], req: { lv: 50 }, gain: { hp: 0, mp: 600 },
+                  blurb: "從星空召來流星，讓閃電在敵人之間跳躍。" },
+  ranger:       { name: "神射遊俠", base: "bowman", prev: "hawkeye", hp: [24, 28], mp: [18, 20], req: { lv: 50 }, gain: { hp: 300, mp: 200 },
+                  blurb: "一箭射穿整排敵人，也能讓箭像雨一樣落下。" },
+  nightlord:    { name: "夜影宗師", base: "thief", prev: "assassin", hp: [24, 28], mp: [18, 20], req: { lv: 50 }, gain: { hp: 300, mp: 200 },
+                  blurb: "飛鏢如影隨形，貼身一擊就能直取要害。" },
 };
 for (const J of Object.values(JOBS)) if (J.base) { J.weapon = JOBS[J.base].weapon; J.ammo = JOBS[J.base].ammo; }
 // the first job a job grows from (itself for a first job or a beginner), and the second job each one leads to
 const root = id => JOBS[id].base || id;
 const SECOND = { warrior: "berserker", magician: "elementalist", bowman: "hawkeye", thief: "assassin" };
+const THIRD = { berserker: "swordsaint", elementalist: "starsage", hawkeye: "ranger", assassin: "nightlord" };
 
 // ---------- Items ----------
 // Classic rules: three bag tabs with a fixed number of slots, eight equipment slots with level, job and
@@ -247,7 +257,49 @@ const SKILLS = {
     { id: "a_mastery", name: "飛鏢精通", type: "passive", max: 20, mastery: l => 3 * l, avoid: l => l,
       desc: l => `熟練度加 ${3 * l}%，迴避加 ${l}` },
   ],
+  // third-job skills; area attacks can hit more than once (hits) and may rain fire or arrows (fx)
+  swordsaint: [
+    { id: "s_storm", name: "千刃風暴", type: "atk", weapon: "sword", area: 200, targets: 10, hits: 2, max: 20, mp: l => 24 + (l >> 1), pct: l => 120 + 5 * l,
+      desc: l => `捲起劍刃風暴，周圍最多 10 隻怪物各被砍兩下，每下 ${120 + 5 * l}% 傷害` },
+    { id: "s_break", name: "破天斬", type: "atk", weapon: "sword", melee: 120, targets: 3, hits: 3, max: 20, req: ["s_storm", 5], mp: l => 20 + (l >> 1), pct: l => 180 + 6 * l,
+      desc: l => `向前斬出劍氣，前方最多 3 隻怪物各被砍三下，每下 ${180 + 6 * l}% 傷害` },
+    { id: "s_soul", name: "劍魂覺醒", type: "buff", max: 20, mp: () => 30, dur: l => 10 * l, watk: l => 2 * l,
+      desc: l => `${10 * l} 秒內，攻擊加 ${2 * l}` },
+    { id: "s_instinct", name: "戰鬥本能", type: "passive", max: 20, crit: l => Math.round(1.5 * l),
+      desc: l => `有 ${Math.round(1.5 * l)}% 機率打出 1.5 倍的爆擊` },
+  ],
+  starsage: [
+    { id: "x_meteor", name: "流星雨", type: "atk", area: 260, targets: 10, fx: "rain", rain: "fire", max: 20, mp: l => 30 + (l >> 1), spell: l => 60 + 3 * l,
+      desc: l => `召喚流星落在周圍，最多 10 隻怪物受到魔法攻擊 ${60 + 3 * l}` },
+    { id: "x_chain", name: "連鎖閃電", type: "atk", melee: 300, targets: 6, max: 20, req: ["x_meteor", 5], mp: l => 22 + (l >> 1), spell: l => 50 + 3 * l,
+      desc: l => `閃電在前方最多 6 隻怪物之間跳躍，魔法攻擊 ${50 + 3 * l}` },
+    { id: "x_infinity", name: "魔力無限", type: "buff", max: 20, mp: () => 50, dur: l => 3 * l,
+      desc: l => `${3 * l} 秒內，放技能不用 MP` },
+    { id: "x_wisdom", name: "星辰智慧", type: "passive", max: 20, matk: l => 2 * l,
+      desc: l => `魔力加 ${2 * l}` },
+  ],
+  ranger: [
+    { id: "g_rain", name: "箭雨", type: "atk", weapon: "bow", area: 240, targets: 10, fx: "rain", rain: "arrow", max: 20, mp: l => 24 + (l >> 1), pct: l => 140 + 5 * l,
+      desc: l => `向天空射出一陣箭雨，周圍最多 10 隻怪物各受到 ${140 + 5 * l}% 傷害` },
+    { id: "g_snipe", name: "致命狙擊", type: "atk", weapon: "bow", shot: "arrow", shots: 1, pierce: 6, max: 20, req: ["g_rain", 5], mp: l => 20 + (l >> 1), pct: l => 300 + 10 * l,
+      desc: l => `一箭穿過最多 6 隻怪物，各造成 ${300 + 10 * l}% 傷害` },
+    { id: "g_focus", name: "專注", type: "buff", max: 20, mp: () => 25, dur: l => 10 * l, crit: l => l,
+      desc: l => `${10 * l} 秒內，爆擊機率加 ${l}%` },
+    { id: "g_sharp", name: "神射", type: "passive", max: 20, crit: l => Math.round(1.5 * l), acc: l => l,
+      desc: l => `有 ${Math.round(1.5 * l)}% 機率打出爆擊，命中加 ${l}` },
+  ],
+  nightlord: [
+    { id: "n_shuriken", name: "千影手裏劍", type: "atk", weapon: "claw", shot: "star", shots: 4, max: 20, mp: l => 22 + (l >> 1), pct: l => 100 + 5 * l,
+      desc: l => `連丟四支飛鏢，每支 ${100 + 5 * l}% 傷害` },
+    { id: "n_assault", name: "影殺", type: "atk", weapon: "claw", melee: 150, targets: 4, hits: 2, max: 20, req: ["n_shuriken", 5], mp: l => 24 + (l >> 1), pct: l => 200 + 6 * l,
+      desc: l => `化成影子穿過前方最多 4 隻怪物，各砍兩下，每下 ${200 + 6 * l}% 傷害` },
+    { id: "n_dark", name: "暗影護體", type: "buff", max: 20, mp: () => 25, dur: l => 10 * l, avoid: l => 2 * l,
+      desc: l => `${10 * l} 秒內，迴避加 ${2 * l}` },
+    { id: "n_vital", name: "要害打擊", type: "passive", max: 20, crit: l => Math.round(1.5 * l),
+      desc: l => `有 ${Math.round(1.5 * l)}% 機率打出 1.5 倍的爆擊` },
+  ],
 };
 const SKILL_BY_ID = {};
 Object.values(SKILLS).flat().forEach(s => { SKILL_BY_ID[s.id] = s; });
 const MASTERY_SKILLS = ["k_mastery", "e_mastery", "h_mastery", "a_mastery"];
+const CRIT_SKILLS = ["b_crit", "s_instinct", "g_sharp", "n_vital"];

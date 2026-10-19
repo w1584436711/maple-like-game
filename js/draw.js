@@ -774,6 +774,21 @@ function drawMob(m) {
       ctx.restore();
     };
     claw(-60, false); claw(62, true);
+  } else if (m.t === "shadow") {
+    // your own shadow, half again your size: your outline in dark violet, red eyes, your weapon, smoke rising off it
+    const walking = m.state === "walk" || m.aggro > 0, sw = walking ? Math.sin(m.ph * 12) : 0;
+    const wind = m.wind > 0 ? 1 - m.wind / m.T.slam.wind : 0;
+    ctx.fillStyle = "rgba(120,80,180,.18)";
+    for (let i = 0; i < 5; i++) { const k = (m.ph * 0.6 + i / 5) % 1; ctx.beginPath(); ctx.arc(Math.sin(i * 2.3 + m.ph) * 22, -k * 120, 8 + k * 10, 0, Math.PI * 2); ctx.fill(); }
+    ctx.scale(f * 1.5, 1.5);
+    const dark = white ? "#fff" : vgrad(-58, 0, "#5a4a7a", "#1a1028"), edge = "#0a0610";
+    for (const [x, a] of [[-4, sw * 0.6], [4, -sw * 0.6]]) { ctx.save(); ctx.translate(x, -13); ctx.rotate(a); ctx.beginPath(); rr(-3.4, -1, 6.8, 14, 2.5); paint(dark, edge, 1.2); ctx.restore(); }
+    ctx.beginPath(); rr(-10, -32, 20, 20, 6); paint(dark, edge, 1.2);
+    ctx.save(); ctx.translate(5, -24); drawWeapon(weapon()?.wtype || "sword", wind ? -2.3 + wind * 3.4 : 2.3 + sw * 0.15, "#4a3a6a"); ctx.restore();
+    ctx.beginPath(); ctx.arc(1, -43, 13, 0, Math.PI * 2); paint(dark, edge, 1.2);
+    ctx.beginPath(); ctx.moveTo(-12, -46); ctx.lineTo(-16, -56); ctx.lineTo(-6, -52); ctx.lineTo(0, -60); ctx.lineTo(6, -53); ctx.lineTo(14, -56); ctx.lineTo(12, -44); ctx.closePath(); paint(dark, edge, 1);
+    ctx.save(); ctx.fillStyle = "#ff3a4a"; ctx.shadowColor = "#ff3a4a"; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.ellipse(5, -43, 2.4, 1.5, 0, 0, Math.PI * 2); ctx.ellipse(10.5, -43, 2.4, 1.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
   } else if (m.t === "sheep") {
     // a fluffy sheep made of cloud, with a dark face and curled horns
     const walking = m.state === "walk" || m.aggro > 0, step = walking ? Math.sin(m.ph * 10) * 3 : 0;
@@ -1172,6 +1187,24 @@ function drawFX() {
         const dx = (i - 4.5) / 4.5 * f.r * p;
         ctx.fillStyle = `rgba(140,110,80,${1 - p})`; ctx.fillRect(f.x + dx - 3, f.y - 4 - Math.sin(p * Math.PI) * (16 + (i % 3) * 8), 6, 6);
       }
+    } else if (f.k === "rain") {
+      // meteors or arrows falling across the area, each at its own moment
+      const p = f.t / 0.6;
+      for (let i = 0; i < 9; i++) {
+        const k = clamp(p * 1.6 - i * 0.07, 0, 1), x = f.x + (i / 8 * 2 - 1) * f.r * 0.9, y = f.y - 220 + k * 210;
+        if (k <= 0 || k >= 1) continue;
+        ctx.save(); ctx.translate(x, y);
+        if (f.rain === "fire") {
+          const g = ctx.createRadialGradient(0, 0, 1, 0, 0, 12); g.addColorStop(0, "#fff6c0"); g.addColorStop(0.5, "#ff9a3a"); g.addColorStop(1, "rgba(255,80,30,0)");
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "rgba(255,140,60,.35)"; ctx.beginPath(); ctx.ellipse(-6, -14, 4, 12, -0.4, 0, Math.PI * 2); ctx.fill();
+        } else {
+          ctx.rotate(Math.PI / 2 + 0.25);
+          ctx.strokeStyle = "#8a5a32"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-22, 0); ctx.lineTo(4, 0); ctx.stroke();
+          ctx.fillStyle = "#cfd8e3"; ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(2, -4); ctx.lineTo(2, 4); ctx.fill();
+        }
+        ctx.restore();
+      }
     } else if (f.k === "zap") {
       // jagged lightning from the sky onto each target
       const p = f.t / 0.3;
@@ -1284,7 +1317,7 @@ function drawHUD() {
   ctx.fillStyle = "#c98a12"; ctx.beginPath(); ctx.arc(96, top + 17, 3, 0, Math.PI * 2); ctx.fill();
   ctx.font = `14px ${NUM}`; ctx.fillStyle = "#ffe7a3"; ctx.fillText(P.coins.toLocaleString(), 106, top + 22);
 
-  const bx = 160, bw = 136, gap = 8;
+  const bx = 160, bw = 116, gap = 8;
   drawBar(bx, top + 10, bw, 18, P.hp / maxHp(), "#ff7a6b", "#d8362b", "HP", `${Math.ceil(P.hp)} / ${maxHp()}`);
   drawBar(bx + bw + gap, top + 10, bw, 18, P.mp / maxMp(), "#7fb6ff", "#2f6fd6", "MP", `${Math.floor(P.mp)} / ${maxMp()}`);
   const er = P.exp / need();
@@ -1301,26 +1334,27 @@ function drawHUD() {
     ctx.fillText(`${ammoName} ${n}`, bx + bw + gap + 8, top + 42);
   }
 
-  // quick slots: two potions, then the five skill keys, labelled with whatever keys they are bound to
+  // quick slots: two potions, then the seven skill keys, labelled with whatever keys they are bound to
   const SKILL_COLORS = { atk: "#ff9b5a", buff: "#7fd0ff" };
   const short = a => keyOf(a).replace("Shift", "⇧").replace("Num ", "N");
   const slots = [
     ...["hp", "mp"].map(k => { const id = potFor(k), I = ITEMS[id], n = countItem(id);
       return { key: short(`${k}Pot`), label: I.name.slice(0, 2), sub: "×" + n, c: I.color, dim: !n }; }),
     ...slotSkills().map((s, i) => {
+      if (!s) return { key: short(`skill${i + 1}`), label: "", sub: "", c: "#3b4a63", dim: true };
       const l = skLv(s.id);
       return { key: short(`skill${i + 1}`), label: s.name.slice(0, 2), sub: l ? `MP ${s.mp(l)}` : "未學",
                c: SKILL_COLORS[s.type], dim: !l || P.mp < s.mp(Math.max(1, l)), on: buffOn(s.id) };
     }),
   ];
   slots.forEach((s, i) => {
-    const x = 584 + i * 52, y = top + 6;
-    ctx.fillStyle = "#0b1426"; rr(x, y, 49, 36, 7); ctx.fill();
+    const x = 530 + i * 47, y = top + 6;
+    ctx.fillStyle = "#0b1426"; rr(x, y, 44, 36, 7); ctx.fill();
     ctx.strokeStyle = s.on ? "#7fd0ff" : "rgba(255,255,255,.14)"; ctx.lineWidth = s.on ? 2 : 1; ctx.stroke();
-    ctx.fillStyle = s.dim ? "#3b4a63" : s.c; ctx.beginPath(); ctx.arc(x + 12, y + 20, 6.5, 0, Math.PI * 2); ctx.fill();
-    ctx.font = `700 11px ${UI}`; ctx.fillStyle = s.dim ? "#7d8aa3" : "#dfe8f6"; ctx.fillText(s.label, x + 21, y + 16);
-    ctx.font = `10px ${NUM}`; ctx.fillStyle = "#9fb0cd"; ctx.fillText(s.sub, x + 21, y + 30);
-    ctx.font = `10px ${NUM}`; ctx.fillStyle = "#ffc94a"; ctx.fillText(s.key, x + 4, y + 11);
+    ctx.fillStyle = s.dim ? "#3b4a63" : s.c; ctx.beginPath(); ctx.arc(x + 10, y + 21, 5.5, 0, Math.PI * 2); ctx.fill();
+    ctx.font = `700 10px ${UI}`; ctx.fillStyle = s.dim ? "#7d8aa3" : "#dfe8f6"; ctx.fillText(s.label, x + 18, y + 17);
+    ctx.font = `9px ${NUM}`; ctx.fillStyle = "#9fb0cd"; ctx.fillText(s.sub, x + 18, y + 30);
+    ctx.font = `10px ${NUM}`; ctx.fillStyle = "#ffc94a"; ctx.fillText(s.key, x + 3, y + 11);
   });
 
   // active buffs under the minimap, with seconds left

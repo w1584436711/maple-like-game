@@ -667,6 +667,62 @@ test("雲守衛給任務，世界地圖分成浮島和雲頂", async ({ page }) 
   expect(errors).toEqual([]);
 });
 
+const LV50_BERSERKER = {
+  ...LV30_WARRIOR, lv: 50, job: "berserker", str: 220, mhp: 3000, mmp: 400, hp: 3000, mp: 400, map: "cloudtown",
+  skills: { ...LV30_WARRIOR.skills, k_crush: 20, k_quake: 20, k_rage: 10, k_mastery: 10 },
+};
+
+test("三轉：接影之試煉會進試煉場，打倒影子後回報就能三轉", async ({ page }) => {
+  // 雲頂城的鏡頭在地圖左邊，賢者奧菈站在 x=780
+  const errors = await openWithSave(page, LV50_BERSERKER);
+  await clickNpc(page, 780);
+  const dlg = page.locator("#dlg");
+  await dlg.getByRole("button", { name: /【任務】影之試煉/ }).click();
+  await dlg.getByRole("button", { name: /交給我/ }).click();
+  let saved = await readSave(page);
+  expect(saved.map).toBe("trial");
+  expect(await page.evaluate(() => mobs.map(m => m.T.name))).toEqual(["影子分身"]);
+
+  // 假裝已經打倒影子，回雲頂城回報
+  await page.evaluate(() => { P.quests.q_trial.kills.shadow = 1; loadMap("cloudtown"); });
+  await clickNpc(page, 780);
+  await dlg.getByRole("button", { name: /【完成】影之試煉/ }).click();
+  await dlg.getByRole("button", { name: /謝謝/ }).click();
+  await clickNpc(page, 780);
+  await dlg.getByRole("button", { name: /我想三轉/ }).click();
+  await dlg.getByRole("button", { name: /我要成為破陣劍豪/ }).click();
+  await dlg.getByRole("button", { name: /好/ }).click();
+  saved = await readSave(page);
+  expect(saved.job).toBe("swordsaint");
+  await page.keyboard.press("k");
+  await expect(page.locator("#skillsWin")).toContainText("破陣劍豪技能");
+  expect(errors).toEqual([]);
+});
+
+test("還沒二轉的 Lv.50 角色接不到影之試煉", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV50_BERSERKER, job: "warrior" });
+  await clickNpc(page, 780);
+  await expect(page.locator("#dlg")).toBeVisible();
+  await expect(page.locator("#dlg").getByRole("button", { name: /影之試煉/ })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("技能視窗可以把技能放到第 7 個鍵，按 B 就放得出來", async ({ page }) => {
+  const errors = await openWithSave(page, {
+    ...LV50_BERSERKER, job: "swordsaint", mp: 400, skills: { ...LV50_BERSERKER.skills, s_storm: 5 },
+  });
+  await page.locator("#game").click();
+  await page.keyboard.press("k");
+  await page.locator("#skillsWin").getByRole("combobox", { name: "千刃風暴放在哪個鍵" }).selectOption("6");
+  let saved = await readSave(page);
+  expect(saved.slots[6]).toBe("s_storm");
+  await page.keyboard.press("Escape");
+  await page.keyboard.down("b"); await page.waitForTimeout(200); await page.keyboard.up("b");
+  saved = await readSave(page);
+  expect(saved.mp).toBeLessThan(400);
+  expect(errors).toEqual([]);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 

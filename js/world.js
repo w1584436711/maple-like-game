@@ -20,6 +20,8 @@ const THEMES = {
             grass: ["#ffffff", "#dde6f2", "#c4cfe0"], dirt: ["#cfd8e6", "#9aa8bc", "#b4c0d2"], tuft: ["#a8d0f0", "#c8e4fa"] },
   storm:  { sky: ["#2e3350", "#5a5f80", "#9a90b0"], far: "#40455f", near: "#4f5470", tree: "pillar", storm: true,
             grass: ["#8a9ab0", "#5a6a80", "#4a5a70"], dirt: ["#6a6f88", "#3a3f55", "#50556a"], tuft: ["#7a8aa0", "#9aaac0"] },
+  shadow: { sky: ["#1a1428", "#3a2a50", "#6a5080"], far: "#2a2040", near: "#352a4a", tree: "pillar", mist: true,
+            grass: ["#6a5a8a", "#45386a", "#352a55"], dirt: ["#4a4060", "#2a2238", "#3a3050"], tuft: ["#5a4a7a", "#7a6a9a"] },
   reef:   { sky: ["#3f86c0", "#86c4e6", "#d6eef0"], far: "#2f7fb8", near: "#6f98a0", tree: "palm", sea: true,
             grass: ["#c9d8c8", "#9ab0a8", "#7f968e"], dirt: ["#8a9a9a", "#55666a", "#6f7f80"], tuft: ["#3f8a6a", "#5fb08a"] },
 };
@@ -161,6 +163,12 @@ const MAPS = {
     ],
     portals: [{ x: 60, to: "cloudwalk", tp: 1 }, { x: 2320, y: 500, to: "stormaltar", tp: 0 }],
   },
+  // reached only through the sage's trial; not on the world map
+  trial: {
+    name: "影之試煉場", area: "雲頂", home: "cloudtown", w: 1200, spawn: 100, theme: THEMES.shadow,
+    plats: [], ladders: [], trees: [260, 980], zones: [{ p: 0, x0: 520, x1: 1100, t: "shadow", n: 1 }],
+    portals: [{ x: 60, to: "cloudtown", tp: 0 }],
+  },
   stormaltar: {
     name: "雷雲祭壇", area: "雲頂", home: "cloudtown", w: 1800, spawn: 60, theme: THEMES.storm,
     plats: [
@@ -227,6 +235,9 @@ const TYPES = {
             boss: true, slam: { wind: 1.1, cd: 4, range: 340, dmg: 260 },
             drops: [["eagle_feather", 1], [["cloud_sword", "thunder_staff", "sky_bow", "cloud_claw"], 1], ["storm_cape", 0.5], ["scroll_wpn10", 0.6], ["scroll_arm10", 0.6], ["guard_scroll", 0.5],
                     ["white_pot", 1, 20], ["mana_pot", 1, 20]] },
+  // the trial's shadow: quick, hits hard, and fights with your own weapon
+  shadow: { name: "影子分身", lv: 55, hp: 30000, exp: 8000, dmg: 160, spd: 70, avoid: 15, acc: 260, w: 40, h: 80, coin: [1, 1], respawn: 20,
+            boss: true, slam: { wind: 0.7, cd: 3, range: 260, dmg: 200 }, drops: [["white_pot", 1, 10], ["mana_pot", 1, 10]] },
 };
 const mobs = [];
 function placeMob(m) {
