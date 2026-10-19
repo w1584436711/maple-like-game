@@ -22,6 +22,15 @@ const NPCS = {
            look: { robe: "#2f9aa8", hair: "#e8b860", bun: true } },
   bobo:  { name: "採菇人 波波", map: "forest", x: 200, greet: "噓——小聲點，霧菇很容易被嚇跑的。……好吧，其實牠們會撲過來。",
            look: { robe: "#8a6fb8", hair: "#6b4a2a", strawHat: true, apron: true } },
+  // the airship captain stands on both islands; ship names where he takes you
+  gray:  { name: "飛船船長 葛雷", map: "village", x: 1220, ship: "cloudtown", greet: "要去天上的雲頂城嗎？那裡的怪物可都在 Lv.30 以上喔。",
+           look: { robe: "#2f4a7a", hair: "#3a2a20", beard: "#3a2a20", strawHat: true } },
+  gray2: { name: "飛船船長 葛雷", map: "cloudtown", x: 160, ship: "village", greet: "想家了嗎？飛船隨時可以帶你回浮島村。",
+           look: { robe: "#2f4a7a", hair: "#3a2a20", beard: "#3a2a20", strawHat: true } },
+  nina:  { name: "雲商 妮娜", map: "cloudtown", x: 400, shop: "cloud", greet: "歡迎來到雲頂城！高級藥水和雲絲裝備，這裡都買得到。",
+           look: { robe: "#7ab8f0", hair: "#f0c8d8", long: true, apron: true } },
+  ryan:  { name: "雲守衛 雷恩", map: "cloudtown", x: 620, greet: "雲頂城最近不太平靜，雷雲祭壇那邊一直在打雷。",
+           look: { robe: "#c8a040", hair: "#f0e0b0", prop: "staff" } },
   ed:    { name: "守林人 艾德", map: "grove", x: 130, greet: "古樹精醒過來之後，森林就再也沒安靜過。你是來幫忙的嗎？",
            look: { robe: "#3f6f3a", hair: "#5a3a24", beard: "#5a3a24", prop: "cane" } },
 };
@@ -60,8 +69,19 @@ function openNpc(npc) {
   }
   if (npc.shop) opts.push(["我想買賣東西", () => openShop(npc)]);
   if (npc.storage) opts.push(["打開倉庫", () => openShop(npc)]);
+  if (npc.ship) opts.push([`搭飛船去${MAPS[npc.ship].name}（${SHIP_FARE} 金幣）`, () => sail(npc)]);
   if (npc.talk) { npc.talk(opts); return; }
   say(npc.greet, [...opts, ["再見", closeDialog]]);
+}
+const SHIP_FARE = 1000;
+function sail(npc) {
+  if (P.coins < SHIP_FARE) { say(`船票要 ${SHIP_FARE} 金幣，你的金幣不夠喔。`, [["好吧", closeDialog]]); return; }
+  P.coins -= SHIP_FARE;
+  closeDialog();
+  const to = MAPS[npc.ship];
+  loadMap(npc.ship, to.dock ?? to.spawn);
+  msg(`搭飛船來到了${to.name}`, "#cfe3ff");
+  refreshPanels(true); save();
 }
 function veraTalk() {
   if (P.job === "beginner") say("你好，冒險者。想選擇自己要走的路，就來找我吧。", [["我想轉職", jobMenu], ["怎麼操作？", controlsHelp], ["再見", closeDialog]]);
@@ -178,6 +198,36 @@ const QUESTS = {
               reward: { exp: 16000, coins: 5000 },
               ask: "幫我巡一巡森林，打倒 20 隻石甲蜥。", where: "石甲蜥在霧影森林東半邊，古樹深處的平台上也有。",
               thanks: "辛苦了，明天見。" },
+  // the cloud island: one chain from the town guard, Lv.30 to 50
+  q_sheep:  { npc: "ryan", name: "雲海上的羊群", lv: 30, kill: { sheep: 40 },
+              reward: { exp: 30000, coins: 8000, items: [["white_pot", 30]] },
+              ask: "棉雲羊跑到步道上，把來往的旅人撞下雲海了。幫我打倒 40 隻吧。",
+              where: "棉雲羊在城東邊的雲海步道。",
+              thanks: "步道安全多了！這些白藥水給你，雲頂的怪物可不好惹。" },
+  q_wool:   { npc: "ryan", name: "雲羊毛斗篷", lv: 33, after: "q_sheep", collect: { cloud_wool: 30 },
+              reward: { exp: 40000, coins: 8000, items: [["cloud_boots", 1]] },
+              ask: "冬天快到了，城裡想用雲羊毛做一批斗篷。幫我收集 30 個雲羊毛好嗎？",
+              where: "打倒棉雲羊就有機會掉雲羊毛。",
+              thanks: "好軟的羊毛！這雙雲靴是城裡工匠做的，送你。" },
+  q_bell:   { npc: "ryan", name: "吵鬧的風鈴", lv: 38, after: "q_wool", kill: { sprite: 40 },
+              reward: { exp: 70000, coins: 15000, items: [["scroll_wpn60", 3]] },
+              ask: "風之高台的風鈴精整天響個不停，城裡的人都睡不著了。打倒 40 隻吧。",
+              where: "風鈴精飄在風之高台的平台上。",
+              thanks: "總算安靜了。這三張武器卷軸，拿去讓你的武器更強吧。" },
+  q_horn:   { npc: "ryan", name: "雷角的力量", lv: 44, after: "q_bell", collect: { thunder_horn: 30 },
+              reward: { exp: 100000, coins: 20000, items: [["guard_scroll", 2]] },
+              ask: "雷角裡藏著雷雲的力量，我們想用它來研究祭壇的雷。幫我收集 30 個雷角。",
+              where: "打倒雷角犀就有機會掉雷角，風之高台的地面和雷雲祭壇都有。",
+              thanks: "這麼多雷角……謝謝你。這兩張防爆卷軸給你，強化的時候用得到。" },
+  q_eagle:  { npc: "ryan", name: "雷雲之主", lv: 48, after: "q_horn", kill: { eagle: 1 },
+              reward: { exp: 150000, coins: 50000, items: [["scroll_wpn10", 2]] },
+              ask: "雷雲祭壇上的雷雲巨鷲就是雷聲的源頭。打倒它，雲頂城才能重見晴天。",
+              where: "雷雲祭壇在風之高台東邊高台上的傳送門後面，巨鷲在祭壇中間的高台上。",
+              thanks: "雷聲停了，雲頂城終於放晴了！你是雲頂城的英雄。" },
+  d_sprite: { npc: "ryan", name: "雲頂巡邏", lv: 38, daily: true, kill: { sprite: 30 },
+              reward: { exp: 40000, coins: 10000 },
+              ask: "今天也麻煩你去風之高台巡一巡，打倒 30 隻風鈴精。", where: "風鈴精在風之高台的平台上。",
+              thanks: "辛苦了，明天也拜託你。" },
 };
 for (const [id, q] of Object.entries(QUESTS)) q.id = id;
 // P.quests[id] is { state: "active" | "done", kills: { monster type: count } }; a finished daily quest also
@@ -252,6 +302,8 @@ function cleanQuests(d) {
 // [item, how many one purchase gives]; you sell anything back for half its price
 const SHOPS = {
   items: [["red_pot", 1], ["blue_pot", 1], ["town_scroll", 1], ["arrow", 100], ["iron_star", 100], ["guard_scroll", 1], ["restore_scroll", 1]],
+  cloud: [["white_pot", 1], ["mana_pot", 1], ["town_scroll", 1], ["arrow", 100], ["steel_star", 100], ["guard_scroll", 1], ["restore_scroll", 1],
+          ...["cloud_hat", "cloud_robe", "cloud_pants", "cloud_boots", "cloud_shield", "cloud_sword", "thunder_staff", "sky_bow", "cloud_claw"].map(id => [id, 1])],
   gear: ["wood_sword", "iron_blade", "oak_wand", "hunter_bow", "iron_claw", "plain_tee", "plain_shorts", "straw_shoes", "leaf_band",
          "work_gloves", "jelly_tunic", "canvas_pants", "leather_cap", "hunter_gloves", "travel_cape", "wind_boots", "wood_shield"].map(id => [id, 1]),
 };

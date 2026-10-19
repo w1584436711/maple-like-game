@@ -16,12 +16,16 @@ const THEMES = {
             grass: ["#86b86a", "#5a8f48", "#4a7a3a"], dirt: ["#9a9088", "#5f5650", "#7a706a"], tuft: ["#4a7a3a", "#6a9f52"] },
   forest: { sky: ["#2f4a5a", "#6a8a8a", "#b9cbb6"], far: "#4f6f6a", near: "#3f5f4a", tree: "pine", mist: true,
             grass: ["#5f9a52", "#3a6f3a", "#2a552a"], dirt: ["#5f4f42", "#3a3028", "#4a3e34"], tuft: ["#2f5f2f", "#4a7f42"] },
+  cloud:  { sky: ["#7ab8f0", "#c8e4fa", "#fff4e6"], far: "#ffffff", near: "#e6eefa", tree: "spire", cloudsea: true,
+            grass: ["#ffffff", "#dde6f2", "#c4cfe0"], dirt: ["#cfd8e6", "#9aa8bc", "#b4c0d2"], tuft: ["#a8d0f0", "#c8e4fa"] },
+  storm:  { sky: ["#2e3350", "#5a5f80", "#9a90b0"], far: "#40455f", near: "#4f5470", tree: "pillar", storm: true,
+            grass: ["#8a9ab0", "#5a6a80", "#4a5a70"], dirt: ["#6a6f88", "#3a3f55", "#50556a"], tuft: ["#7a8aa0", "#9aaac0"] },
   reef:   { sky: ["#3f86c0", "#86c4e6", "#d6eef0"], far: "#2f7fb8", near: "#6f98a0", tree: "palm", sea: true,
             grass: ["#c9d8c8", "#9ab0a8", "#7f968e"], dirt: ["#8a9a9a", "#55666a", "#6f7f80"], tuft: ["#3f8a6a", "#5fb08a"] },
 };
 const MAPS = {
   village: {
-    name: "浮島村", area: "浮島", town: true, w: 1400, spawn: 96, theme: THEMES.meadow,
+    name: "浮島村", area: "浮島", town: true, scene: "village", note: "城鎮．轉職教官、商店、倉庫、往雲頂城的飛船", w: 1400, spawn: 96, dock: 1180, theme: THEMES.meadow,
     plats: [{ x: 840, y: 780, w: 180 }, { x: 1040, y: 720, w: 200 }],
     ladders: [], trees: [250, 760, 1240], zones: [],
     portals: [{ x: 1350, to: "meadow", tp: 0 }],
@@ -114,9 +118,66 @@ const MAPS = {
     zones: [{ p: 0, x0: 420, x1: 1200, t: "treant", n: 1 }, { p: 2, t: "lizard", n: 1 }, { p: 4, t: "lizard", n: 1 }],
     portals: [{ x: 60, to: "forest", tp: 1 }],
   },
+  // the second island, reached by airship; home is the town a map sends you back to
+  cloudtown: {
+    name: "雲頂城", area: "雲頂", town: true, scene: "cloud", home: "cloudtown", note: "城鎮．飛船、雲商、雲守衛", w: 1400, spawn: 200, dock: 200,
+    theme: THEMES.cloud, plats: [{ x: 840, y: 780, w: 180 }, { x: 1040, y: 720, w: 200 }], ladders: [], trees: [300, 760, 1240], zones: [],
+    portals: [{ x: 1350, to: "cloudwalk", tp: 0 }],
+  },
+  cloudwalk: {
+    name: "雲海步道", area: "雲頂", home: "cloudtown", w: 2400, spawn: 60, theme: THEMES.cloud,
+    plats: [
+      { x: 280, y: 780, w: 300 }, { x: 480, y: 720, w: 320 }, { x: 700, y: 600, w: 420 }, { x: 1250, y: 780, w: 420 },
+      { x: 1380, y: 560, w: 420 }, { x: 1900, y: 780, w: 300 }, { x: 2120, y: 720, w: 250 }, { x: 900, y: 420, w: 380 },
+      { x: 180, y: 540, w: 300 },
+    ],
+    ladders: [
+      { x: 240, top: 540, bottom: 840 }, { x: 760, top: 600, bottom: 720 }, { x: 1080, top: 600, bottom: 840 },
+      { x: 1000, top: 420, bottom: 600 }, { x: 1450, top: 560, bottom: 780 }, { x: 1720, top: 560, bottom: 840 },
+    ],
+    trees: [500, 1180, 2050],
+    zones: [
+      { p: 0, x0: 300, x1: 2250, t: "sheep", n: 7 }, { p: 3, t: "sheep", n: 3 }, { p: 4, t: "sheep", n: 3 }, { p: 5, t: "sheep", n: 3 },
+      { p: 7, t: "sheep", n: 2 }, { p: 8, t: "sheep", n: 3 }, { p: 9, t: "sheep", n: 3 },
+    ],
+    portals: [{ x: 60, to: "cloudtown", tp: 0 }, { x: 2350, to: "windplateau", tp: 0 }],
+  },
+  windplateau: {
+    name: "風之高台", area: "雲頂", home: "cloudtown", w: 2400, spawn: 60, theme: THEMES.cloud,
+    plats: [
+      { x: 300, y: 780, w: 320 }, { x: 560, y: 720, w: 300 }, { x: 800, y: 580, w: 460 }, { x: 1350, y: 780, w: 380 },
+      { x: 1500, y: 640, w: 400 }, { x: 1900, y: 780, w: 300 }, { x: 2050, y: 720, w: 330 }, { x: 1050, y: 440, w: 400 },
+      { x: 1950, y: 500, w: 420 },
+    ],
+    ladders: [
+      { x: 840, top: 580, bottom: 720 }, { x: 1180, top: 580, bottom: 840 }, { x: 1120, top: 440, bottom: 580 },
+      { x: 1560, top: 640, bottom: 780 }, { x: 2100, top: 500, bottom: 720 },
+    ],
+    trees: [200, 900, 1700, 2250],
+    zones: [
+      { p: 0, x0: 300, x1: 1300, t: "rhino", n: 3 }, { p: 0, x0: 1400, x1: 2300, t: "rhino", n: 3 },
+      { p: 1, t: "sprite", n: 2 }, { p: 2, t: "sprite", n: 2 }, { p: 3, t: "sprite", n: 3 }, { p: 4, t: "sprite", n: 2 },
+      { p: 5, t: "sprite", n: 3 }, { p: 6, t: "sprite", n: 2 }, { p: 7, t: "sprite", n: 2 }, { p: 8, t: "sprite", n: 3 }, { p: 9, t: "sprite", n: 2 },
+    ],
+    portals: [{ x: 60, to: "cloudwalk", tp: 1 }, { x: 2320, y: 500, to: "stormaltar", tp: 0 }],
+  },
+  stormaltar: {
+    name: "雷雲祭壇", area: "雲頂", home: "cloudtown", w: 1800, spawn: 60, theme: THEMES.storm,
+    plats: [
+      { x: 250, y: 780, w: 300 }, { x: 450, y: 720, w: 300 }, { x: 650, y: 660, w: 340 }, { x: 700, y: 440, w: 820 },
+      { x: 1250, y: 780, w: 400 },
+    ],
+    ladders: [{ x: 900, top: 440, bottom: 660 }, { x: 1450, top: 440, bottom: 780 }],
+    trees: [300, 1100, 1650],
+    zones: [
+      { p: 0, x0: 300, x1: 1700, t: "rhino", n: 3 }, { p: 1, t: "sprite", n: 2 }, { p: 2, t: "sprite", n: 2 },
+      { p: 4, t: "eagle", n: 1 }, { p: 5, t: "rhino", n: 2 },
+    ],
+    portals: [{ x: 60, to: "windplateau", tp: 1 }],
+  },
 };
 // the order the world map lists them in, from the village outward
-const MAP_ORDER = ["village", "meadow", "shore", "reef", "ruins", "forest", "grove"];
+const MAP_ORDER = ["village", "meadow", "shore", "reef", "ruins", "forest", "grove", "cloudtown", "cloudwalk", "windplateau", "stormaltar"];
 let map = MAPS.village, plats = [], ladders = [], trees = [], portals = [];
 const platAt = (x, y) => plats.find(p => Math.abs(p.y - y) < 1.5 && x >= p.x && x <= p.x + p.w) || plats[0];
 const clouds = Array.from({ length: 9 }, (_, i) => ({ x: i * 150 + rand(0, 80), y: rand(40, 210), s: rand(0.7, 1.4), v: rand(4, 12) }));
@@ -153,6 +214,19 @@ const TYPES = {
             boss: true, slam: { wind: 1.1, cd: 4.2, range: 320, dmg: 95 },
             drops: [["ancient_ring", 1], [["storm_blade", "star_staff", "gale_bow", "fang_claw"], 1], ["grove_cape", 0.5], ["scroll_wpn10", 0.5],
                     ["scroll_arm10", 0.5], ["scroll_glove60", 0.6], ["red_pot", 1, 15], ["blue_pot", 1, 15], ["steel_star", 1, 200, 300]] },
+  sheep:  { name: "棉雲羊", lv: 32, hp: 3000, exp: 600, dmg: 110, spd: 45, avoid: 10, acc: 160, w: 46, h: 38, coin: [80, 140],
+            drops: [["cloud_wool", 0.5], ["white_pot", 0.15], ["mana_pot", 0.1], ["town_scroll", 0.04], ["cloud_hat", 0.02], ["cloud_boots", 0.02],
+                    ["scroll_arm60", 0.03], ["scroll_wpn60", 0.02], ["arrow", 0.1, 60, 120], ["steel_star", 0.06, 60, 120]] },
+  sprite: { name: "風鈴精", lv: 40, hp: 5000, exp: 1000, dmg: 150, spd: 55, avoid: 14, acc: 200, w: 36, h: 44, coin: [120, 200],
+            drops: [["bell_shard", 0.5], ["white_pot", 0.2], ["mana_pot", 0.15], ["cloud_robe", 0.02], ["cloud_pants", 0.02],
+                    ["scroll_glove60", 0.02], ["scroll_wpn60", 0.03], ["scroll_wpn10", 0.01], ["guard_scroll", 0.01]] },
+  rhino:  { name: "雷角犀", lv: 46, hp: 8000, exp: 1500, dmg: 190, spd: 50, avoid: 12, acc: 240, w: 72, h: 46, coin: [160, 260],
+            drops: [["thunder_horn", 0.5], ["white_pot", 0.2], ["mana_pot", 0.15], ["cloud_shield", 0.015], [["cloud_sword", "thunder_staff", "sky_bow", "cloud_claw"], 0.01],
+                    ["scroll_arm10", 0.01], ["scroll_wpn10", 0.01], ["restore_scroll", 0.01]] },
+  eagle:  { name: "雷雲巨鷲", lv: 50, hp: 60000, exp: 30000, dmg: 200, spd: 28, avoid: 14, acc: 280, w: 120, h: 130, coin: [3000, 5000], respawn: 120,
+            boss: true, slam: { wind: 1.1, cd: 4, range: 340, dmg: 260 },
+            drops: [["eagle_feather", 1], [["cloud_sword", "thunder_staff", "sky_bow", "cloud_claw"], 1], ["storm_cape", 0.5], ["scroll_wpn10", 0.6], ["scroll_arm10", 0.6], ["guard_scroll", 0.5],
+                    ["white_pot", 1, 20], ["mana_pot", 1, 20]] },
 };
 const mobs = [];
 function placeMob(m) {
@@ -207,7 +281,9 @@ function usePortal(pt) {
   msg(`來到了${to.name}`, "#cfe3ff");
   refreshPanels(true); save();
 }
+// the town a map belongs to: where a town scroll and getting knocked out send you
+const homeOf = () => MAPS[map.home || "village"];
 function goToTown() {
-  loadMap("village");
+  loadMap(map.home || "village");
   refreshPanels(true);
 }

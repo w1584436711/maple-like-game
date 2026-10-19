@@ -603,6 +603,70 @@ test("防爆卷軸擋住一次失敗，回復卷軸補回失敗的次數", async
   expect(errors).toEqual([]);
 });
 
+test("搭飛船往返浮島村和雲頂城，每趟付 1000 金幣", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV30_WARRIOR, coins: 5000 });
+  // 船長在浮島村 x=1220：把角色放到碼頭，鏡頭會停在地圖右邊（cam.x=440），船長在畫面 x=780
+  await page.evaluate(() => loadMap("village", 1180));
+  await clickNpc(page, 780);
+  const dlg = page.locator("#dlg");
+  await dlg.getByRole("button", { name: /搭飛船去雲頂城/ }).click();
+  let saved = await readSave(page);
+  expect(saved.map).toBe("cloudtown");
+  expect(saved.coins).toBe(4000);
+  // 雲頂城的船長站在 x=160
+  await clickNpc(page, 160);
+  await dlg.getByRole("button", { name: /搭飛船去浮島村/ }).click();
+  saved = await readSave(page);
+  expect(saved.map).toBe("village");
+  expect(saved.coins).toBe(3000);
+  expect(errors).toEqual([]);
+});
+
+test("在雲頂的狩獵場讀回村卷軸，會回到雲頂城", async ({ page }) => {
+  const errors = await openWithSave(page, {
+    ...LV30_WARRIOR, map: "cloudwalk", bag: { equip: [], use: [{ id: "town_scroll", n: 1 }], etc: [] }, eq: { weapon: { id: "wood_sword", n: 1 } },
+  });
+  await page.locator("#game").click();
+  await page.keyboard.press("i");
+  const inv = page.locator("#invWin");
+  await inv.getByRole("tab", { name: "消耗" }).click();
+  await inv.getByRole("button", { name: "回村卷軸" }).click();
+  await inv.getByRole("button", { name: "使用" }).click();
+  expect((await readSave(page)).map).toBe("cloudtown");
+  expect(errors).toEqual([]);
+});
+
+test("紅藥水鍵會先喝白藥水", async ({ page }) => {
+  const errors = await openWithSave(page, {
+    ...LV30_WARRIOR, hp: 300, bag: { equip: [], use: [{ id: "red_pot", n: 5 }, { id: "white_pot", n: 1 }], etc: [] }, eq: { weapon: { id: "wood_sword", n: 1 } },
+  });
+  await page.locator("#game").click();
+  // 按鍵要等遊戲跑到下一個畫面才會處理
+  await page.keyboard.press("1");
+  await page.waitForTimeout(200);
+  const saved = await readSave(page);
+  expect(itemCount(saved, "white_pot")).toBe(0);
+  expect(itemCount(saved, "red_pot")).toBe(5);
+  expect(saved.hp).toBeGreaterThanOrEqual(600);
+  expect(errors).toEqual([]);
+});
+
+test("雲守衛給任務，世界地圖分成浮島和雲頂", async ({ page }) => {
+  // 雲頂城的出生點在 x=200，鏡頭在地圖左邊，雲守衛雷恩站在 x=620
+  const errors = await openWithSave(page, { ...LV30_WARRIOR, map: "cloudtown" });
+  await clickNpc(page, 620);
+  const dlg = page.locator("#dlg");
+  await dlg.getByRole("button", { name: /【任務】雲海上的羊群/ }).click();
+  await dlg.getByRole("button", { name: /交給我/ }).click();
+  expect((await readSave(page)).quests.q_sheep.state).toBe("active");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("w");
+  const world = page.locator("#worldWin");
+  await expect(world.locator(".qhead")).toHaveText(["浮島", "雲頂"]);
+  await expect(world).toContainText("雷雲巨鷲 Lv.50");
+  expect(errors).toEqual([]);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 

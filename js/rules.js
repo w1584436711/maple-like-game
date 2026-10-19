@@ -70,7 +70,9 @@ const ITEMS = {
   arrow:         { name: "木箭矢", cat: "use", ammo: "bow", stack: 1000, desc: "弓用的箭，射一次用掉一支" },
   iron_star:     { name: "鐵製飛鏢", cat: "use", ammo: "claw", watk: 15, stack: 500, color: "#c8d2de", desc: "拳爪丟的飛鏢，丟一次用掉一支" },
   steel_star:    { name: "銳角飛鏢", cat: "use", ammo: "claw", watk: 19, stack: 500, color: "#9fd0ff", desc: "更鋒利的飛鏢，丟一次用掉一支" },
-  town_scroll:   { name: "回村卷軸", cat: "use", warp: true, color: "#e8d6a8", desc: "讀了就會立刻回到浮島村" },
+  town_scroll:   { name: "回村卷軸", cat: "use", warp: true, color: "#e8d6a8", desc: "讀了就會立刻回到這片大陸的城鎮（浮島村或雲頂城）" },
+  white_pot:     { name: "白藥水", cat: "use", heal: { hp: 300 }, color: "#f4f4f4", desc: "回復 300 HP" },
+  mana_pot:      { name: "魔力藥水", cat: "use", heal: { mp: 200 }, color: "#7a5ae0", desc: "回復 200 MP" },
   // enhancement scrolls: on success they add bonus to one piece of gear; either way it uses up one upgrade slot
   scroll_wpn60:  { name: "武器攻擊卷軸 60%", cat: "use", scroll: { slots: ["weapon"], rate: 0.6, add: { watk: 2, matk: 2 } }, color: "#f2c8a8", seal: "#3a7be0",
                    desc: "60% 機率讓武器攻擊和魔力各加 2" },
@@ -94,6 +96,21 @@ const ITEMS = {
   lizard_scale:  { name: "石甲鱗片", icon: "shard", color: "#8a9a6a", desc: "像石頭一樣硬的鱗片" },
   crab_claw:     { name: "蟹王巨鉗", icon: "shard", color: "#d0563a", desc: "巨鉗蟹王掉下來的大鉗子" },
   ancient_ring:  { name: "古樹年輪", color: "#c9a26b", desc: "霧林古樹精體內一圈一圈發光的木心" },
+  cloud_wool:    { name: "雲羊毛", icon: "gel", color: "#ffffff", desc: "像雲一樣輕的羊毛" },
+  bell_shard:    { name: "風鈴碎片", icon: "shard", color: "#8fe0d8", desc: "敲一下會發出清脆的聲音" },
+  thunder_horn:  { name: "雷角", icon: "shard", color: "#ffe066", desc: "摸起來會微微發麻" },
+  eagle_feather: { name: "雷鷲羽毛", color: "#a080e0", desc: "雷雲巨鷲身上帶著雷光的羽毛" },
+  // gear from the cloud island
+  cloud_sword:   { name: "雲紋長劍", slot: "weapon", wtype: "sword", watk: 72, color: "#bfe0ff", req: { lv: 40, str: 130 } },
+  thunder_staff: { name: "雷光法杖", slot: "weapon", wtype: "wand", watk: 22, matk: 82, color: "#ffe066", req: { lv: 40, int: 130 } },
+  sky_bow:       { name: "天穹長弓", slot: "weapon", wtype: "bow", watk: 66, color: "#7ab8f0", req: { lv: 40, dex: 130 } },
+  cloud_claw:    { name: "雲牙拳爪", slot: "weapon", wtype: "claw", watk: 30, color: "#c8d8f0", req: { lv: 40, luk: 130 } },
+  cloud_hat:     { name: "雲絲帽", slot: "hat", def: 22, mp: 40, color: "#e8f0fa", req: { lv: 35 } },
+  cloud_robe:    { name: "雲絲長袍", slot: "top", def: 30, hp: 60, color: "#d8e6f8", req: { lv: 38 } },
+  cloud_pants:   { name: "雲絲長褲", slot: "bottom", def: 24, color: "#b8cce8", req: { lv: 38 } },
+  cloud_boots:   { name: "雲靴", slot: "shoes", def: 12, dex: 3, avoid: 4, color: "#a8c0e4", req: { lv: 35 } },
+  cloud_shield:  { name: "雲紋盾", slot: "shield", def: 36, hp: 80, color: "#a8c8f0", req: { lv: 40 }, jobs: ["warrior", "magician"] },
+  storm_cape:    { name: "雷羽披風", slot: "cape", def: 20, str: 5, dex: 5, int: 5, luk: 5, color: "#5a4a8a", req: { lv: 45 } },
   // gear from the forest and its bosses
   storm_blade:   { name: "狂嵐巨劍", slot: "weapon", wtype: "sword", watk: 52, color: "#ffb36b", req: { lv: 25, str: 90 } },
   star_staff:    { name: "星輝法杖", slot: "weapon", wtype: "wand", watk: 18, matk: 58, color: "#ffe066", req: { lv: 25, int: 90 } },
@@ -113,15 +130,20 @@ const PRICES = {
   wind_boots: 2000, leaf_band: 200, leather_cap: 1500, work_gloves: 300, hunter_gloves: 2500, travel_cape: 1500, moss_cape: 15000,
   wood_shield: 1500, shell_shield: 8000,
   storm_blade: 40000, star_staff: 40000, gale_bow: 40000, fang_claw: 40000, fog_hood: 5000, lizard_mail: 9000, lizard_greaves: 7000,
-  crab_shield: 16000, grove_cape: 30000, guard_scroll: 8000, restore_scroll: 6000, scroll_wpn60: 4000, scroll_wpn10: 6000, scroll_arm60: 3000, scroll_arm10: 5000, scroll_glove60: 4000,
+  crab_shield: 16000, grove_cape: 30000, guard_scroll: 8000, restore_scroll: 6000,
+  white_pot: 150, mana_pot: 300, cloud_sword: 120000, thunder_staff: 120000, sky_bow: 120000, cloud_claw: 120000,
+  cloud_hat: 12000, cloud_robe: 18000, cloud_pants: 15000, cloud_boots: 10000, cloud_shield: 30000, storm_cape: 60000, scroll_wpn60: 4000, scroll_wpn10: 6000, scroll_arm60: 3000, scroll_arm10: 5000, scroll_glove60: 4000,
 };
-const SELL = { green_gel: 6, blue_gel: 12, shell_shard: 25, moss_core: 800, fog_spore: 30, lizard_scale: 50, crab_claw: 1500, ancient_ring: 3000 };
+const SELL = { green_gel: 6, blue_gel: 12, shell_shard: 25, moss_core: 800, fog_spore: 30, lizard_scale: 50, crab_claw: 1500, ancient_ring: 3000,
+               cloud_wool: 80, bell_shard: 120, thunder_horn: 200, eagle_feather: 5000 };
 // sets: wearing more pieces of one set unlocks more of its bonuses (every tier you reach adds up)
 const SETS = {
   adventurer: { name: "冒險者套裝", items: ["leather_cap", "jelly_tunic", "canvas_pants", "wind_boots"],
                 tiers: { 2: { def: 3 }, 4: { def: 8, hp: 50, avoid: 5 } } },
   fog:        { name: "霧林套裝", items: ["fog_hood", "lizard_mail", "lizard_greaves", "grove_cape"],
                 tiers: { 2: { def: 5 }, 3: { watk: 3, matk: 3 }, 4: { def: 15, hp: 150, str: 3, dex: 3, int: 3, luk: 3 } } },
+  cloud:      { name: "雲絲套裝", items: ["cloud_hat", "cloud_robe", "cloud_pants", "cloud_boots"],
+                tiers: { 2: { def: 8 }, 4: { def: 20, hp: 200, mp: 100, avoid: 5 } } },
 };
 for (const [id, S] of Object.entries(SETS)) S.items.forEach(i => { ITEMS[i].set = id; });
 for (const [id, I] of Object.entries(ITEMS)) {
