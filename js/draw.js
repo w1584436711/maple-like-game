@@ -569,6 +569,11 @@ function paintItem(I) {
   } else if (kind === "gel") {
     shape(c, () => ctx.ellipse(16, 19, 11, 8, 0, 0, Math.PI * 2));
     ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.beginPath(); ctx.ellipse(12, 16, 3.5, 2, -0.4, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === "food") {
+    // a little bowl heaped with kibble
+    for (const [x, y] of [[11, 13], [16, 11], [21, 13], [13.5, 16], [18.5, 16]]) { ctx.beginPath(); ctx.arc(x, y, 3.2, 0, Math.PI * 2); paint(gloss(c, y - 3, y + 3), INK, 1); }
+    shape("#e88ab0", () => { ctx.moveTo(4, 16); ctx.lineTo(28, 16); ctx.quadraticCurveTo(27, 27, 16, 27); ctx.quadraticCurveTo(5, 27, 4, 16); ctx.closePath(); });
+    ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(16, 21, 2.2, 0, Math.PI * 2); ctx.fill();
   } else if (kind === "shard") {
     shape(c, poly(16, 4, 27, 24, 19, 28, 5, 20));
     ctx.strokeStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.moveTo(16, 4); ctx.lineTo(14, 22); ctx.stroke();
@@ -1296,6 +1301,114 @@ function drawBar(x, y, w, h, ratio, c1, c2, label, value) {
   ctx.textAlign = "left";
 }
 
+// returns the y just under the minimap, where the buff icons line up
+function drawMinimap() {
+  const size = settings.minimap;
+  if (!size) return 12;
+  const big = size === 2, mw = big ? 300 : 210, mh = big ? 120 : 64, head = big ? 20 : 0;
+  const mx = W - mw - 12, my = 12 + head, sx = mw / WORLD_W, sy = mh / WORLD_H;
+  ctx.fillStyle = "rgba(14,22,40,.72)"; rr(mx - 6, my - 6 - head, mw + 12, mh + 12 + head, 8); ctx.fill();
+  if (big) {
+    ctx.font = `700 12px ${UI}`; ctx.fillStyle = "#ffe48a"; ctx.fillText(`${map.area}．${map.name}`, mx, my - 8);
+    ctx.font = `10px ${UI}`; ctx.fillStyle = "#9fb0cd"; ctx.textAlign = "right"; ctx.fillText(`${keyOf("minimap")} 切換`, mx + mw, my - 8); ctx.textAlign = "left";
+  }
+  ctx.save(); ctx.beginPath(); ctx.rect(mx - 4, my - 4, mw + 8, mh + 8); ctx.clip();
+  ctx.strokeStyle = "#7fbf6a"; ctx.lineWidth = big ? 2.5 : 2;
+  for (const p of plats) { ctx.beginPath(); ctx.moveTo(mx + p.x * sx, my + p.y * sy); ctx.lineTo(mx + (p.x + p.w) * sx, my + p.y * sy); ctx.stroke(); }
+  ctx.strokeStyle = "#c9a26b"; ctx.lineWidth = 1;
+  for (const l of ladders) { ctx.beginPath(); ctx.moveTo(mx + l.x * sx, my + l.top * sy); ctx.lineTo(mx + l.x * sx, my + l.bottom * sy); ctx.stroke(); }
+  ctx.fillStyle = "#7fd0ff";
+  for (const pt of portals) { ctx.beginPath(); ctx.ellipse(mx + pt.x * sx, my + (pt.y - 10) * sy, 2.4, 4, 0, 0, Math.PI * 2); ctx.fill(); }
+  for (const m of mobs) if (!m.dead) {
+    ctx.fillStyle = m.T.boss ? "#ff5a3a" : "#ff9b8f";
+    const r = m.T.boss ? 3.5 : 1.6;
+    ctx.beginPath(); ctx.arc(mx + (m.x + m.w / 2) * sx, my + (m.y + m.h / 2) * sy, r, 0, Math.PI * 2); ctx.fill();
+  }
+  // NPCs as green dots; the large map also names them
+  ctx.font = `700 9px ${UI}`; ctx.textAlign = "center";
+  // neighbours too close together take turns above and below the dot, so their names do not overlap
+  let lastX = -99, below = false;
+  for (const n of npcsHere().sort((a, b) => a.x - b.x)) {
+    const x = mx + n.x * sx, y = my + (n.y - 20) * sy;
+    below = x - lastX < 30 && !below; lastX = x;
+    ctx.fillStyle = "#6fe08a"; ctx.beginPath(); ctx.arc(x, y, 2.6, 0, Math.PI * 2); ctx.fill();
+    if (big) outlinedText(n.name.split(" ").pop(), x, below ? y + 13 : y - 5, "#d8ffe0", "rgba(10,20,30,.8)", 2.5);
+  }
+  ctx.textAlign = "left";
+  if (petData()) { ctx.fillStyle = "#ffb0d0"; ctx.beginPath(); ctx.arc(mx + (pet.x + pet.w / 2) * sx, my + (pet.y + pet.h / 2) * sy, 2, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = "#ffe066"; ctx.beginPath(); ctx.arc(mx + (P.x + P.w / 2) * sx, my + (P.y + P.h / 2) * sy, 3.2, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#5a3a00"; ctx.lineWidth = 1; ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.strokeRect(mx + cam.x * sx, my + cam.y * sy, W * sx, H * sy);
+  ctx.restore();
+  return my + mh + 12;
+}
+// Pets are drawn facing +x around the middle of their feet, then flipped; they bob while they walk
+// and spin through a somersault for a trick.
+function drawPet() {
+  if (!petData()) return;
+  const D = PETS[P.petOn], L = D.look, cx = pet.x + pet.w / 2, by = pet.y + pet.h;
+  const walking = Math.abs(pet.vx) > 8 && pet.onGround;
+  const bob = walking ? -Math.abs(Math.sin(pet.anim * 14)) * 3 : Math.sin(time * 3) * 0.6;
+  ctx.fillStyle = "rgba(0,0,0,.16)"; ctx.beginPath(); ctx.ellipse(cx, by, 10, 3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.save(); ctx.translate(cx, by + bob); ctx.scale(pet.face, 1);
+  if (pet.trickT > 0) { ctx.translate(0, -9); ctx.rotate((1 - pet.trickT / 0.7) * Math.PI * 2); ctx.translate(0, 9); }
+  const body = gloss(L.body, -18, 0), blink = blinking(cx * 0.01);
+  if (P.petOn === "bun") {
+    for (const [x, a] of [[-4, -0.25], [3, 0.15]]) {
+      ctx.save(); ctx.translate(x, -15); ctx.rotate(a + Math.sin(time * 2 + x) * 0.06);
+      ctx.beginPath(); ctx.ellipse(0, -8, 3.6, 9, 0, 0, Math.PI * 2); paint(body);
+      ctx.fillStyle = L.ear; ctx.beginPath(); ctx.ellipse(0, -8, 1.6, 6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.arc(-10, -6, 3.6, 0, Math.PI * 2); paint("#ffffff");
+    ctx.beginPath(); ctx.ellipse(0, -9, 10.5, 9.5, 0, 0, Math.PI * 2); paint(body);
+    ctx.fillStyle = "rgba(243,169,189,.55)"; ctx.beginPath(); ctx.ellipse(7, -6, 2.4, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+    eyes(2.5, 7.5, -11, 1.7, 0.4, blink, L.eye);
+    ctx.fillStyle = "#e0708a"; ctx.beginPath(); ctx.arc(9.6, -8, 1.1, 0, Math.PI * 2); ctx.fill();
+  } else if (P.petOn === "chick") {
+    ctx.beginPath(); ctx.moveTo(-1, -18); ctx.quadraticCurveTo(-3, -24, 1, -25); ctx.quadraticCurveTo(0, -21, 3, -18); ctx.closePath(); paint(body);
+    for (const x of [-3, 3]) { ctx.strokeStyle = L.ear; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x, -2); ctx.lineTo(x, 0.5); ctx.stroke(); }
+    ctx.beginPath(); ctx.ellipse(0, -9, 10, 9.5, 0, 0, Math.PI * 2); paint(body);
+    const flap = walking ? Math.sin(pet.anim * 20) * 0.5 : 0;
+    ctx.save(); ctx.translate(-5, -9); ctx.rotate(0.4 + flap);
+    ctx.beginPath(); ctx.ellipse(0, 3, 3.2, 5, 0, 0, Math.PI * 2); paint(gloss("#f0b830", -12, -2));
+    ctx.restore();
+    eyes(3, 7.5, -12, 1.6, 0.4, blink, L.eye);
+    ctx.beginPath(); ctx.moveTo(9, -10); ctx.lineTo(13.5, -8.5); ctx.lineTo(9, -7); ctx.closePath(); paint(L.ear, INK, 1);
+    ctx.fillStyle = "rgba(255,120,90,.45)"; ctx.beginPath(); ctx.ellipse(5.5, -7, 2, 1.3, 0, 0, Math.PI * 2); ctx.fill();
+  } else {
+    // tanuki: a striped tail, round ears, a dark mask around the eyes
+    ctx.save(); ctx.translate(-9, -7); ctx.rotate(-0.5 + Math.sin(time * 4) * 0.15);
+    ctx.beginPath(); ctx.ellipse(-4, 0, 6, 4, 0, 0, Math.PI * 2); paint(gloss(L.body, -4, 4));
+    ctx.fillStyle = L.ear; ctx.fillRect(-6, -4, 2, 8); ctx.fillRect(-10, -3, 2, 6);
+    ctx.restore();
+    for (const x of [-5, 5]) { ctx.beginPath(); ctx.arc(x, -17, 3.4, 0, Math.PI * 2); paint(L.ear); }
+    ctx.beginPath(); ctx.ellipse(0, -9, 10.5, 9.5, 0, 0, Math.PI * 2); paint(body);
+    ctx.fillStyle = "#f6e2c4"; ctx.beginPath(); ctx.ellipse(1, -4.5, 6, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(60,36,20,.75)"; ctx.beginPath(); ctx.ellipse(5, -11, 6.5, 3.2, 0, 0, Math.PI * 2); ctx.fill();
+    eyes(2.6, 7.4, -11, 1.6, 0.4, blink, "#fff4e0");
+    ctx.fillStyle = "#2a1a10"; ctx.beginPath(); ctx.arc(9.8, -7.5, 1.2, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  const d = petData(), hungry = d.full < PET_HUNGRY;
+  ctx.font = `700 10px ${UI}`; ctx.textAlign = "center";
+  const tw = ctx.measureText(D.name).width + 10;
+  ctx.fillStyle = "rgba(20,24,30,.55)"; rr(cx - tw / 2, by + 3, tw, 14, 4); ctx.fill();
+  ctx.fillStyle = hungry ? "#ffb0c0" : "#ffe0ec"; ctx.fillText(D.name, cx, by + 13.5);
+  // a speech bubble for chatter and hunger
+  if (pet.sayT > 0) {
+    ctx.font = `700 11px ${UI}`;
+    const bw = ctx.measureText(pet.sayText).width + 14, bx = cx - bw / 2, y0 = pet.y - 34;
+    ctx.globalAlpha = Math.min(1, pet.sayT * 2);
+    ctx.fillStyle = "rgba(255,255,255,.95)"; rr(bx, y0, bw, 20, 8); ctx.fill();
+    ctx.strokeStyle = "#e88ab0"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,.95)"; ctx.beginPath(); ctx.moveTo(cx - 4, y0 + 19); ctx.lineTo(cx, y0 + 25); ctx.lineTo(cx + 4, y0 + 19); ctx.fill();
+    ctx.fillStyle = "#4a2a3a"; ctx.fillText(pet.sayText, cx, y0 + 14);
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = "left";
+}
+
 function drawHUD() {
   // bottom panel
   const top = H - 48;
@@ -1358,9 +1471,11 @@ function drawHUD() {
     ctx.font = `10px ${NUM}`; ctx.fillStyle = "#ffc94a"; ctx.fillText(s.key, x + 3, y + 11);
   });
 
+  // minimap first, so the buffs can sit right under it
+  const mini = drawMinimap();
   // active buffs under the minimap, with seconds left
   Object.keys(P.buffs).filter(buffOn).forEach((id, i) => {
-    const x = W - 46 - i * 40, y = 88;
+    const x = W - 46 - i * 40, y = mini;
     ctx.fillStyle = "rgba(14,22,40,.8)"; rr(x, y, 36, 36, 7); ctx.fill();
     ctx.strokeStyle = "#7fd0ff"; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.font = `700 12px ${UI}`; ctx.textAlign = "center"; ctx.fillStyle = "#dfe8f6";
@@ -1379,22 +1494,6 @@ function drawHUD() {
   });
   ctx.globalAlpha = 1;
 
-  // minimap
-  const mw = 210, mh = 64, mx = W - mw - 12, my = 12, sx = mw / WORLD_W, sy = mh / WORLD_H;
-  ctx.fillStyle = "rgba(14,22,40,.72)"; rr(mx - 6, my - 6, mw + 12, mh + 12, 8); ctx.fill();
-  ctx.strokeStyle = "#7fbf6a"; ctx.lineWidth = 2;
-  for (const p of plats) { ctx.beginPath(); ctx.moveTo(mx + p.x * sx, my + p.y * sy); ctx.lineTo(mx + (p.x + p.w) * sx, my + p.y * sy); ctx.stroke(); }
-  ctx.strokeStyle = "#c9a26b"; ctx.lineWidth = 1;
-  for (const l of ladders) { ctx.beginPath(); ctx.moveTo(mx + l.x * sx, my + l.top * sy); ctx.lineTo(mx + l.x * sx, my + l.bottom * sy); ctx.stroke(); }
-  ctx.fillStyle = "#7fd0ff";
-  for (const pt of portals) { ctx.beginPath(); ctx.ellipse(mx + pt.x * sx, my + (pt.y - 10) * sy, 2.2, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }
-  for (const m of mobs) if (!m.dead) {
-    ctx.fillStyle = m.T.boss ? "#ff5a3a" : "#ff9b8f";
-    const r = m.T.boss ? 3.5 : 1.6;
-    ctx.beginPath(); ctx.arc(mx + (m.x + m.w / 2) * sx, my + (m.y + m.h / 2) * sy, r, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.fillStyle = "#ffe066"; ctx.beginPath(); ctx.arc(mx + (P.x + P.w / 2) * sx, my + (P.y + P.h / 2) * sy, 3.2, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.strokeRect(mx + cam.x * sx, my + cam.y * sy, W * sx, H * sy);
 
   // boss bar
   const boss = mobs.find(m => m.T.boss && !m.dead && (m.aggro > 0 || m.hp < m.T.hp));
@@ -1440,6 +1539,7 @@ function draw() {
   portals.forEach(drawPortal);
   npcsHere().forEach(drawNpc);
   drops.forEach(drawDrop);
+  drawPet();
   mobs.forEach(drawMob);
   drawShots();
   drawPlayer();

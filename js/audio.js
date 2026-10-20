@@ -5,15 +5,26 @@
 // ---------- Settings ----------
 // kept apart from the character saves, so every save slot shares the same volume and display choices
 const SETTINGS_KEY = "floating-isle-settings";
-const settings = { sfx: 70, music: 40, nums: true, shake: 1 };
+// minimap: 0 off, 1 small, 2 large
+const settings = { sfx: 70, music: 40, nums: true, shake: 1, minimap: 1, petItems: true };
+const MINIMAP_SIZES = ["關閉", "小", "大"];
 try {
   const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "null");
   if (s) {
     for (const k of ["sfx", "music"]) if (Number.isFinite(s[k])) settings[k] = clamp(Math.round(s[k]), 0, 100);
     if (typeof s.nums === "boolean") settings.nums = s.nums;
+    if (typeof s.petItems === "boolean") settings.petItems = s.petItems;
+    if ([0, 1, 2].includes(s.minimap)) settings.minimap = s.minimap;
     if ([0, 0.5, 1].includes(s.shake)) settings.shake = s.shake;
   }
 } catch (_) {}
+// M switches the minimap between small, large and off
+function cycleMinimap() {
+  settings.minimap = (settings.minimap + 1) % 3;
+  saveSettings();
+  msg(`小地圖：${MINIMAP_SIZES[settings.minimap]}`, "#9fb0cd");
+  if (!setWin.hidden) renderSettings();
+}
 function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (_) {}
   applyVolumes();
