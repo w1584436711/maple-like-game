@@ -35,12 +35,22 @@ const JOBS = {
                   blurb: "一箭射穿整排敵人，也能讓箭像雨一樣落下。" },
   nightlord:    { name: "夜影宗師", base: "thief", prev: "assassin", hp: [24, 28], mp: [18, 20], req: { lv: 50 }, gain: { hp: 300, mp: 200 },
                   blurb: "飛鏢如影隨形，貼身一擊就能直取要害。" },
+  // fourth jobs at Lv.70 (the original waits until Lv.120; our level curve is shorter), after the king's trial
+  swordking:    { name: "裂空劍帝", base: "warrior", prev: "swordsaint", hp: [36, 40], mp: [10, 12], req: { lv: 70 }, gain: { hp: 1000, mp: 0 },
+                  blurb: "一劍就能劈開天空。劍帝的審判落下時，整片戰場都會安靜下來。" },
+  astromancer:  { name: "星海魔導", base: "magician", prev: "starsage", hp: [16, 20], mp: [34, 38], req: { lv: 70 }, gain: { hp: 0, mp: 1000 },
+                  blurb: "把整片星海握在手裡，一念之間就能讓星辰爆裂。" },
+  skyarcher:    { name: "蒼穹箭神", base: "bowman", prev: "ranger", hp: [26, 30], mp: [20, 22], req: { lv: 70 }, gain: { hp: 500, mp: 300 },
+                  blurb: "箭從天穹落下，沒有一隻怪物躲得過箭神的眼睛。" },
+  shadowlord:   { name: "冥夜影帝", base: "thief", prev: "nightlord", hp: [26, 30], mp: [20, 22], req: { lv: 70 }, gain: { hp: 500, mp: 300 },
+                  blurb: "黑夜就是他的領土。影帝出手時，連太陽都會被遮住。" },
 };
 for (const J of Object.values(JOBS)) if (J.base) { J.weapon = JOBS[J.base].weapon; J.ammo = JOBS[J.base].ammo; }
 // the first job a job grows from (itself for a first job or a beginner), and the second job each one leads to
 const root = id => JOBS[id].base || id;
 const SECOND = { warrior: "berserker", magician: "elementalist", bowman: "hawkeye", thief: "assassin" };
 const THIRD = { berserker: "swordsaint", elementalist: "starsage", hawkeye: "ranger", assassin: "nightlord" };
+const FOURTH = { swordsaint: "swordking", starsage: "astromancer", ranger: "skyarcher", nightlord: "shadowlord" };
 
 // ---------- Items ----------
 // Classic rules: three bag tabs with a fixed number of slots, eight equipment slots with level, job and
@@ -110,6 +120,8 @@ const ITEMS = {
   cloud_wool:    { name: "雲羊毛", icon: "gel", color: "#ffffff", desc: "像雲一樣輕的羊毛" },
   bell_shard:    { name: "風鈴碎片", icon: "shard", color: "#8fe0d8", desc: "敲一下會發出清脆的聲音" },
   thunder_horn:  { name: "雷角", icon: "shard", color: "#ffe066", desc: "摸起來會微微發麻" },
+  sand_sigil:    { name: "沙之信物", color: "#ffd84a", desc: "用蠍皇毒針換來的信物，四轉試煉要交給神殿祭司" },
+  tomb_sigil:    { name: "墓之信物", color: "#7fe0e0", desc: "用古墓的陶片和餘燼換來的信物，四轉試煉要交給神殿祭司" },
   eagle_feather: { name: "雷鷲羽毛", color: "#a080e0", desc: "雷雲巨鷲身上帶著雷光的羽毛" },
   // the desert continent: materials, scrolls and gear
   fox_tail:      { name: "沙狐尾巴", icon: "gel", color: "#e8a050", desc: "蓬鬆的尾巴，尾端是白色的" },
@@ -336,7 +348,72 @@ const SKILLS = {
       desc: l => `有 ${Math.round(1.5 * l)}% 機率打出 1.5 倍的爆擊` },
   ],
 };
+// fourth-job skills: up to Lv.20 until you read the skill's book (book: true), then up to Lv.30.
+// cd is a cooldown in seconds; dmg raises all damage by that many percent (a passive, or a buff while it lasts);
+// the ultimates rain beams of light (fx "sky") in the job's colour (tint)
+const FOURTH_SKILLS = {
+  swordking: [
+    { id: "k4_rift", name: "裂空斬", type: "atk", weapon: "sword", melee: 170, targets: 6, hits: 4, max: 30, book: true, mp: l => 40 + (l >> 1), pct: l => 160 + 5 * l,
+      desc: l => `斬開空間，前方最多 6 隻怪物各被砍四下，每下 ${160 + 5 * l}% 傷害` },
+    { id: "k4_judgment", name: "天劍審判", type: "atk", weapon: "sword", area: 420, targets: 15, hits: 6, fx: "sky", tint: "#ffd84a", max: 30, book: true, req: ["k4_rift", 5],
+      cd: () => 60, mp: l => 80 + l, pct: l => 250 + 8 * l,
+      desc: l => `從天上落下無數把光劍，周圍最多 15 隻怪物各被砍六下，每下 ${250 + 8 * l}% 傷害` },
+    { id: "k4_aura", name: "帝王劍氣", type: "buff", max: 30, book: true, cd: () => 120, mp: () => 60, dur: l => 30 + l, dmg: l => 10 + l,
+      desc: l => `${30 + l} 秒內，所有傷害加 ${10 + l}%` },
+    { id: "k4_valor", name: "劍帝極意", type: "passive", max: 30, book: true, mastery: l => l, dmg: l => Math.round(l * 0.7),
+      desc: l => `熟練度加 ${l}%，所有傷害加 ${Math.round(l * 0.7)}%` },
+  ],
+  astromancer: [
+    { id: "q4_nova", name: "星爆", type: "atk", area: 300, targets: 12, hits: 2, fx: "nova", max: 30, book: true, mp: l => 40 + (l >> 1), spell: l => 55 + 3 * l,
+      desc: l => `讓周圍的星光爆開，最多 12 隻怪物各受到兩次魔法攻擊 ${55 + 3 * l}` },
+    { id: "q4_bigbang", name: "創世星爆", type: "atk", area: 440, targets: 15, hits: 4, fx: "sky", tint: "#b8a0ff", max: 30, book: true, req: ["q4_nova", 5],
+      cd: () => 60, mp: l => 100 + l, spell: l => 110 + 5 * l,
+      desc: l => `讓星辰從天而降，周圍最多 15 隻怪物各受到四次魔法攻擊 ${110 + 5 * l}` },
+    { id: "q4_grace", name: "星海加護", type: "buff", max: 30, book: true, cd: () => 120, mp: () => 80, dur: l => 30 + l, dmg: l => 10 + l,
+      desc: l => `${30 + l} 秒內，所有傷害加 ${10 + l}%` },
+    { id: "q4_mind", name: "魔導極意", type: "passive", max: 30, book: true, mastery: l => l, dmg: l => Math.round(l * 0.7),
+      desc: l => `熟練度加 ${l}%，所有傷害加 ${Math.round(l * 0.7)}%` },
+  ],
+  skyarcher: [
+    { id: "y4_storm", name: "颶風連射", type: "atk", weapon: "bow", shot: "arrow", shots: 5, pierce: 2, max: 30, book: true, mp: l => 36 + (l >> 1), pct: l => 110 + 4 * l,
+      desc: l => `一口氣射出五箭，每箭穿過 2 隻怪物，各造成 ${110 + 4 * l}% 傷害` },
+    { id: "y4_starfall", name: "天墜箭", type: "atk", weapon: "bow", area: 420, targets: 15, hits: 5, fx: "sky", tint: "#9fe8ff", max: 30, book: true, req: ["y4_storm", 5],
+      cd: () => 60, mp: l => 80 + l, pct: l => 240 + 8 * l,
+      desc: l => `向天空射出一箭，化成光箭落下，周圍最多 15 隻怪物各中五箭，每箭 ${240 + 8 * l}% 傷害` },
+    { id: "y4_eye", name: "鷹神之眼", type: "buff", max: 30, book: true, cd: () => 120, mp: () => 60, dur: l => 30 + l, dmg: l => 10 + l,
+      desc: l => `${30 + l} 秒內，所有傷害加 ${10 + l}%` },
+    { id: "y4_mastery", name: "箭神極意", type: "passive", max: 30, book: true, mastery: l => l, dmg: l => Math.round(l * 0.7),
+      desc: l => `熟練度加 ${l}%，所有傷害加 ${Math.round(l * 0.7)}%` },
+  ],
+  shadowlord: [
+    { id: "z4_triple", name: "冥影三連", type: "atk", weapon: "claw", shot: "star", shots: 3, pierce: 3, max: 30, book: true, mp: l => 36 + (l >> 1), pct: l => 150 + 5 * l,
+      desc: l => `連丟三支冥影飛鏢，每支穿過 3 隻怪物，各造成 ${150 + 5 * l}% 傷害` },
+    { id: "z4_eclipse", name: "日蝕", type: "atk", weapon: "claw", area: 420, targets: 15, hits: 6, fx: "sky", tint: "#c06aff", max: 30, book: true, req: ["z4_triple", 5],
+      cd: () => 60, mp: l => 80 + l, pct: l => 220 + 8 * l,
+      desc: l => `遮住太陽，讓影刃從天而降，周圍最多 15 隻怪物各被砍六下，每下 ${220 + 8 * l}% 傷害` },
+    { id: "z4_veil", name: "冥夜之幕", type: "buff", max: 30, book: true, cd: () => 120, mp: () => 60, dur: l => 30 + l, dmg: l => 10 + l,
+      desc: l => `${30 + l} 秒內，所有傷害加 ${10 + l}%` },
+    { id: "z4_mastery", name: "影帝極意", type: "passive", max: 30, book: true, mastery: l => l, dmg: l => Math.round(l * 0.7),
+      desc: l => `熟練度加 ${l}%，所有傷害加 ${Math.round(l * 0.7)}%` },
+  ],
+};
+Object.assign(SKILLS, FOURTH_SKILLS);
 const SKILL_BY_ID = {};
 Object.values(SKILLS).flat().forEach(s => { SKILL_BY_ID[s.id] = s; });
-const MASTERY_SKILLS = ["k_mastery", "e_mastery", "h_mastery", "a_mastery"];
+const MASTERY_SKILLS = ["k_mastery", "e_mastery", "h_mastery", "a_mastery", "k4_valor", "q4_mind", "y4_mastery", "z4_mastery"];
+// skills that raise all damage: the fourth-job passives always, their buffs while they last
+const DMG_SKILLS = Object.values(FOURTH_SKILLS).flat().filter(s => s.dmg).map(s => s.id);
+// one skill book per fourth-job skill, dropped by the scorpion king
+const BOOK_COLORS = { swordking: "#ffd84a", astromancer: "#b8a0ff", skyarcher: "#9fe8ff", shadowlord: "#c06aff" };
+for (const [j, list] of Object.entries(FOURTH_SKILLS)) for (const s of list) {
+  const id = `book_${s.id}`;
+  ITEMS[id] = { id, name: `${s.name}技能書`, cat: "use", book: s.id, icon: "book", color: BOOK_COLORS[j], price: 0, sell: 5000, stack: 10,
+                desc: `讀了之後，「${s.name}」最高可以升到 Lv.${s.max}（原本 Lv.20）。只有${JOBS[j].name}看得懂` };
+}
+// a book drop: one of your own job's books when you are in a fourth job, otherwise any of them
+function bookDrop() {
+  const own = FOURTH_SKILLS[P.job] || Object.values(FOURTH_SKILLS).flat();
+  return `book_${own[randi(0, own.length - 1)].id}`;
+}
+TYPES.scorpking.drops.push([bookDrop, 0.5]);
 const CRIT_SKILLS = ["b_crit", "s_instinct", "g_sharp", "n_vital"];

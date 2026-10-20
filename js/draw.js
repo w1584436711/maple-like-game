@@ -572,6 +572,13 @@ function paintItem(I) {
   } else if (kind === "gel") {
     shape(c, () => ctx.ellipse(16, 19, 11, 8, 0, 0, Math.PI * 2));
     ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.beginPath(); ctx.ellipse(12, 16, 3.5, 2, -0.4, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === "book") {
+    // a thick book with a gem on the cover in the job's colour
+    shape("#f0e6d0", () => rr(8, 5, 18, 23, 2));
+    shape(c, () => rr(6, 4, 18, 23, 2.5));
+    ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.fillRect(6, 4, 3, 23);
+    ctx.strokeStyle = "#ffe48a"; ctx.lineWidth = 1.2; ctx.strokeRect(11, 8, 10, 15);
+    ctx.beginPath(); ctx.moveTo(16, 11); ctx.lineTo(19, 15.5); ctx.lineTo(16, 20); ctx.lineTo(13, 15.5); ctx.closePath(); paint("#ffffff", INK, 1);
   } else if (kind === "food") {
     // a little bowl heaped with kibble
     for (const [x, y] of [[11, 13], [16, 11], [21, 13], [13.5, 16], [18.5, 16]]) { ctx.beginPath(); ctx.arc(x, y, 3.2, 0, Math.PI * 2); paint(gloss(c, y - 3, y + 3), INK, 1); }
@@ -786,14 +793,15 @@ function drawMob(m) {
       ctx.restore();
     };
     claw(-60, false); claw(62, true);
-  } else if (m.t === "shadow") {
+  } else if (m.t === "shadow" || m.t === "shadow2") {
     // your own shadow, half again your size: your outline in dark violet, red eyes, your weapon, smoke rising off it
     const walking = m.state === "walk" || m.aggro > 0, sw = walking ? Math.sin(m.ph * 12) : 0;
     const wind = m.wind > 0 ? 1 - m.wind / m.T.slam.wind : 0;
     ctx.fillStyle = "rgba(120,80,180,.18)";
     for (let i = 0; i < 5; i++) { const k = (m.ph * 0.6 + i / 5) % 1; ctx.beginPath(); ctx.arc(Math.sin(i * 2.3 + m.ph) * 22, -k * 120, 8 + k * 10, 0, Math.PI * 2); ctx.fill(); }
-    ctx.scale(f * 1.5, 1.5);
-    const dark = white ? "#fff" : vgrad(-58, 0, "#5a4a7a", "#1a1028"), edge = "#0a0610";
+    const big = m.t === "shadow2" ? 1.75 : 1.5;
+    ctx.scale(f * big, big);
+    const dark = white ? "#fff" : vgrad(-58, 0, m.t === "shadow2" ? "#8a2a3a" : "#5a4a7a", "#1a1028"), edge = "#0a0610";
     for (const [x, a] of [[-4, sw * 0.6], [4, -sw * 0.6]]) { ctx.save(); ctx.translate(x, -13); ctx.rotate(a); ctx.beginPath(); rr(-3.4, -1, 6.8, 14, 2.5); paint(dark, edge, 1.2); ctx.restore(); }
     ctx.beginPath(); rr(-10, -32, 20, 20, 6); paint(dark, edge, 1.2);
     ctx.save(); ctx.translate(5, -24); drawWeapon(weapon()?.wtype || "sword", wind ? -2.3 + wind * 3.4 : 2.3 + sw * 0.15, "#4a3a6a"); ctx.restore();
@@ -1287,6 +1295,19 @@ function drawFX() {
       ctx.strokeStyle = `rgba(160,220,255,${1 - p})`; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.ellipse(cx, P.y + P.h - p * 60, 26, 7, 0, 0, Math.PI * 2); ctx.stroke();
       ctx.beginPath(); ctx.ellipse(cx, P.y + P.h - p * 30, 22, 6, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (f.k === "sky") {
+      // an ultimate: beams of light in the job's colour fall one after another across the area
+      for (let i = 0; i < 11; i++) {
+        const x = f.x + (i - 5) / 5 * f.r * 0.9, local = clamp((f.t - (i * 7 % 11) * 0.04) / 0.45, 0, 1);
+        if (local <= 0 || local >= 1) continue;
+        ctx.save(); ctx.globalAlpha = 1 - local; ctx.shadowColor = f.tint; ctx.shadowBlur = 16;
+        ctx.fillStyle = vgrad(cam.y, f.y, "rgba(255,255,255,.2)", f.tint);
+        const w = 14 * (1 - local) + 4;
+        ctx.fillRect(x - w / 2, cam.y, w, f.y - cam.y);
+        ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.ellipse(x, f.y - 4, 26 * (1 - local) + 8, 8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      if (f.t < 0.25) { ctx.fillStyle = `rgba(255,255,255,${0.25 * (1 - f.t / 0.25)})`; ctx.fillRect(cam.x, cam.y, W, H); }
     } else if (f.k === "dust") {
       // sand bursting up where something comes out of the ground
       const p = f.t / 0.6;
@@ -1708,7 +1729,7 @@ function drawHUD() {
       if (!s) return { key: short(`skill${i + 1}`), label: "", sub: "", c: "#3b4a63", dim: true };
       const l = skLv(s.id);
       return { key: short(`skill${i + 1}`), label: s.name.slice(0, 2), sub: l ? `MP ${s.mp(l)}` : "未學",
-               c: SKILL_COLORS[s.type], dim: !l || P.mp < s.mp(Math.max(1, l)), on: buffOn(s.id) };
+               c: SKILL_COLORS[s.type], dim: !l || P.mp < s.mp(Math.max(1, l)), on: buffOn(s.id), cd: P.cds[s.id] || 0, cdMax: P.cdMax[s.id] || 1 };
     }),
   ];
   slots.forEach((s, i) => {
@@ -1719,6 +1740,14 @@ function drawHUD() {
     ctx.font = `700 10px ${UI}`; ctx.fillStyle = s.dim ? "#7d8aa3" : "#dfe8f6"; ctx.fillText(s.label, x + 18, y + 17);
     ctx.font = `9px ${NUM}`; ctx.fillStyle = "#9fb0cd"; ctx.fillText(s.sub, x + 18, y + 30);
     ctx.font = `10px ${NUM}`; ctx.fillStyle = "#ffc94a"; ctx.fillText(s.key, x + 3, y + 11);
+    // cooling down: a grey shade that shrinks from the top as it gets ready, and the seconds left
+    if (s.cd > 0) {
+      const h = 36 * s.cd / s.cdMax;
+      ctx.save(); rr(x, y, 44, 36, 7); ctx.clip();
+      ctx.fillStyle = "rgba(8,12,24,.72)"; ctx.fillRect(x, y + 36 - h, 44, h);
+      ctx.restore();
+      ctx.font = `14px ${NUM}`; ctx.textAlign = "center"; outlinedText(String(Math.ceil(s.cd)), x + 22, y + 24, "#ffffff", "rgba(0,0,0,.7)", 3); ctx.textAlign = "left";
+    }
   });
 
   // minimap first, so the buffs can sit right under it

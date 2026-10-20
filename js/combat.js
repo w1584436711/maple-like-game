@@ -15,14 +15,14 @@ function rollDamage(m, o) {
   if (o.magic) {
     if (Math.random() < diff * 0.04) return null;
     const [mn, mx] = magicRange(o.spell);
-    return { d: rand(mn, mx), crit: false };
+    return { d: rand(mn, mx) * (1 + dmgBoost() / 100), crit: false };
   }
   // classic hit check: accuracy needed grows with the monster's avoid and its level lead
   const needAcc = (55 + 2 * diff) * m.T.avoid / 15;
   if (Math.random() > Math.min(1, accuracy() / needAcc)) return null;
   const [mn, mx] = physRange();
   const crit = Math.random() < critChance();
-  return { d: rand(mn, mx) * (o.pct || 100) / 100 * (crit ? 1.5 : 1), crit };
+  return { d: rand(mn, mx) * (o.pct || 100) / 100 * (crit ? 1.5 : 1) * (1 + dmgBoost() / 100), crit };
 }
 function dealDamage(m, o = {}) {
   if (m.dead) return;
@@ -47,7 +47,8 @@ function kill(m) {
   const coinDrops = boss ? 8 : (Math.random() < 0.9 ? 1 : 0);
   for (let i = 0; i < coinDrops; i++) items.push(["coin", randi(m.T.coin[0], m.T.coin[1]) / (boss ? 8 : 1) | 0]);
   for (const [id, chance, a = 1, b = a] of m.T.drops) {
-    if (Math.random() < chance) items.push(["item", randi(a, b), Array.isArray(id) ? id[randi(0, id.length - 1)] : id]);
+    // id can be a list to pick one from, or a function that picks (a skill book for your job)
+    if (Math.random() < chance) items.push(["item", randi(a, b), Array.isArray(id) ? id[randi(0, id.length - 1)] : typeof id === "function" ? id() : id]);
   }
   // items pop up and land side by side in a row, centred on the monster
   items.forEach(([kind, value, id], i) => {
@@ -99,6 +100,7 @@ function levelUp() {
   msg(`等級提升！現在是 Lv.${P.lv}，按 S 分配 5 點能力值`, "#ffc94a");
   if (P.job === "beginner" && (P.lv === 8 || P.lv === 10)) msg("可以回浮島村找轉職教官薇拉轉職了", "#ffc94a");
   if (SECOND[P.job] && P.lv === 30) msg("可以回浮島村找轉職教官薇拉二轉了", "#ffc94a");
+  if (FOURTH[P.job] && P.lv === 70) msg("可以去沉砂城找神殿祭司伊薩，準備四轉了", "#ffc94a");
   refreshPanels(true);
   save();
 }
@@ -291,6 +293,7 @@ function useSkill(s, key) {
   const l = skLv(s.id);
   if (!l) { hint(`還沒學會「${s.name}」，按 K 用 SP 學`); return; }
   if (s.weapon && weapon()?.wtype !== s.weapon) { hint(`「${s.name}」要拿著${WTYPES[s.weapon].name}才能用`); return; }
+  if (P.cds[s.id] > 0) { hint(`「${s.name}」還要 ${Math.ceil(P.cds[s.id])} 秒才能再用`); return; }
   // bow and claw skills use one arrow or star per shot
   const ammo = AMMO_NAMES[s.weapon] ? (s.shots || 1) : 0;
   if (ammo && !haveAmmo(ammo)) return;
@@ -298,6 +301,8 @@ function useSkill(s, key) {
   if (P.mp < cost) { hint("MP 不夠了，按 2 喝藍藥水"); return; }
   P.mp -= cost; P.prone = false;
   if (ammo) useAmmo(ammo);
+  // big skills need a rest before they can be used again
+  if (s.cd) { P.cds[s.id] = P.cdMax[s.id] = s.cd(l); }
   if (s.type === "buff") {
     startAction("buff", 0.5);
     P.buffs[s.id] = s.dur(l);
@@ -319,8 +324,9 @@ function useSkill(s, key) {
     startAction(s.spell ? "cast" : "spin", SKILL_T);
     targetsIn({ x: cx - s.area, y: P.y - 40, w: s.area * 2, h: 110 }, s.targets)
       .forEach(m => { for (let h = 0; h < (s.hits || 1); h++) dealDamage(m, { ...dmg, stack: h }); });
-    fx.push({ k: s.fx || (s.spell ? "nova" : "quake"), rain: s.rain, x: cx, y: P.y + P.h, r: s.area, t: 0 });
-    if (!s.spell) cam.shake = 6;
+    fx.push({ k: s.fx || (s.spell ? "nova" : "quake"), rain: s.rain, tint: s.tint, x: cx, y: P.y + P.h, r: s.area, t: 0 });
+    if (s.cd) cam.shake = 14;
+    else if (!s.spell) cam.shake = 6;
   } else if (s.melee) {
     startAction(s.spell ? "cast" : "slash", SLASH_T);
     const hit = targetsIn(meleeBox(s.melee), s.targets || 1);
@@ -525,6 +531,7 @@ function update(dt) {
       if (P.buffs[id] > 0 && (P.buffs[id] -= dt) <= 0) { P.buffs[id] = 0; msg(`「${SKILL_BY_ID[id].name}」的效果結束了`, "#9fb0cd"); }
     }
   }
+  for (const id in P.cds) if (P.cds[id] > 0 && (P.cds[id] -= dt) <= 0) P.cds[id] = 0;
   P.atkT = Math.max(0, P.atkT - dt); P.atkCd -= dt; P.potCd -= dt; P.inv -= dt; P.drop -= dt;
   P.knock = Math.max(0, P.knock - dt);
 
@@ -536,7 +543,7 @@ function update(dt) {
   for (let i = nums.length - 1; i >= 0; i--) if ((nums[i].t += dt) > 1.1) nums.splice(i, 1);
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt;
-    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3, buff: 0.7, burst: 0.3, dust: 0.6, nova: 0.5, quake: 0.5, zap: 0.3, rain: 0.6 }[f.k];
+    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3, buff: 0.7, burst: 0.3, dust: 0.6, sky: 1, nova: 0.5, quake: 0.5, zap: 0.3, rain: 0.6 }[f.k];
     if (f.t > life) fx.splice(i, 1);
   }
   for (let i = msgs.length - 1; i >= 0; i--) if ((msgs[i].t -= dt) <= 0) msgs.splice(i, 1);

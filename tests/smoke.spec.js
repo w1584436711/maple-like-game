@@ -947,6 +947,78 @@ test("地下古墓很暗，只有角色附近看得清楚", async ({ page }) => 
   expect(errors).toEqual([]);
 });
 
+// 四轉用 Lv.70 的破陣劍豪，帶著兩件信物需要的材料
+const LV70_SWORDSAINT = {
+  ...LV70_SAINT, map: "sandcity", sp: 0,
+  skills: { ...LV50_BERSERKER.skills, s_storm: 20, s_break: 20, s_soul: 20, s_instinct: 20 },
+  bag: { equip: [], use: [], etc: [{ id: "scorp_stinger", n: 1 }, { id: "clay_shard", n: 40 }, { id: "wisp_ash", n: 40 }] },
+};
+const LV75_SWORDKING = {
+  ...LV70_SWORDSAINT, lv: 75, job: "swordking", sp: 5, mp: 1500,
+  skills: { ...LV70_SWORDSAINT.skills, k4_rift: 20, k4_judgment: 1 }, slots: ["k4_rift", "k4_judgment"],
+};
+
+test("四轉：交兩件信物、打倒真影分身，就能成為裂空劍帝，二轉技能還在", async ({ page }) => {
+  const errors = await openWithSave(page, LV70_SWORDSAINT);
+  await page.locator("#game").click();
+  // 兩件信物任務：材料已經帶在身上，接了就能回報
+  await page.evaluate(() => { for (const id of ["q_relic1", "q_relic2"]) { acceptQuest(QUESTS[id]); finishQuest(QUESTS[id]); } closeDialog(); });
+  let saved = await readSave(page);
+  expect([itemCount(saved, "sand_sigil"), itemCount(saved, "tomb_sigil"), itemCount(saved, "scorp_stinger")]).toEqual([1, 1, 0]);
+  // 接王者試煉會進試煉場，裡面是真影分身
+  await page.evaluate(() => openNpc(NPCS.isa));
+  await page.locator("#dlg").getByRole("button", { name: /王者試煉/ }).click();
+  await page.locator("#dlg").getByRole("button").first().click();
+  expect(await page.evaluate(() => [P.map, mobs[0].t])).toEqual(["trial4", "shadow2"]);
+  await page.evaluate(() => { P.quests.q_trial4.kills.shadow2 = 1; loadMap("sandcity"); openNpc(NPCS.isa); });
+  await page.locator("#dlg").getByRole("button", { name: /【完成】王者試煉/ }).click();
+  await page.evaluate(() => openNpc(NPCS.isa));
+  await page.locator("#dlg").getByRole("button", { name: "我想四轉" }).click();
+  await page.locator("#dlg").getByRole("button", { name: "我要成為裂空劍帝" }).click();
+  saved = await readSave(page);
+  expect(saved.job).toBe("swordking");
+  expect([itemCount(saved, "sand_sigil"), itemCount(saved, "tomb_sigil")]).toEqual([0, 0]);
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("k");
+  for (const name of ["劍士技能", "狂刃騎士技能", "破陣劍豪技能", "裂空劍帝技能"]) await expect(page.locator("#skillsWin")).toContainText(name);
+  expect(errors).toEqual([]);
+});
+
+test("天劍審判有 60 秒冷卻：冷卻中再按不會放，狀態列看得到", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV75_SWORDKING, map: "temple" });
+  await page.locator("#game").click();
+  await page.keyboard.down("d"); await page.waitForTimeout(200); await page.keyboard.up("d");
+  const after1 = await page.evaluate(() => [P.mp, Math.round(P.cds.k4_judgment)]);
+  expect(after1[0]).toBeLessThan(1500);
+  expect(after1[1]).toBeGreaterThan(55);
+  await page.waitForTimeout(800);
+  await page.keyboard.down("d"); await page.waitForTimeout(200); await page.keyboard.up("d");
+  expect(await page.evaluate(() => P.mp)).toBe(after1[0]);
+  await expect.poll(() => page.evaluate(() => msgs.some(m => m.text.includes("秒才能再用")))).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("四轉技能先到 Lv.20，讀了技能書才能升到 Lv.30；別的職業的書看不懂", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV75_SWORDKING, bag: { equip: [], use: [{ id: "book_q4_nova", n: 1 }, { id: "book_k4_rift", n: 1 }], etc: [] } });
+  await page.locator("#game").click();
+  await page.keyboard.press("k");
+  const plus = page.locator("#skillsWin").getByRole("button", { name: "裂空斬加 1" });
+  await expect(plus).toBeDisabled();
+  await expect(page.locator("#skillsWin")).toContainText("讀「裂空斬技能書」才能升到 Lv.30");
+  await page.keyboard.press("i");
+  const inv = page.locator("#invWin");
+  await inv.getByRole("tab", { name: "消耗" }).click();
+  await inv.getByRole("button", { name: "星爆技能書" }).dblclick();
+  await inv.getByRole("button", { name: "裂空斬技能書" }).dblclick();
+  let saved = await readSave(page);
+  expect(saved.books).toEqual(["k4_rift"]);
+  expect([itemCount(saved, "book_q4_nova"), itemCount(saved, "book_k4_rift")]).toEqual([1, 0]);
+  await plus.click();
+  saved = await readSave(page);
+  expect(saved.skills.k4_rift).toBe(21);
+  expect(errors).toEqual([]);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 

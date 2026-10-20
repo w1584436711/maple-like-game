@@ -142,7 +142,7 @@ function renderStats() {
   statsBody.innerHTML = html;
 }
 const TYPE_NAMES = { atk: "攻擊", buff: "輔助", passive: "被動" };
-const canLearn = s => P.sp > 0 && skLv(s.id) < s.max && (!s.req || skLv(s.req[0]) >= s.req[1]);
+const canLearn = s => P.sp > 0 && skLv(s.id) < skillCap(s) && (!s.req || skLv(s.req[0]) >= s.req[1]);
 function renderSkills() {
   if (P.job === "beginner") {
     skillsBody.innerHTML = `<p class="note">新手還不能學技能。Lv.10（法師 Lv.8）回浮島村找轉職教官薇拉轉職，就能用 SP 學技能。</p>`;
@@ -157,15 +157,16 @@ function renderSkills() {
       const l = skLv(s.id), slot = slots.indexOf(s);
       const lock = s.req && skLv(s.req[0]) < s.req[1] ? `需要「${SKILL_BY_ID[s.req[0]].name}」Lv.${s.req[1]}` : "";
       const now = l ? s.desc(l) : "還沒學會";
-      const next = l < s.max ? `下一級：${s.desc(l + 1)}` : "已經滿級";
-      const cost = s.mp ? `MP ${s.mp(Math.max(1, l))}` : "";
+      const cap = skillCap(s);
+      const next = l < cap ? `下一級：${s.desc(l + 1)}` : cap < s.max ? `目前最高 Lv.${cap}，讀「${s.name}技能書」才能升到 Lv.${s.max}` : "已經滿級";
+      const cost = [s.mp && `MP ${s.mp(Math.max(1, l))}`, s.cd && `冷卻 ${s.cd(Math.max(1, l))} 秒`].filter(Boolean).join("．");
       // active skills pick their key from a list: skill 1 to 7, or none
       const keySel = s.type === "passive" ? "" : `<select class="keysel" data-slot-of="${s.id}" aria-label="${esc(s.name)}放在哪個鍵">`
         + `<option value="-1"${slot < 0 ? " selected" : ""}>不放</option>`
         + Array.from({ length: SKILL_SLOTS }, (_, k) => `<option value="${k}"${slot === k ? " selected" : ""}>${k + 1}．${esc(keyOf(`skill${k + 1}`))} 鍵</option>`).join("")
         + `</select>`;
       html += `<div class="skill"><div class="row"><span><b class="sname">${esc(s.name)}</b> <small>${TYPE_NAMES[s.type]}</small></span>`
-        + `${keySel}<b>${l} / ${s.max}</b><button type="button" class="plus" data-skill="${s.id}" aria-label="${esc(s.name)}加 1"${canLearn(s) ? "" : " disabled"}>+</button></div>`
+        + `${keySel}<b>${l} / ${cap}</b><button type="button" class="plus" data-skill="${s.id}" aria-label="${esc(s.name)}加 1"${canLearn(s) ? "" : " disabled"}>+</button></div>`
         + `<p>${esc(now)}${cost ? `．${cost}` : ""}</p><p class="dim">${esc(lock || next)}</p></div>`;
     }
   }
@@ -272,6 +273,18 @@ function drink(id, i = P.bag.use.findIndex(s => s?.id === id)) {
   sfx("potion");
   if (hp > 0) nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "+" + hp, kind: "heal", t: 0 });
   if (mp > 0) nums.push({ x: P.x + P.w / 2, y: P.y - 6, text: "+" + mp, kind: "mana", t: 0 });
+}
+// a skill book lifts its fourth-job skill's cap from Lv.20 to Lv.30, for the job that can read it
+function readBook(i) {
+  const I = ITEMS[P.bag.use[i].id], s = SKILL_BY_ID[I.book];
+  if (!jobSkills().includes(s)) { hint(`看不懂這本書……只有${JOBS[Object.keys(FOURTH_SKILLS).find(j => FOURTH_SKILLS[j].includes(s))].name}能讀`); return; }
+  if (P.books.includes(s.id)) { hint(`已經讀過「${I.name}」了`); return; }
+  takeFromSlot("use", i);
+  P.books.push(s.id);
+  sfx("levelup");
+  fx.push({ k: "buff", t: 0 });
+  msg(`讀懂了${I.name}！「${s.name}」最高可以升到 Lv.${s.max}`, "#ffc94a");
+  save();
 }
 function readScroll(i) {
   if (P.dead) return;
@@ -415,7 +428,7 @@ function invInfo() {
       + list.map(([t, g, where]) => `<button type="button" class="btn pickgear" data-target="${t}">${esc(gearName(g))}${where}　剩 ${gearLeft(g)} 次</button>`).join("")
       + `<div class="acts">${actBtn("cancel", "取消")}</div></div>`;
   }
-  return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.heal || I.warp || I.scroll || I.feed ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"), I.slot ? s : null);
+  return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.heal || I.warp || I.scroll || I.feed || I.book ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"), I.slot ? s : null);
 }
 // picking a slot only moves the outline and swaps the description, so the slot under the
 // pointer stays the same element and a double click on it still registers
@@ -451,6 +464,7 @@ function doInv(act) {
   else if (act === "use" && invTab === "use" && ITEMS[s.id].heal) drink(s.id, i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].warp) readScroll(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].feed) feedPet(i);
+  else if (act === "use" && invTab === "use" && ITEMS[s.id].book) readBook(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].scroll) {
     if (scrollTargets(ITEMS[s.id].scroll).length) { scrollPick = i; return; }
     hint(ITEMS[s.id].scroll.kind === "restore" ? "沒有強化失敗過的裝備" : "沒有可以用這張卷軸的裝備");

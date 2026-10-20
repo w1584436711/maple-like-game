@@ -6,7 +6,7 @@
 function freshCharacter() {
   return {
     lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
-    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [], pets: {}, petOn: null,
+    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [], pets: {}, petOn: null, books: [], cds: {}, cdMax: {},
     bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"), storage: Array(BAG_SLOTS).fill(null),
   };
 }
@@ -42,8 +42,14 @@ const skLv = id => P.skills[id] || 0;
 const buffOn = id => (P.buffs[id] || 0) > 0;
 const passive = (id, key) => { const l = skLv(id); return l ? SKILL_BY_ID[id][key](l) : 0; };
 const buffVal = (id, key) => buffOn(id) ? SKILL_BY_ID[id][key](skLv(id)) : 0;
-// every job keeps the skills of the jobs before it: first, then second, then third
-const jobLine = () => [...new Set([root(P.job), JOBS[P.job].prev, P.job].filter(Boolean))];
+// every job keeps the skills of the jobs before it: first, second, third, then fourth
+function jobLine() {
+  const line = [];
+  for (let j = P.job; j; j = JOBS[j].prev) line.unshift(j);
+  return [...new Set([root(P.job), ...line])];
+}
+// how far a skill can be raised now: fourth-job skills stop at Lv.20 until you read their book
+const skillCap = s => s.book && !P.books.includes(s.id) ? 20 : s.max;
 const jobSkills = () => jobLine().flatMap(j => SKILLS[j] || []);
 // seven skill keys; until you place skills yourself (P.slots), they fill with your active skills in order
 const SKILL_SLOTS = 7;
@@ -59,7 +65,9 @@ function assignSlot(id, k) {
   P.slots = ids;
 }
 // mastery narrows the damage range toward the top: 10% to start, raised by each second job's mastery skill
-const mastery = () => 0.1 + MASTERY_SKILLS.reduce((s, id) => s + passive(id, "mastery"), 0) / 100;
+const mastery = () => Math.min(0.95, 0.1 + MASTERY_SKILLS.reduce((s, id) => s + passive(id, "mastery"), 0) / 100);
+// extra damage in percent from fourth-job passives, and from their buffs while they last
+const dmgBoost = () => DMG_SKILLS.reduce((s, id) => s + (SKILL_BY_ID[id].type === "passive" ? passive(id, "dmg") : buffVal(id, "dmg")), 0);
 
 // physical damage range before the skill's percentage
 function physRange() {
@@ -199,7 +207,7 @@ document.querySelectorAll("[data-act]").forEach(b => {
 const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins", "map"];
 function serialize() {
   const copy = v => JSON.parse(JSON.stringify(v));
-  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage), pets: copy(P.pets), petOn: P.petOn };
+  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], books: [...P.books], quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage), pets: copy(P.pets), petOn: P.petOn };
   SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
   return d;
 }
@@ -268,6 +276,9 @@ function load(d) {
     if (!MAPS[c.map]) c.map = "village";
     c.skills = { ...(d.skills || {}) }; c.buffs = { ...(d.buffs || {}) };
     c.slots = Array.isArray(d.slots) ? d.slots.slice(0, SKILL_SLOTS).map(x => SKILL_BY_ID[x] ? x : null) : [];
+    c.books = Array.isArray(d.books) ? [...new Set(d.books.filter(x => SKILL_BY_ID[x]?.book))] : [];
+    // a skill above its cap (a hand-edited save) comes back down to it
+    for (const id in c.skills) if (SKILL_BY_ID[id]?.book && !c.books.includes(id)) c.skills[id] = Math.min(c.skills[id], 20);
   }
   c.quests = cleanQuests(d.quests);
   c.storage = cleanStorage(d.storage);
