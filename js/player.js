@@ -6,7 +6,7 @@
 function freshCharacter() {
   return {
     lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
-    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [],
+    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [], pets: {}, petOn: null,
     bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"), storage: Array(BAG_SLOTS).fill(null),
   };
 }
@@ -98,13 +98,13 @@ const held = new Set(), pressed = new Set();
 const FIXED_KEYS = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Space: "space", Enter: "revive", Escape: "esc" };
 const ACTIONS = {
   jump: "跳躍", attack: "攻擊", pickup: "撿東西", skill1: "技能 1", skill2: "技能 2", skill3: "技能 3", skill4: "技能 4", skill5: "技能 5", skill6: "技能 6", skill7: "技能 7",
-  hpPot: "紅藥水", mpPot: "藍藥水", stats: "能力值", skills: "技能視窗", inv: "背包", equip: "裝備", world: "世界地圖", quests: "任務日誌", keys: "鍵位設定", settings: "設定",
+  hpPot: "紅藥水", mpPot: "藍藥水", stats: "能力值", skills: "技能視窗", inv: "背包", equip: "裝備", world: "世界地圖", quests: "任務日誌", keys: "鍵位設定", settings: "設定", minimap: "小地圖",
 };
 const DEFAULT_BINDS = {
   jump: ["AltLeft", "AltRight", "KeyC"], attack: ["ControlLeft", "ControlRight", "KeyX"], pickup: ["KeyZ"],
   skill1: ["ShiftLeft", "ShiftRight", "KeyA"], skill2: ["KeyD"], skill3: ["KeyF"], skill4: ["KeyG"], skill5: ["KeyH"], skill6: ["KeyV"], skill7: ["KeyB"],
   hpPot: ["Digit1", "Numpad1", "Delete"], mpPot: ["Digit2", "Numpad2", "End"],
-  stats: ["KeyS"], skills: ["KeyK"], inv: ["KeyI"], equip: ["KeyE"], world: ["KeyW"], quests: ["KeyQ"], keys: ["KeyO"], settings: ["KeyP"],
+  stats: ["KeyS"], skills: ["KeyK"], inv: ["KeyI"], equip: ["KeyE"], world: ["KeyW"], quests: ["KeyQ"], keys: ["KeyO"], settings: ["KeyP"], minimap: ["KeyM"],
 };
 const BINDS_KEY = "floating-isle-keys";
 let binds = {}, KEYMAP = {}, binding = null;
@@ -163,6 +163,7 @@ addEventListener("keydown", e => {
   const a = KEYMAP[e.code];
   if (!a) return;
   e.preventDefault();
+  if (a === "minimap") { if (!e.repeat) cycleMinimap(); return; }
   if (PANEL_KEYS.includes(a)) {
     if (e.repeat) return;
     const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin, world: worldWin, quests: questWin, keys: keysWin, settings: setWin };
@@ -198,7 +199,7 @@ document.querySelectorAll("[data-act]").forEach(b => {
 const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins", "map"];
 function serialize() {
   const copy = v => JSON.parse(JSON.stringify(v));
-  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage) };
+  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage), pets: copy(P.pets), petOn: P.petOn };
   SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
   return d;
 }
@@ -270,6 +271,8 @@ function load(d) {
   }
   c.quests = cleanQuests(d.quests);
   c.storage = cleanStorage(d.storage);
+  c.pets = cleanPets(d.pets);
+  c.petOn = c.pets[d.petOn] ? d.petOn : null;
   if (d.bag) { c.bag = cleanBag(d.bag); c.eq = cleanEq(d.eq); }
   else giveStarterGear(c, d.pots);
   Object.assign(P, c);

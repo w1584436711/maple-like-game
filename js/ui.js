@@ -415,7 +415,7 @@ function invInfo() {
       + list.map(([t, g, where]) => `<button type="button" class="btn pickgear" data-target="${t}">${esc(gearName(g))}${where}　剩 ${gearLeft(g)} 次</button>`).join("")
       + `<div class="acts">${actBtn("cancel", "取消")}</div></div>`;
   }
-  return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.heal || I.warp || I.scroll ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"), I.slot ? s : null);
+  return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.heal || I.warp || I.scroll || I.feed ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"), I.slot ? s : null);
 }
 // picking a slot only moves the outline and swaps the description, so the slot under the
 // pointer stays the same element and a double click on it still registers
@@ -450,6 +450,7 @@ function doInv(act) {
   if (act === "equip" && invTab === "equip") equipFrom(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].heal) drink(s.id, i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].warp) readScroll(i);
+  else if (act === "use" && invTab === "use" && ITEMS[s.id].feed) feedPet(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].scroll) {
     if (scrollTargets(ITEMS[s.id].scroll).length) { scrollPick = i; return; }
     hint(ITEMS[s.id].scroll.kind === "restore" ? "沒有強化失敗過的裝備" : "沒有可以用這張卷軸的裝備");
@@ -527,6 +528,11 @@ function renderSettings() {
     + `<label class="setrow"><span>畫面震動</span><select class="keysel" data-set="shake" aria-label="畫面震動">`
     + [[1, "正常"], [0.5, "小一點"], [0, "關閉"]].map(([v, n]) => `<option value="${v}"${settings.shake === v ? " selected" : ""}>${n}</option>`).join("")
     + `</select></label>`
+    + `<label class="setrow"><span>小地圖（${keyOf("minimap")}）</span><select class="keysel" data-set="minimap" aria-label="小地圖">`
+    + MINIMAP_SIZES.map((n, v) => `<option value="${v}"${settings.minimap === v ? " selected" : ""}>${n}</option>`).join("")
+    + `</select></label>`
+    + `<div class="qhead">寵物</div>`
+    + `<label class="setrow"><span>寵物也撿道具（關掉就只撿金幣）</span><input type="checkbox" data-set="petItems" aria-label="寵物也撿道具"${settings.petItems ? " checked" : ""}></label>`
     + `<div class="qhead">存檔</div>`
     + [1, 2, 3].map(n => `<div class="setrow"><span>存檔 ${n}${n === saveSlot ? "（使用中）" : ""}<small>${esc(slotSummary(n))}</small></span>`
       + (n === saveSlot ? "" : `<button type="button" class="btn" data-slot-switch="${n}" aria-label="切換到存檔 ${n}">切換</button>`) + `</div>`).join("")
@@ -544,6 +550,8 @@ setBody.addEventListener("change", e => {
   const t = e.target;
   if (t.dataset.set === "nums") settings.nums = t.checked;
   else if (t.dataset.set === "shake") settings.shake = Number(t.value);
+  else if (t.dataset.set === "minimap") settings.minimap = Number(t.value);
+  else if (t.dataset.set === "petItems") settings.petItems = t.checked;
   else return;
   saveSettings();
 });

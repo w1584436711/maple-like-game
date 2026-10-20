@@ -14,6 +14,8 @@ const NPCS = {
            look: { robe: "#7a5233", hair: "#3a2a20", bald: true, beard: "#4a3020", apron: true, prop: "hammer" } },
   rose:  { name: "倉庫管理員 蘿絲", map: "village", x: 790, storage: true, greet: "要寄放東西嗎？放在我這裡的東西，什麼時候來拿都可以。",
            look: { robe: "#a85a3a", hair: "#2a2a3a", bun: true, apron: true } },
+  lulu:  { name: "寵物飼育員 露露", map: "village", x: 1090, shop: "pet", talk: luluTalk,
+           look: { robe: "#e88ab0", hair: "#f6d36a", long: true, apron: true } },
   owen:  { name: "村長 歐文", map: "village", x: 660, greet: "歡迎來到浮島村。年輕人，村子最近有些麻煩，你願意幫忙嗎？",
            look: { robe: "#4a63a8", hair: "#dfe3ec", beard: "#eef1f6", prop: "cane" } },
   tuck:  { name: "漁夫 塔克", map: "shore", x: 200, greet: "唉，今天又沒釣到魚。都是那些刺殼龜害的！",
@@ -344,8 +346,9 @@ function cleanQuests(d) {
 // ---------- Shops ----------
 // [item, how many one purchase gives]; you sell anything back for half its price
 const SHOPS = {
-  items: [["red_pot", 1], ["blue_pot", 1], ["town_scroll", 1], ["arrow", 100], ["iron_star", 100], ["guard_scroll", 1], ["restore_scroll", 1]],
-  cloud: [["white_pot", 1], ["mana_pot", 1], ["town_scroll", 1], ["arrow", 100], ["steel_star", 100], ["guard_scroll", 1], ["restore_scroll", 1],
+  pet: [["pet_food", 1]],
+  items: [["red_pot", 1], ["blue_pot", 1], ["town_scroll", 1], ["pet_food", 1], ["arrow", 100], ["iron_star", 100], ["guard_scroll", 1], ["restore_scroll", 1]],
+  cloud: [["white_pot", 1], ["mana_pot", 1], ["town_scroll", 1], ["pet_food", 1], ["arrow", 100], ["steel_star", 100], ["guard_scroll", 1], ["restore_scroll", 1],
           ...["cloud_hat", "cloud_robe", "cloud_pants", "cloud_boots", "cloud_shield", "cloud_sword", "thunder_staff", "sky_bow", "cloud_claw"].map(id => [id, 1])],
   gear: ["wood_sword", "iron_blade", "oak_wand", "hunter_bow", "iron_claw", "plain_tee", "plain_shorts", "straw_shoes", "leaf_band",
          "work_gloves", "jelly_tunic", "canvas_pants", "leather_cap", "hunter_gloves", "travel_cape", "wind_boots", "wood_shield"].map(id => [id, 1]),

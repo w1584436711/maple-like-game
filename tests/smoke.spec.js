@@ -730,7 +730,7 @@ test("設定：音量、傷害數字、畫面震動，重新整理後還在", as
   await win.getByRole("slider", { name: "音樂音量" }).fill("0");
   await win.getByRole("checkbox", { name: "顯示傷害數字" }).uncheck();
   await win.getByRole("combobox", { name: "畫面震動" }).selectOption("0");
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("floating-isle-settings")))).toEqual({ sfx: 70, music: 0, nums: false, shake: 0 });
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("floating-isle-settings")))).toEqual({ sfx: 70, music: 0, nums: false, shake: 0, minimap: 1, petItems: true });
   await page.reload();
   await page.locator("#openSettings").click();
   await expect(win.getByRole("checkbox", { name: "顯示傷害數字" })).not.toBeChecked();
@@ -778,6 +778,67 @@ test("點一下畫面就會開始有聲音，在文字框打字不會觸發遊�
   await page.keyboard.type("iek");
   await expect(page.locator("#invWin")).toBeHidden();
   await expect(page.locator("#saveText")).toHaveValue("iek");
+  expect(errors).toEqual([]);
+});
+
+// 寵物飼育員露露站在浮島村 x=1090
+const PET_SAVE = { ...LV10_BEGINNER, map: "village", pets: { bun: { full: 100, close: 0 } }, petOn: "bun" };
+
+test("跟寵物飼育員買寵物，寵物會跟出來，還送 5 個飼料", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV10_BEGINNER, coins: 5000 });
+  await page.locator("#game").click();
+  await page.evaluate(() => openNpc(NPCS.lulu));
+  await page.locator("#dlg").getByRole("button", { name: /買下圓圓雞/ }).click();
+  const saved = await readSave(page);
+  expect(saved.pets).toEqual({ chick: { full: 100, close: 0 } });
+  expect(saved.petOn).toBe("chick");
+  expect(saved.coins).toBe(2000);
+  expect(itemCount(saved, "pet_food")).toBe(5);
+  expect(errors).toEqual([]);
+});
+
+test("寵物會自動撿附近的金幣，肚子餓了就不撿", async ({ page }) => {
+  const errors = await openWithSave(page, PET_SAVE);
+  await page.locator("#game").click();
+  await page.evaluate(() => { for (let i = 0; i < 3; i++) addDrop("coin", P.x + 60 + i * 30, 800, 10); });
+  await page.waitForTimeout(2500);
+  expect(await page.evaluate(() => [P.coins, drops.length])).toEqual([30, 0]);
+  // 飽足度低於 20 就不幫忙撿
+  await page.evaluate(() => { P.pets.bun.full = 10; addDrop("coin", P.x + 60, 800, 10); });
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => [P.coins, drops.length])).toEqual([30, 1]);
+  expect(errors).toEqual([]);
+});
+
+test("在背包對寵物飼料點兩下會餵寵物，餓的時候餵親密度會上升", async ({ page }) => {
+  const errors = await openWithSave(page, {
+    ...PET_SAVE, pets: { bun: { full: 40, close: 0 } },
+    bag: { equip: [], use: [{ id: "pet_food", n: 3 }], etc: [] },
+  });
+  await page.locator("#game").click();
+  await page.keyboard.press("i");
+  const inv = page.locator("#invWin");
+  await inv.getByRole("tab", { name: "消耗" }).click();
+  await inv.getByRole("button", { name: "寵物飼料" }).dblclick();
+  const saved = await readSave(page);
+  expect(saved.pets.bun).toEqual({ full: 70, close: 3 });
+  expect(itemCount(saved, "pet_food")).toBe(2);
+  expect(errors).toEqual([]);
+});
+
+test("按 M 切換小地圖：小、大、關閉，重新整理後還記得", async ({ page }) => {
+  const errors = await openGame(page);
+  await page.locator("#game").click();
+  expect(await playerDotX(page)).not.toBeNull();
+  await page.keyboard.press("m");
+  expect(await page.evaluate(() => settings.minimap)).toBe(2);
+  await page.keyboard.press("m");
+  await page.waitForTimeout(100);
+  expect(await playerDotX(page)).toBeNull();
+  await page.reload();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("floating-isle-settings")).minimap)).toBe(0);
+  await page.locator("#openSettings").click();
+  await expect(page.locator("#setWin").getByRole("combobox", { name: "小地圖" })).toHaveValue("0");
   expect(errors).toEqual([]);
 });
 

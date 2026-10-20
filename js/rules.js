@@ -81,6 +81,7 @@ const ITEMS = {
   iron_star:     { name: "鐵製飛鏢", cat: "use", ammo: "claw", watk: 15, stack: 500, color: "#c8d2de", desc: "拳爪丟的飛鏢，丟一次用掉一支" },
   steel_star:    { name: "銳角飛鏢", cat: "use", ammo: "claw", watk: 19, stack: 500, color: "#9fd0ff", desc: "更鋒利的飛鏢，丟一次用掉一支" },
   town_scroll:   { name: "回村卷軸", cat: "use", warp: true, color: "#e8d6a8", desc: "讀了就會立刻回到這片大陸的城鎮（浮島村或雲頂城）" },
+  pet_food:      { name: "寵物飼料", cat: "use", feed: true, icon: "food", color: "#c98a4a", desc: "在背包點兩下，餵給正在外面的寵物，飽足度加 30" },
   white_pot:     { name: "白藥水", cat: "use", heal: { hp: 300 }, color: "#f4f4f4", desc: "回復 300 HP" },
   mana_pot:      { name: "魔力藥水", cat: "use", heal: { mp: 200 }, color: "#7a5ae0", desc: "回復 200 MP" },
   // enhancement scrolls: on success they add bonus to one piece of gear; either way it uses up one upgrade slot
@@ -134,7 +135,7 @@ const ITEMS = {
 };
 // shop prices in coins; a shop buys anything back for half, and monster materials have their own price
 const PRICES = {
-  red_pot: 25, blue_pot: 50, town_scroll: 200, arrow: 1, iron_star: 2, steel_star: 4,
+  red_pot: 25, blue_pot: 50, pet_food: 30, town_scroll: 200, arrow: 1, iron_star: 2, steel_star: 4,
   wood_sword: 50, iron_blade: 3000, jade_blade: 20000, oak_wand: 2500, vine_staff: 20000, hunter_bow: 3000, hawk_bow: 20000,
   iron_claw: 3000, dark_claw: 20000, plain_tee: 30, jelly_tunic: 600, plain_shorts: 30, canvas_pants: 600, straw_shoes: 30,
   wind_boots: 2000, leaf_band: 200, leather_cap: 1500, work_gloves: 300, hunter_gloves: 2500, travel_cape: 1500, moss_cape: 15000,

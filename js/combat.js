@@ -452,6 +452,7 @@ function update(dt) {
   updateShots(dt);
   updateMobs(dt);
   updateDrops(dt);
+  updatePet(dt);
   for (let i = nums.length - 1; i >= 0; i--) if ((nums[i].t += dt) > 1.1) nums.splice(i, 1);
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt;

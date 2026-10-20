@@ -284,6 +284,7 @@ function loadMap(id, x = MAPS[id].spawn, y = 840) {
   cam.x = clamp(P.x + P.w / 2 - W / 2, 0, WORLD_W - W);
   cam.y = clamp(P.y - H * 0.58, 0, WORLD_H - H);
   fade = 1;
+  pet.map = null;
 }
 const portalAt = () => portals.find(pt => Math.abs(P.x + P.w / 2 - pt.x) < 24 && Math.abs(P.y + P.h - pt.y) < 4);
 function usePortal(pt) {
