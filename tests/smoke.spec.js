@@ -651,7 +651,7 @@ test("紅藥水鍵會先喝白藥水", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("雲守衛給任務，世界地圖分成浮島和雲頂", async ({ page }) => {
+test("雲守衛給任務，世界地圖分成浮島、雲頂和沉砂", async ({ page }) => {
   // 雲頂城的出生點在 x=200，鏡頭在地圖左邊，雲守衛雷恩站在 x=620
   const errors = await openWithSave(page, { ...LV30_WARRIOR, map: "cloudtown" });
   await clickNpc(page, 620);
@@ -662,7 +662,7 @@ test("雲守衛給任務，世界地圖分成浮島和雲頂", async ({ page }) 
   await page.keyboard.press("Escape");
   await page.keyboard.press("w");
   const world = page.locator("#worldWin");
-  await expect(world.locator(".qhead")).toHaveText(["浮島", "雲頂"]);
+  await expect(world.locator(".qhead")).toHaveText(["浮島", "雲頂", "沉砂"]);
   await expect(world).toContainText("雷雲巨鷲 Lv.50");
   expect(errors).toEqual([]);
 });
@@ -839,6 +839,111 @@ test("按 M 切換小地圖：小、大、關閉，重新整理後還記得", as
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("floating-isle-settings")).minimap)).toBe(0);
   await page.locator("#openSettings").click();
   await expect(page.locator("#setWin").getByRole("combobox", { name: "小地圖" })).toHaveValue("0");
+  expect(errors).toEqual([]);
+});
+
+// 沙漠大陸用 Lv.70 的破陣劍豪；固定亂數讓攻擊、閃避的結果每次都一樣
+const LV70_SAINT = {
+  ...LV50_BERSERKER, lv: 70, job: "swordsaint", str: 300, mhp: 6000, mmp: 1500, hp: 6000, mp: 1500, coins: 5000,
+  bag: { equip: [], use: [{ id: "town_scroll", n: 1 }], etc: [] }, eq: { weapon: { id: "sand_sword", n: 1 } },
+};
+const fixRandom = page => page.addInitScript(() => { Math.random = () => 0.99; });
+
+test("從雲頂城搭飛船到沉砂城，狩獵場的回村卷軸回到沉砂城，世界地圖多了沉砂", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV70_SAINT, map: "cloudtown" });
+  await clickNpc(page, 160);
+  await page.locator("#dlg").getByRole("button", { name: /搭飛船去沉砂城/ }).click();
+  let saved = await readSave(page);
+  expect([saved.map, saved.coins]).toEqual(["sandcity", 4000]);
+  // 守衛隊長哈山有新任務
+  await page.evaluate(() => openNpc(NPCS.hasan));
+  await expect(page.locator("#dlg").getByRole("button", { name: /沙丘上的狐群/ })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => loadMap("dunes"));
+  await page.keyboard.press("i");
+  const inv = page.locator("#invWin");
+  await inv.getByRole("tab", { name: "消耗" }).click();
+  await inv.getByRole("button", { name: "回村卷軸" }).dblclick();
+  expect((await readSave(page)).map).toBe("sandcity");
+  await page.keyboard.press("w");
+  for (const name of ["沉砂", "沙丘地帶", "仙人掌谷", "地下古墓", "流沙神殿"]) await expect(page.locator("#worldWin")).toContainText(name);
+  expect(errors).toEqual([]);
+});
+
+test("鑽沙蚯躲在沙裡時打不到，會鑽到腳下冒出來咬人", async ({ page }) => {
+  await fixRandom(page);
+  const errors = await openWithSave(page, { ...LV70_SAINT, map: "dunes" });
+  await page.locator("#game").click();
+  // 只留一隻鑽進沙裡的鑽沙蚯，放在角色右邊 120 px
+  const start = await page.evaluate(() => {
+    loadMap("dunes", 600); mobs.length = 0;
+    const m = spawnMob("worm", plats[0], 0, 2400, 720); m.minion = false; m.alpha = 1; m.under = true; m.bt = 2;
+    P.inv = 0;
+    return { hidden: targetsIn({ x: 0, y: 0, w: 2400, h: 924 }, 10).length, x: m.x };
+  });
+  expect(start.hidden).toBe(0);
+  await page.waitForTimeout(2500);
+  const after = await page.evaluate(() => ({ under: mobs[0].under, dx: Math.abs(mobs[0].x + mobs[0].w / 2 - (P.x + P.w / 2)), hp: P.hp, hit: targetsIn({ x: 0, y: 0, w: 2400, h: 924 }, 10).length }));
+  expect(after.under).toBe(false);
+  expect(after.dx).toBeLessThan(60);
+  expect(after.hp).toBeLessThan(6000);
+  expect(after.hit).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test("仙人掌怪會從遠處丟刺過來", async ({ page }) => {
+  await fixRandom(page);
+  const errors = await openWithSave(page, { ...LV70_SAINT, map: "valley" });
+  await page.locator("#game").click();
+  await page.evaluate(() => {
+    loadMap("valley", 300); mobs.length = 0;
+    const m = spawnMob("cactus", plats[0], 0, 2400, 560); m.minion = false; m.alpha = 1;
+    P.inv = 0;
+  });
+  await page.waitForTimeout(4500);
+  const r = await page.evaluate(() => ({ hp: P.hp, x: mobs[0].x + mobs[0].w / 2 - (P.x + P.w / 2) }));
+  expect(r.hp).toBeLessThan(6000);
+  // 牠站在遠處丟，不會走到角色身上
+  expect(Math.abs(r.x)).toBeGreaterThan(120);
+  expect(errors).toEqual([]);
+});
+
+test("沙暴蠍皇會召喚小沙蠍，血量剩一半會發怒，打倒後小沙蠍也一起消失", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV70_SAINT, map: "temple" });
+  await page.locator("#game").click();
+  await page.evaluate(() => {
+    loadMap("temple", 1000, 440); P.inv = 999;
+    const k = mobs.find(m => m.t === "scorpking"); k.aggro = 5; k.scd = 0.1;
+  });
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => mobs.filter(m => m.t === "scorpling" && !m.dead).length)).toBe(2);
+  await page.evaluate(() => { const k = mobs.find(m => m.t === "scorpking"); k.hp = k.T.hp * 0.4; });
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => mobs.find(m => m.t === "scorpking").raged)).toBe(true);
+  await expect.poll(() => page.evaluate(() => msgs.some(m => m.text.includes("沙暴蠍皇發怒了")))).toBe(true);
+  await page.evaluate(() => kill(mobs.find(m => m.t === "scorpking")));
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(() => mobs.filter(m => m.t === "scorpling").length)).toBe(0);
+  expect(await page.evaluate(() => drops.some(d => d.id === "scorp_stinger"))).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("地下古墓很暗，只有角色附近看得清楚", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV70_SAINT, map: "dunes" });
+  await page.locator("#game").click();
+  // 畫面左上方天空的平均亮度：沙丘很亮，古墓幾乎全黑
+  const brightness = () => page.evaluate(() => {
+    const cv = document.getElementById("game"), s = cv.width / 960;
+    const px = cv.getContext("2d").getImageData(Math.floor(200 * s), Math.floor(120 * s), Math.ceil(200 * s), Math.ceil(80 * s)).data;
+    let sum = 0; for (let i = 0; i < px.length; i += 4) sum += (px[i] + px[i + 1] + px[i + 2]) / 3;
+    return sum / (px.length / 4);
+  });
+  await page.evaluate(() => { loadMap("dunes", 1200); mobs.length = 0; });
+  await page.waitForTimeout(600);
+  expect(await brightness()).toBeGreaterThan(150);
+  await page.evaluate(() => { loadMap("tomb", 1200); mobs.length = 0; });
+  await page.waitForTimeout(600);
+  expect(await brightness()).toBeLessThan(30);
   expect(errors).toEqual([]);
 });
 

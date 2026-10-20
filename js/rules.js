@@ -111,6 +111,34 @@ const ITEMS = {
   bell_shard:    { name: "風鈴碎片", icon: "shard", color: "#8fe0d8", desc: "敲一下會發出清脆的聲音" },
   thunder_horn:  { name: "雷角", icon: "shard", color: "#ffe066", desc: "摸起來會微微發麻" },
   eagle_feather: { name: "雷鷲羽毛", color: "#a080e0", desc: "雷雲巨鷲身上帶著雷光的羽毛" },
+  // the desert continent: materials, scrolls and gear
+  fox_tail:      { name: "沙狐尾巴", icon: "gel", color: "#e8a050", desc: "蓬鬆的尾巴，尾端是白色的" },
+  worm_skin:     { name: "鑽沙蚯外皮", icon: "shard", color: "#c98a6a", desc: "一圈一圈、很有彈性的皮" },
+  cactus_needle: { name: "仙人掌刺", icon: "shard", color: "#6fae5a", desc: "又長又硬，小心別刺到手" },
+  wisp_ash:      { name: "燈魂餘燼", color: "#7fe0e0", desc: "還在微微發光的藍色灰燼" },
+  clay_shard:    { name: "陶俑碎片", icon: "shard", color: "#b8634a", desc: "古墓陶俑身上掉下來的陶片" },
+  scarab_shell:  { name: "聖甲蟲殼", icon: "shard", color: "#3fa898", desc: "閃著金綠色光澤的硬殼" },
+  scorp_stinger: { name: "蠍皇毒針", icon: "shard", color: "#c83a3a", desc: "沙暴蠍皇尾巴上的巨大毒針" },
+  scroll_cape60: { name: "披風防禦卷軸 60%", cat: "use", scroll: { slots: ["cape"], rate: 0.6, add: { def: 2, hp: 10 } }, color: "#e0d0f0", seal: "#3a7be0",
+                   desc: "60% 機率讓披風的防禦加 2、HP 加 10" },
+  scroll_shoes60: { name: "鞋子敏捷卷軸 60%", cat: "use", scroll: { slots: ["shoes"], rate: 0.6, add: { dex: 1, avoid: 2 } }, color: "#f0e0c0", seal: "#3a7be0",
+                   desc: "60% 機率讓鞋子的敏捷加 1、迴避加 2" },
+  sand_sword:    { name: "流砂彎刀", slot: "weapon", wtype: "sword", watk: 85, color: "#f0c070", req: { lv: 55, str: 170 } },
+  sun_staff:     { name: "烈陽法杖", slot: "weapon", wtype: "wand", watk: 24, matk: 98, color: "#ff9a3a", req: { lv: 55, int: 170 } },
+  dune_bow:      { name: "沙丘長弓", slot: "weapon", wtype: "bow", watk: 78, color: "#d8a050", req: { lv: 55, dex: 170 } },
+  sand_claw:     { name: "沙蠍拳爪", slot: "weapon", wtype: "claw", watk: 36, color: "#e0b060", req: { lv: 55, luk: 170 } },
+  tomb_sword:    { name: "墓王巨劍", slot: "weapon", wtype: "sword", watk: 100, color: "#8fe0c8", req: { lv: 65, str: 200 } },
+  moon_staff:    { name: "冥月法杖", slot: "weapon", wtype: "wand", watk: 27, matk: 115, color: "#a8a0ff", req: { lv: 65, int: 200 } },
+  pharaoh_bow:   { name: "金沙王弓", slot: "weapon", wtype: "bow", watk: 92, color: "#ffd84a", req: { lv: 65, dex: 200 } },
+  scarab_claw:   { name: "聖甲拳爪", slot: "weapon", wtype: "claw", watk: 42, color: "#3fa898", req: { lv: 65, luk: 200 } },
+  desert_hat:    { name: "沙漠頭巾", slot: "hat", def: 28, hp: 50, color: "#f0d8a0", req: { lv: 55 } },
+  desert_robe:   { name: "沙漠長衫", slot: "top", def: 38, hp: 80, color: "#e8c080", req: { lv: 55 } },
+  desert_pants:  { name: "沙漠燈籠褲", slot: "bottom", def: 30, color: "#d8a868", req: { lv: 55 } },
+  desert_boots:  { name: "沙行靴", slot: "shoes", def: 16, dex: 4, avoid: 5, color: "#b88a50", req: { lv: 55 } },
+  tomb_helm:     { name: "古墓頭冠", slot: "hat", def: 36, hp: 80, mp: 40, color: "#d8b050", req: { lv: 65 } },
+  tomb_armor:    { name: "陶俑胸甲", slot: "top", def: 48, hp: 120, color: "#b8634a", req: { lv: 65 } },
+  tomb_greaves:  { name: "陶俑護腿", slot: "bottom", def: 38, hp: 40, color: "#9a5a40", req: { lv: 65 } },
+  tomb_cape:     { name: "王陵披風", slot: "cape", def: 26, str: 7, dex: 7, int: 7, luk: 7, color: "#3a6a8a", req: { lv: 65 } },
   // gear from the cloud island
   cloud_sword:   { name: "雲紋長劍", slot: "weapon", wtype: "sword", watk: 72, color: "#bfe0ff", req: { lv: 40, str: 130 } },
   thunder_staff: { name: "雷光法杖", slot: "weapon", wtype: "wand", watk: 22, matk: 82, color: "#ffe066", req: { lv: 40, int: 130 } },
@@ -142,11 +170,15 @@ const PRICES = {
   wood_shield: 1500, shell_shield: 8000,
   storm_blade: 40000, star_staff: 40000, gale_bow: 40000, fang_claw: 40000, fog_hood: 5000, lizard_mail: 9000, lizard_greaves: 7000,
   crab_shield: 16000, grove_cape: 30000, guard_scroll: 8000, restore_scroll: 6000,
-  white_pot: 150, mana_pot: 300, cloud_sword: 120000, thunder_staff: 120000, sky_bow: 120000, cloud_claw: 120000,
+  white_pot: 150, mana_pot: 300, scroll_cape60: 5000, scroll_shoes60: 5000,
+  sand_sword: 200000, sun_staff: 200000, dune_bow: 200000, sand_claw: 200000, tomb_cape: 150000,
+  desert_hat: 20000, desert_robe: 28000, desert_pants: 24000, desert_boots: 18000, tomb_helm: 40000, tomb_armor: 55000, tomb_greaves: 45000,
+  tomb_sword: 300000, moon_staff: 300000, pharaoh_bow: 300000, scarab_claw: 300000, cloud_sword: 120000, thunder_staff: 120000, sky_bow: 120000, cloud_claw: 120000,
   cloud_hat: 12000, cloud_robe: 18000, cloud_pants: 15000, cloud_boots: 10000, cloud_shield: 30000, storm_cape: 60000, scroll_wpn60: 4000, scroll_wpn10: 6000, scroll_arm60: 3000, scroll_arm10: 5000, scroll_glove60: 4000,
 };
 const SELL = { green_gel: 6, blue_gel: 12, shell_shard: 25, moss_core: 800, fog_spore: 30, lizard_scale: 50, crab_claw: 1500, ancient_ring: 3000,
-               cloud_wool: 80, bell_shard: 120, thunder_horn: 200, eagle_feather: 5000 };
+               cloud_wool: 80, bell_shard: 120, thunder_horn: 200, eagle_feather: 5000,
+               fox_tail: 220, worm_skin: 260, cactus_needle: 300, wisp_ash: 340, clay_shard: 380, scarab_shell: 420, scorp_stinger: 20000 };
 // sets: wearing more pieces of one set unlocks more of its bonuses (every tier you reach adds up)
 const SETS = {
   adventurer: { name: "冒險者套裝", items: ["leather_cap", "jelly_tunic", "canvas_pants", "wind_boots"],
@@ -155,6 +187,10 @@ const SETS = {
                 tiers: { 2: { def: 5 }, 3: { watk: 3, matk: 3 }, 4: { def: 15, hp: 150, str: 3, dex: 3, int: 3, luk: 3 } } },
   cloud:      { name: "雲絲套裝", items: ["cloud_hat", "cloud_robe", "cloud_pants", "cloud_boots"],
                 tiers: { 2: { def: 8 }, 4: { def: 20, hp: 200, mp: 100, avoid: 5 } } },
+  desert:     { name: "沙漠套裝", items: ["desert_hat", "desert_robe", "desert_pants", "desert_boots"],
+                tiers: { 2: { def: 10 }, 3: { avoid: 6 }, 4: { def: 25, hp: 300, dex: 5, luk: 5 } } },
+  tomb:       { name: "古墓套裝", items: ["tomb_helm", "tomb_armor", "tomb_greaves", "tomb_cape"],
+                tiers: { 2: { def: 12 }, 3: { watk: 5, matk: 5 }, 4: { def: 30, hp: 400, str: 6, dex: 6, int: 6, luk: 6 } } },
 };
 for (const [id, S] of Object.entries(SETS)) S.items.forEach(i => { ITEMS[i].set = id; });
 for (const [id, I] of Object.entries(ITEMS)) {

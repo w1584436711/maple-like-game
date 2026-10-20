@@ -53,11 +53,13 @@ function drawBG() {
     skyGrad.addColorStop(0, sky[0]); skyGrad.addColorStop(0.6, sky[1]); skyGrad.addColorStop(1, sky[2]);
   }
   ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, W, H);
-  // sun
-  ctx.fillStyle = "rgba(255,247,214,.9)";
-  ctx.beginPath(); ctx.arc(780 - cam.x * 0.02, 90, 38, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "rgba(255,247,214,.25)";
-  ctx.beginPath(); ctx.arc(780 - cam.x * 0.02, 90, 60, 0, Math.PI * 2); ctx.fill();
+  // sun, unless underground
+  if (!map.theme.dark) {
+    ctx.fillStyle = "rgba(255,247,214,.9)";
+    ctx.beginPath(); ctx.arc(780 - cam.x * 0.02, 90, 38, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,247,214,.25)";
+    ctx.beginPath(); ctx.arc(780 - cam.x * 0.02, 90, 60, 0, Math.PI * 2); ctx.fill();
+  }
   // far mountains
   const ox = cam.x * 0.12, oy = cam.y * 0.1, th = map.theme;
   if (th.cloudsea) {
@@ -96,7 +98,7 @@ function drawBG() {
     }
   }
   // clouds
-  for (const c of clouds) {
+  if (!th.dark) for (const c of clouds) {
     const span = W + 320;
     const x = ((c.x - cam.x * 0.18) % span + span) % span - 160;
     const y = c.y - cam.y * 0.08;
@@ -121,6 +123,7 @@ function drawTree(t) {
   else if (kind === "pine") drawPine(t);
   else if (kind === "spire") drawSpire(t);
   else if (kind === "pillar") drawPillar(t);
+  else if (kind === "cactus") drawCactusTree(t);
   else drawOak(t);
 }
 // a palm leaning over the beach, with ringed trunk, drooping fronds and coconuts
@@ -594,6 +597,10 @@ function drawMob(m) {
   ctx.fillStyle = "rgba(0,0,0,.15)"; ctx.beginPath(); ctx.ellipse(0, 0, m.w * 0.45, 4, 0, 0, Math.PI * 2); ctx.fill();
   const white = m.flash > 0;
   const f = m.dir;
+  // hidden in the sand: only a moving heap shows where it is
+  if (m.under) { drawMound(m); ctx.restore(); return; }
+  // coming out of the sand: it rises out of the ground
+  if (m.surf > 0) { ctx.beginPath(); ctx.rect(-m.w * 2, -400, m.w * 4, 400); ctx.clip(); ctx.translate(0, m.h * 0.8 * (m.surf / 0.4)); }
   if (m.t === "jelly" || m.t === "bjelly") {
     const walking = m.state === "walk" || m.aggro > 0;
     const hop = walking ? Math.abs(Math.sin(m.ph * 7)) * 8 : 0;
@@ -913,6 +920,112 @@ function drawMob(m) {
     ctx.beginPath(); for (const [x, y, r] of crown) { ctx.moveTo(x + r * 0.9, y + sway); ctx.arc(x, y + sway, r * 0.9, 0, Math.PI * 2); } ctx.fill();
     ctx.fillStyle = "rgba(255,255,255,.12)";
     ctx.beginPath(); for (const [x, y, r] of crown) { ctx.moveTo(x - 6 + r * 0.4, y - 8 + sway); ctx.arc(x - 6, y - 8 + sway, r * 0.4, 0, Math.PI * 2); } ctx.fill();
+  } else if (m.t === "fox") {
+    // a desert fox: big ears, a cream belly and a bushy white-tipped tail
+    const walking = m.state === "walk" || m.aggro > 0, step = walking ? Math.sin(m.ph * 14) * 4 : 0, fur = "#e8a050";
+    ctx.scale(f, 1);
+    ctx.save(); ctx.translate(-18, -22); ctx.rotate(-0.5 + Math.sin(m.ph * 6) * 0.15);
+    ctx.beginPath(); ctx.ellipse(-12, 0, 16, 8, 0, 0, Math.PI * 2); paint(white ? "#fff" : gloss(fur, -8, 8));
+    ctx.fillStyle = "#fff8ee"; ctx.beginPath(); ctx.ellipse(-23, 0, 6, 5.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    for (const [x, s2] of [[-14, step], [-6, -step], [8, step], [15, -step]]) { ctx.beginPath(); rr(x - 2.5 + s2 * 0.6, -12, 5, 12, 2); paint(white ? "#fff" : "#c87a38"); }
+    ctx.beginPath(); ctx.ellipse(0, -18, 20, 10, 0, 0, Math.PI * 2); paint(white ? "#fff" : gloss(fur, -28, -8));
+    ctx.fillStyle = "#fff3e0"; ctx.beginPath(); ctx.ellipse(4, -12.5, 12, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+    for (const [a, b, c] of [[12, 20, 17], [20, 26, 25]]) {
+      ctx.beginPath(); ctx.moveTo(a, -32); ctx.lineTo(a + (b - a) * 0.4, -48); ctx.lineTo(b, -33); ctx.closePath(); paint(white ? "#fff" : fur);
+      ctx.fillStyle = "#f3b0a0"; ctx.beginPath(); ctx.moveTo(a + 2, -33); ctx.lineTo(a + (b - a) * 0.4, -44); ctx.lineTo(b - 2, -33); ctx.fill();
+    }
+    ctx.beginPath(); ctx.ellipse(18, -27, 10, 8.5, 0, 0, Math.PI * 2); paint(white ? "#fff" : gloss(fur, -36, -18));
+    ctx.beginPath(); ctx.ellipse(27, -23, 6, 3.6, 0, 0, Math.PI * 2); paint("#fff3e0", INK, 1);
+    ctx.fillStyle = "#2a1a10"; ctx.beginPath(); ctx.arc(32.5, -24, 1.8, 0, Math.PI * 2); ctx.fill();
+    if (!blinking(m.ph * 0.4)) { ctx.beginPath(); ctx.ellipse(21, -29, 1.8, 2.4, 0, 0, Math.PI * 2); ctx.fill(); }
+    if (m.aggro > 0) { ctx.strokeStyle = "#5a2a10"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(17, -33); ctx.lineTo(24, -31); ctx.stroke(); }
+  } else if (m.t === "worm") {
+    // a ringed sand worm reared out of a little heap of sand, jaws open
+    ctx.scale(f, 1);
+    const wig = Math.sin(m.ph * 5) * 2.5, skin = "#c98a6a";
+    ctx.fillStyle = map.theme.grass[1]; ctx.beginPath(); ctx.ellipse(-20, 0, 16, 5, 0, Math.PI, 0); ctx.fill();
+    const seg = [[-24, -5, 9], [-14, -11, 10], [-2, -17, 11], [10, -21, 11], [21, -22, 10]];
+    seg.forEach(([x, y, r], i) => {
+      const yy = y + wig * (i % 2 ? 1 : -1) * 0.5;
+      ctx.beginPath(); ctx.arc(x, yy, r, 0, Math.PI * 2); paint(white ? "#fff" : gloss(skin, yy - r, yy + r));
+      ctx.strokeStyle = "rgba(90,40,30,.35)"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, yy, r * 0.62, -1.2, 1.2); ctx.stroke();
+    });
+    const open = m.aggro > 0 ? 1 : 0.5 + Math.sin(m.ph * 3) * 0.3;
+    ctx.fillStyle = "#5a2020"; ctx.beginPath(); ctx.ellipse(29, -22, 3.5, 4 + open * 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#f6e8cc"; ctx.lineWidth = 2; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(28, -27 - open * 2); ctx.quadraticCurveTo(36, -28 - open * 3, 35, -22); ctx.moveTo(28, -17 + open * 2); ctx.quadraticCurveTo(36, -16 + open * 3, 35, -22); ctx.stroke();
+    ctx.lineCap = "butt";
+    ctx.fillStyle = "#2a1010"; ctx.beginPath(); ctx.arc(22, -27, 1.6, 0, Math.PI * 2); ctx.arc(25, -26, 1.4, 0, Math.PI * 2); ctx.fill();
+  } else if (m.t === "cactus") {
+    // a walking cactus with a flower on top; it raises an arm to throw its needles
+    const hop = m.state === "walk" || m.aggro > 0 ? Math.abs(Math.sin(m.ph * 6)) * 4 : 0, g = "#5fae4a", fill = (y0, y1) => white ? "#fff" : gloss(g, y0, y1);
+    ctx.scale(f, 1); ctx.translate(0, -hop);
+    ctx.fillStyle = "#8a6237"; ctx.beginPath(); ctx.ellipse(0, -2, 14, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); rr(-24, -40, 9, 22, 4.5); paint(fill(-40, -18)); ctx.beginPath(); rr(-20, -24, 8, 7, 3); paint(fill(-24, -17));
+    ctx.beginPath(); rr(-13, -58, 26, 58, 13); paint(fill(-58, 0), "#2a5a20", 1.6);
+    ctx.strokeStyle = "rgba(30,80,30,.4)"; ctx.lineWidth = 1.4;
+    for (const x of [-6, 0, 6]) { ctx.beginPath(); ctx.moveTo(x, -54); ctx.lineTo(x, -4); ctx.stroke(); }
+    ctx.save(); ctx.translate(12, -26); ctx.rotate(m.throwT > 0 ? -1.6 : -0.15);
+    ctx.beginPath(); rr(-3, -22, 9, 24, 4.5); paint(fill(-22, 2), "#2a5a20", 1.4);
+    ctx.restore();
+    ctx.strokeStyle = "#f6f0d8"; ctx.lineWidth = 1;
+    for (const [x, y] of [[-12, -44], [12, -36], [-11, -20], [12, -12], [-3, -8], [5, -50]]) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.sign(x) * 4, y - 2); ctx.stroke(); }
+    for (let i = 0; i < 5; i++) { const a = i * Math.PI * 0.4 + m.ph * 0.3; ctx.fillStyle = "#ff7aa8"; ctx.beginPath(); ctx.ellipse(Math.cos(a) * 4, -60 + Math.sin(a) * 2.5, 3.6, 2.4, a, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = "#ffe066"; ctx.beginPath(); ctx.arc(0, -60, 2.4, 0, Math.PI * 2); ctx.fill();
+    eyes(-1, 6, -40, 2.3, 0.6, blinking(m.ph * 0.5), "#1f3a1a");
+    if (m.aggro > 0) { ctx.strokeStyle = "#1f3a1a"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-4, -46); ctx.lineTo(1, -44); ctx.moveTo(9, -46); ctx.lineTo(4, -44); ctx.stroke(); }
+    ctx.strokeStyle = "#1f3a1a"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(3, -31, 3, m.aggro > 0 ? Math.PI + 0.4 : 0.4, m.aggro > 0 ? -0.4 : Math.PI - 0.4); ctx.stroke();
+  } else if (m.t === "wisp") {
+    // a lantern spirit: a floating blue flame with a little face, trailing sparks
+    ctx.translate(0, -12 - Math.sin(m.ph * 3) * 5); ctx.scale(f, 1);
+    const flick = Math.sin(m.ph * 9) * 3;
+    for (let i = 1; i <= 3; i++) { ctx.fillStyle = `rgba(127,224,224,${0.35 - i * 0.08})`; ctx.beginPath(); ctx.arc(-8 * i, -12 + Math.sin(m.ph * 4 + i) * 3, 5 - i, 0, Math.PI * 2); ctx.fill(); }
+    ctx.save(); ctx.shadowColor = "#7fe0e0"; ctx.shadowBlur = 18;
+    ctx.beginPath(); ctx.moveTo(-2, -48 + flick); ctx.bezierCurveTo(16, -34, 17, -12, 0, -3); ctx.bezierCurveTo(-17, -12, -15, -32, -2, -48 + flick);
+    paint(white ? "#fff" : vgrad(-48, -3, "#e8ffff", "#3fb8c8"), "rgba(20,80,100,.6)", 1.2);
+    ctx.restore();
+    ctx.fillStyle = "rgba(255,255,255,.65)"; ctx.beginPath(); ctx.ellipse(0, -15, 7, 8, 0, 0, Math.PI * 2); ctx.fill();
+    eyes(-1, 6, -22, 2, 0.5, blinking(m.ph * 0.6), "#0f3a40");
+    ctx.fillStyle = "#0f3a40"; ctx.beginPath(); ctx.ellipse(3, -14, 2, m.throwT > 0 ? 3 : 1.6, 0, 0, Math.PI * 2); ctx.fill();
+  } else if (m.t === "soldier") {
+    // a terracotta tomb guard with a bronze-tipped spear; its eyes light up when it is after you
+    const walking = m.state === "walk" || m.aggro > 0, step = walking ? Math.sin(m.ph * 7) * 4 : 0, clay = "#b8634a", fill = (c, y0, y1) => white ? "#fff" : gloss(c, y0, y1);
+    ctx.scale(f, 1);
+    ctx.strokeStyle = "#6a4a2a"; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(18, -2); ctx.lineTo(22, -88); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(22, -102); ctx.lineTo(27, -88); ctx.lineTo(17, -88); ctx.closePath(); paint("#d8b050", INK, 1.2);
+    for (const [x, s2] of [[-10, step], [2, -step]]) { ctx.beginPath(); rr(x + s2 * 0.5, -24, 9, 24, 3); paint(fill("#9a5040", -24, 0)); }
+    ctx.beginPath(); rr(-15, -56, 30, 36, 7); paint(fill(clay, -56, -20), "#4a2418", 1.6);
+    ctx.fillStyle = "rgba(60,25,15,.35)";
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) ctx.fillRect(-12 + c * 6.5 + (r % 2) * 3, -51 + r * 8, 5, 5);
+    ctx.beginPath(); rr(-16, -26, 32, 5, 2); paint("#7a3a2a", INK, 1);
+    ctx.beginPath(); ctx.ellipse(14, -44, 5, 9, -0.3, 0, Math.PI * 2); paint(fill(clay, -53, -35));
+    ctx.beginPath(); ctx.ellipse(2, -66, 11, 12, 0, 0, Math.PI * 2); paint(fill("#c8805a", -78, -54), "#4a2418", 1.4);
+    ctx.beginPath(); ctx.arc(1, -70, 12, Math.PI, 0); ctx.closePath(); paint(fill("#8a4a35", -82, -70), "#4a2418", 1.4);
+    ctx.fillStyle = white ? "#fff" : "#c8553d"; ctx.beginPath(); ctx.moveTo(-6, -82); ctx.quadraticCurveTo(0, -94, 8, -82); ctx.closePath(); ctx.fill();
+    const lit = m.aggro > 0;
+    ctx.save(); if (lit) { ctx.shadowColor = "#7fe0c8"; ctx.shadowBlur = 8; }
+    ctx.strokeStyle = lit ? "#a8ffe8" : "#3a1a10"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(3, -66); ctx.lineTo(7, -66); ctx.moveTo(9.5, -66); ctx.lineTo(12, -66); ctx.stroke();
+    ctx.restore();
+  } else if (m.t === "scarab") {
+    // a shining scarab with a split shell, a horn and six scuttling legs
+    const walking = m.state === "walk" || m.aggro > 0, step = walking ? Math.sin(m.ph * 16) * 3 : 0;
+    ctx.scale(f, 1);
+    ctx.strokeStyle = "#1f2a24"; ctx.lineWidth = 2.6; ctx.lineCap = "round";
+    for (const [x, s2] of [[-14, step], [-2, -step], [10, step]]) { ctx.beginPath(); ctx.moveTo(x, -10); ctx.lineTo(x - 5 + s2, -4); ctx.lineTo(x - 9 + s2, 0); ctx.stroke(); }
+    ctx.lineCap = "butt";
+    ctx.beginPath(); ctx.ellipse(-4, -16, 23, 14, 0, 0, Math.PI * 2); paint(white ? "#fff" : vgrad(-30, -2, "#8fe0c8", "#1f6a5a"), "#0f3a30", 1.6);
+    ctx.strokeStyle = "rgba(10,40,30,.6)"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-4, -30); ctx.lineTo(-4, -3); ctx.stroke();
+    ctx.fillStyle = "rgba(255,216,74,.75)";
+    for (const [x, y] of [[-14, -20], [-12, -11], [5, -21], [7, -11]]) { ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.beginPath(); ctx.ellipse(-10, -24, 8, 3, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(19, -12, 8, 7, 0, 0, Math.PI * 2); paint(white ? "#fff" : "#2a3a30", "#0f1a14", 1.4);
+    ctx.strokeStyle = "#d8b050"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(24, -14); ctx.quadraticCurveTo(31, -18, 30, -27); ctx.stroke(); ctx.lineCap = "butt";
+    ctx.fillStyle = m.aggro > 0 ? "#ff6a4a" : "#ffe066"; ctx.beginPath(); ctx.arc(22, -14, 1.8, 0, Math.PI * 2); ctx.fill();
+  } else if (m.t === "scorpling" || m.t === "scorpking") {
+    ctx.scale(f, 1);
+    drawScorp(m, white);
   }
   ctx.restore();
 
@@ -1174,6 +1287,14 @@ function drawFX() {
       ctx.strokeStyle = `rgba(160,220,255,${1 - p})`; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.ellipse(cx, P.y + P.h - p * 60, 26, 7, 0, 0, Math.PI * 2); ctx.stroke();
       ctx.beginPath(); ctx.ellipse(cx, P.y + P.h - p * 30, 22, 6, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (f.k === "dust") {
+      // sand bursting up where something comes out of the ground
+      const p = f.t / 0.6;
+      for (let i = 0; i < 12; i++) {
+        const a = Math.PI + (i + 0.5) / 12 * Math.PI, d = f.r * 0.6 * p;
+        ctx.fillStyle = `rgba(220,180,110,${0.8 * (1 - p)})`;
+        ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.9 + p * p * 30, 5 * (1 - p) + 2, 0, Math.PI * 2); ctx.fill();
+      }
     } else if (f.k === "nova") {
       // a ring of frost spreading over the ground, with ice shards flying outward
       const p = f.t / 0.5;
@@ -1409,6 +1530,135 @@ function drawPet() {
   ctx.textAlign = "left";
 }
 
+// a heap of sand moving along the ground, with grains kicked up behind it
+function drawMound(m) {
+  const r = m.w * 0.55, h = 7 + m.w * 0.07, wob = Math.sin(m.ph * 12) * 1.5;
+  ctx.beginPath(); ctx.ellipse(0, 0, r, h + wob, 0, Math.PI, 0); ctx.closePath();
+  paint(vgrad(-h, 0, map.theme.grass[0], map.theme.grass[2]), "rgba(90,60,30,.5)", 1.2);
+  ctx.fillStyle = map.theme.grass[2];
+  for (let i = 0; i < 5; i++) {
+    const k = (m.ph * 1.6 + i / 5) % 1;
+    ctx.globalAlpha = m.alpha * (1 - k);
+    ctx.beginPath(); ctx.arc(-m.dir * (r * 0.4 + k * r * 0.8), -h * 0.6 - Math.sin(k * Math.PI) * 14, 2 + (i % 2), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = m.alpha;
+}
+// a scorpion: drawn at the king's size and scaled down for its young. Its tail arches over its back and
+// swings forward for the slam; the king wears a crown and turns red when enraged.
+function drawScorp(m, white) {
+  const king = m.t === "scorpking", k = king ? 1 : 0.3;
+  const wind = m.wind > 0 && m.T.slam ? 1 - m.wind / m.T.slam.wind : 0;
+  const walking = m.state === "walk" || m.aggro > 0, step = walking ? Math.sin(m.ph * (king ? 8 : 16)) : 0;
+  const shell = m.raged ? "#c8553d" : king ? "#d8a050" : "#e0b870", dark = "#4a2a10", fill = (y0, y1) => white ? "#fff" : gloss(shell, y0, y1);
+  ctx.scale(k, k);
+  ctx.strokeStyle = dark; ctx.lineWidth = 6; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (let i = 0; i < 4; i++) {
+    const x = -46 + i * 22, s2 = step * 6 * (i % 2 ? 1 : -1);
+    ctx.beginPath(); ctx.moveTo(x, -30); ctx.lineTo(x - 12 + s2, -16); ctx.lineTo(x - 18 + s2, 0); ctx.stroke();
+  }
+  // tail: segments arching over the back, the stinger at the end
+  const segs = [[-56, -44, 15], [-70, -64, 14], [-72, -88, 13], [-60, -108, 12], [-38, -118, 11]];
+  const pts = segs.map(([x, y, r], i) => [x + wind * i * i * 6, y + wind * i * 10, r]);
+  pts.forEach(([x, y, r]) => { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); paint(fill(y - r, y + r), dark, 2); });
+  const [tx, ty] = pts[pts.length - 1];
+  ctx.save(); ctx.translate(tx + 10, ty + 4); ctx.rotate(0.9 + wind * 0.6);
+  ctx.beginPath(); ctx.moveTo(-8, -6); ctx.quadraticCurveTo(16, -6, 22, 14); ctx.quadraticCurveTo(6, 4, -8, 6); ctx.closePath(); paint(white ? "#fff" : "#7a1a1a", dark, 2);
+  if (m.raged || wind > 0) { ctx.fillStyle = "rgba(160,255,90,.8)"; ctx.beginPath(); ctx.arc(22, 15, 3, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+  // body plates
+  ctx.beginPath(); ctx.ellipse(-8, -34, 50, 22, 0, 0, Math.PI * 2); paint(fill(-56, -12), dark, 2.4);
+  ctx.strokeStyle = "rgba(74,42,16,.5)"; ctx.lineWidth = 2;
+  for (const x of [-38, -20, -2, 16]) { ctx.beginPath(); ctx.arc(x, -34, 20, -1.1, 1.1); ctx.stroke(); }
+  ctx.fillStyle = "rgba(255,255,255,.25)"; ctx.beginPath(); ctx.ellipse(-14, -46, 28, 6, -0.1, 0, Math.PI * 2); ctx.fill();
+  // pincers reaching forward, opening and closing
+  const snap = Math.abs(Math.sin(m.ph * (m.aggro > 0 ? 5 : 2))) * 0.5;
+  for (const [y0, sc] of [[-22, 1], [-40, 0.9]]) {
+    ctx.save(); ctx.translate(36, y0); ctx.scale(sc, sc);
+    ctx.strokeStyle = dark; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(30, -6); ctx.stroke();
+    ctx.strokeStyle = white ? "#fff" : shell; ctx.lineWidth = 6; ctx.stroke();
+    ctx.translate(38, -8);
+    ctx.save(); ctx.rotate(-snap); ctx.beginPath(); ctx.ellipse(10, -4, 16, 8, 0, Math.PI, Math.PI * 2); ctx.closePath(); paint(fill(-12, 0), dark, 2); ctx.restore();
+    ctx.save(); ctx.rotate(snap); ctx.beginPath(); ctx.ellipse(10, 4, 16, 8, 0, 0, Math.PI); ctx.closePath(); paint(fill(0, 12), dark, 2); ctx.restore();
+    ctx.restore();
+  }
+  // head with a cluster of eyes; the king wears a crown of spikes
+  ctx.beginPath(); ctx.ellipse(38, -32, 16, 14, 0, 0, Math.PI * 2); paint(fill(-46, -18), dark, 2.2);
+  const eye = m.raged || m.aggro > 0 ? "#ff3a2a" : "#2a0a0a";
+  ctx.save(); if (m.raged) { ctx.shadowColor = "#ff3a2a"; ctx.shadowBlur = 10; }
+  ctx.fillStyle = eye; for (const [x, y] of [[42, -38], [48, -36], [45, -32]]) { ctx.beginPath(); ctx.arc(x, y, 2.6, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+  if (king) {
+    ctx.beginPath(); ctx.moveTo(26, -42); ctx.lineTo(28, -60); ctx.lineTo(34, -46); ctx.lineTo(38, -64); ctx.lineTo(42, -46); ctx.lineTo(48, -60); ctx.lineTo(50, -42); ctx.closePath();
+    paint(vgrad(-64, -42, "#fff0a0", "#d89a2a"), dark, 1.6);
+    ctx.fillStyle = "#3fa8e0"; ctx.beginPath(); ctx.arc(38, -50, 3, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.lineCap = "butt";
+}
+// what monsters throw: green needles and blue lantern fire
+function drawFoes() {
+  for (const f of foes) {
+    ctx.save(); ctx.translate(f.x, f.y);
+    if (f.kind === "needle") {
+      ctx.rotate(Math.atan2(f.vy, f.vx));
+      ctx.strokeStyle = "#4a8a3a"; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(7, 0); ctx.stroke();
+      ctx.fillStyle = "#f6f0d8"; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(6, -2.5); ctx.lineTo(6, 2.5); ctx.fill();
+    } else {
+      ctx.shadowColor = "#7fe0e0"; ctx.shadowBlur = 14;
+      ctx.fillStyle = "rgba(127,224,224,.35)"; ctx.beginPath(); ctx.arc(-Math.sign(f.vx) * 8, 0, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = vgrad(-7, 7, "#ffffff", "#3fb8c8"); ctx.beginPath(); ctx.arc(0, 0, 6.5 + Math.sin(f.t * 20), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+// the tomb is dark except for the light around you, the lantern spirits, their fire and the portals
+let darkCv = null;
+function drawDark(ox, oy) {
+  darkCv = darkCv || document.createElement("canvas");
+  if (darkCv.width !== W) { darkCv.width = W; darkCv.height = H; }
+  const g = darkCv.getContext("2d");
+  g.globalCompositeOperation = "source-over"; g.clearRect(0, 0, W, H);
+  g.fillStyle = "rgba(6,4,14,.92)"; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = "destination-out";
+  const hole = (x, y, r) => {
+    const gr = g.createRadialGradient(x + ox, y + oy, r * 0.3, x + ox, y + oy, r);
+    gr.addColorStop(0, "rgba(0,0,0,1)"); gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = gr; g.beginPath(); g.arc(x + ox, y + oy, r, 0, Math.PI * 2); g.fill();
+  };
+  hole(P.x + P.w / 2, P.y + P.h / 2, 180);
+  for (const m of mobs) if (m.T.glow && !m.dead) hole(m.x + m.w / 2, m.y + m.h / 2 - 12, 90 * m.alpha);
+  for (const f of foes) hole(f.x, f.y, 40);
+  for (const pt of portals) hole(pt.x, pt.y - 30, 70);
+  ctx.drawImage(darkCv, 0, 0, W, H);
+}
+// a tall desert cactus with two raised arms
+function drawCactusTree(t) {
+  const by = 840, h = t.h * 0.75, x = t.x, g = (x0, x1) => { const gr = ctx.createLinearGradient(x0, 0, x1, 0); gr.addColorStop(0, "#7fc05a"); gr.addColorStop(1, "#3f7a32"); return gr; };
+  for (const [side, y0, len] of [[-1, 0.55, 0.32], [1, 0.4, 0.38]]) {
+    const ax = x + side * 26, top = by - h * (y0 + len);
+    ctx.beginPath(); rr(ax - 7, top, 14, h * len + 8, 7); paint(g(ax - 7, ax + 7), "rgba(30,60,20,.6)", 1.2);
+    ctx.beginPath(); rr(Math.min(x, ax) + (side < 0 ? 0 : -4), by - h * y0 - 4, 26, 12, 6); paint(g(x - 10, x + 10), "rgba(30,60,20,.6)", 1.2);
+  }
+  ctx.beginPath(); rr(x - 12, by - h, 24, h, 12); paint(g(x - 12, x + 12), "rgba(30,60,20,.6)", 1.3);
+  ctx.strokeStyle = "rgba(30,70,25,.35)"; ctx.lineWidth = 1.4;
+  for (const dx of [-5, 0, 5]) { ctx.beginPath(); ctx.moveTo(x + dx, by - h + 8); ctx.lineTo(x + dx, by - 4); ctx.stroke(); }
+  if (t.c) { ctx.fillStyle = "#ff7aa8"; ctx.beginPath(); ctx.arc(x, by - h - 2, 5, 0, Math.PI * 2); ctx.fill(); }
+}
+// the desert town: the airship, a market stall, a domed sandstone house and a sign
+function drawSandTown() {
+  drawAirship(NPCS.gray3.x + 40, 640);
+  const hx = 1080, hy = 840;
+  ctx.beginPath(); ctx.rect(hx, hy - 90, 150, 90); paint(vgrad(hy - 90, hy, "#f2d9a8", "#d0a868"), "rgba(90,60,30,.7)", 1.6);
+  ctx.beginPath(); ctx.arc(hx + 75, hy - 90, 52, Math.PI, 0); ctx.closePath(); paint(vgrad(hy - 142, hy - 90, "#7fd0e8", "#3a8ab8"), "rgba(30,60,90,.7)", 1.6);
+  ctx.fillStyle = "#d8b050"; ctx.beginPath(); ctx.arc(hx + 75, hy - 146, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(hx + 58, hy); ctx.lineTo(hx + 58, hy - 40); ctx.arc(hx + 75, hy - 40, 17, Math.PI, 0); ctx.lineTo(hx + 92, hy); ctx.closePath(); paint("#5a3a24", "rgba(40,25,15,.8)", 1.2);
+  for (const x of [hx + 22, hx + 118]) { ctx.beginPath(); ctx.moveTo(x - 8, hy - 44); ctx.lineTo(x - 8, hy - 62); ctx.arc(x, hy - 62, 8, Math.PI, 0); ctx.lineTo(x + 8, hy - 44); ctx.closePath(); paint("#3a6a8a", "rgba(40,25,15,.8)", 1.2); }
+  drawStall(NPCS.saya.x, "#e0a040", "white_pot");
+  const x = 290, y = 840;
+  ctx.fillStyle = "#8a6237"; ctx.fillRect(x - 3, y - 60, 6, 60);
+  ctx.beginPath(); rr(x - 46, y - 82, 92, 28, 5); paint(vgrad(y - 82, y - 54, "#fff6e0", "#e8d6a8"), "rgba(90,60,30,.7)", 1.4);
+  ctx.font = `900 13px ${UI}`; ctx.textAlign = "center"; ctx.fillStyle = "#5a3a1a"; ctx.fillText("沉砂城", x, y - 63); ctx.textAlign = "left";
+}
+
 function drawHUD() {
   // bottom panel
   const top = H - 48;
@@ -1534,6 +1784,7 @@ function draw() {
   trees.forEach(drawTree);
   if (map.scene === "village") drawVillage();
   else if (map.scene === "cloud") drawCloudTown();
+  else if (map.scene === "sand") drawSandTown();
   for (let i = plats.length - 1; i >= 0; i--) drawPlatform(plats[i]);
   ladders.forEach(drawLadder);
   portals.forEach(drawPortal);
@@ -1542,10 +1793,12 @@ function draw() {
   drawPet();
   mobs.forEach(drawMob);
   drawShots();
+  drawFoes();
   drawPlayer();
   drawFX();
   drawNums();
   ctx.restore();
+  if (map.theme.dark) drawDark(Math.round(-cam.x + sx), Math.round(-cam.y + sy));
   if (map.theme.storm) {
     const k = time % 7;
     if (k < 0.18) { ctx.fillStyle = `rgba(230,230,255,${0.35 * (1 - k / 0.18)})`; ctx.fillRect(0, 0, W, H); }

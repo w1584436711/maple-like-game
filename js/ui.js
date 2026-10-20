@@ -121,7 +121,7 @@ function renderWorld() {
     const who = m.town ? m.note : mapMobs(id).join("、");
     return (first ? `<div class="qhead">${esc(m.area)}</div>` : `<div class="link" aria-hidden="true"></div>`)
       + `<div class="place${here ? " here" : ""}"><b>${esc(m.name)}</b>${here ? `<span class="tag">你在這裡</span>` : ""}<p>${esc(who)}</p></div>`;
-  }).join("") + `<p class="note">走到傳送門按 ↑ 換地圖。浮島和雲頂之間找飛船船長搭飛船。回村卷軸會帶你回到這片大陸的城鎮。</p>`;
+  }).join("") + `<p class="note">走到傳送門按 ↑ 換地圖。浮島、雲頂和沉砂之間找飛船船長搭飛船。回村卷軸會帶你回到這片大陸的城鎮。</p>`;
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const row = (label, value) => `<div class="row"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;

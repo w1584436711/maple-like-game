@@ -24,10 +24,10 @@ const NPCS = {
            look: { robe: "#2f9aa8", hair: "#e8b860", bun: true } },
   bobo:  { name: "採菇人 波波", map: "forest", x: 200, greet: "噓——小聲點，霧菇很容易被嚇跑的。……好吧，其實牠們會撲過來。",
            look: { robe: "#8a6fb8", hair: "#6b4a2a", strawHat: true, apron: true } },
-  // the airship captain stands on both islands; ship names where he takes you
-  gray:  { name: "飛船船長 葛雷", map: "village", x: 1220, ship: "cloudtown", greet: "要去天上的雲頂城嗎？那裡的怪物可都在 Lv.30 以上喔。",
+  // the airship captain stands in every town; ship lists where he can take you
+  gray:  { name: "飛船船長 葛雷", map: "village", x: 1220, ship: ["cloudtown", "sandcity"], greet: "要去天上的雲頂城嗎？那裡的怪物可都在 Lv.30 以上喔。沙漠的沉砂城更危險，要 Lv.55 才去得了。",
            look: { robe: "#2f4a7a", hair: "#3a2a20", beard: "#3a2a20", strawHat: true } },
-  gray2: { name: "飛船船長 葛雷", map: "cloudtown", x: 160, ship: "village", greet: "想家了嗎？飛船隨時可以帶你回浮島村。",
+  gray2: { name: "飛船船長 葛雷", map: "cloudtown", x: 160, ship: ["village", "sandcity"], greet: "想家了嗎？飛船隨時可以帶你回浮島村。往南飛就是沙漠的沉砂城。",
            look: { robe: "#2f4a7a", hair: "#3a2a20", beard: "#3a2a20", strawHat: true } },
   nina:  { name: "雲商 妮娜", map: "cloudtown", x: 400, shop: "cloud", greet: "歡迎來到雲頂城！高級藥水和雲絲裝備，這裡都買得到。",
            look: { robe: "#7ab8f0", hair: "#f0c8d8", long: true, apron: true } },
@@ -35,6 +35,14 @@ const NPCS = {
            look: { robe: "#3a2a6a", hair: "#e6e6f6", long: true, prop: "staff" } },
   ryan:  { name: "雲守衛 雷恩", map: "cloudtown", x: 620, greet: "雲頂城最近不太平靜，雷雲祭壇那邊一直在打雷。",
            look: { robe: "#c8a040", hair: "#f0e0b0", prop: "staff" } },
+  gray3: { name: "飛船船長 葛雷", map: "sandcity", x: 160, ship: ["cloudtown", "village"], greet: "沙子跑進引擎裡了……放心，還飛得動。要去哪裡？",
+           look: { robe: "#2f4a7a", hair: "#3a2a20", beard: "#3a2a20", strawHat: true } },
+  saya:  { name: "沙商 莎雅", map: "sandcity", x: 400, shop: "sand", greet: "沙漠裡什麼都缺，就是不缺好東西。藥水、卷軸、沙漠裝備，看看吧！",
+           look: { robe: "#e0a040", hair: "#3a2a20", bun: true, apron: true } },
+  mia:   { name: "倉庫管理員 米亞", map: "sandcity", x: 560, storage: true, greet: "我是蘿絲的表妹。放在浮島村倉庫的東西，在我這裡也拿得到喔。",
+           look: { robe: "#8a6aa8", hair: "#2a2a3a", long: true, apron: true } },
+  hasan: { name: "守衛隊長 哈山", map: "sandcity", x: 760, greet: "沙暴越來越頻繁了。神殿深處好像有什麼東西醒了過來。",
+           look: { robe: "#c8553d", hair: "#2a2a2a", beard: "#2a2a2a", prop: "staff" } },
   ed:    { name: "守林人 艾德", map: "grove", x: 130, greet: "古樹精醒過來之後，森林就再也沒安靜過。你是來幫忙的嗎？",
            look: { robe: "#3f6f3a", hair: "#5a3a24", beard: "#5a3a24", prop: "cane" } },
 };
@@ -73,17 +81,17 @@ function openNpc(npc) {
   }
   if (npc.shop) opts.push(["我想買賣東西", () => openShop(npc)]);
   if (npc.storage) opts.push(["打開倉庫", () => openShop(npc)]);
-  if (npc.ship) opts.push([`搭飛船去${MAPS[npc.ship].name}（${SHIP_FARE} 金幣）`, () => sail(npc)]);
+  for (const to of npc.ship || []) opts.push([`搭飛船去${MAPS[to].name}（${SHIP_FARE} 金幣）`, () => sail(to)]);
   if (npc.talk) { npc.talk(opts); return; }
   say(npc.greet, [...opts, ["再見", closeDialog]]);
 }
 const SHIP_FARE = 1000;
-function sail(npc) {
+function sail(id) {
   if (P.coins < SHIP_FARE) { say(`船票要 ${SHIP_FARE} 金幣，你的金幣不夠喔。`, [["好吧", closeDialog]]); return; }
   P.coins -= SHIP_FARE;
   closeDialog();
-  const to = MAPS[npc.ship];
-  loadMap(npc.ship, to.dock ?? to.spawn);
+  const to = MAPS[id];
+  loadMap(id, to.dock ?? to.spawn);
   sfx("portal");
   msg(`搭飛船來到了${to.name}`, "#cfe3ff");
   refreshPanels(true); save();
@@ -264,6 +272,36 @@ const QUESTS = {
               reward: { exp: 40000, coins: 10000 },
               ask: "今天也麻煩你去風之高台巡一巡，打倒 30 隻風鈴精。", where: "風鈴精在風之高台的平台上。",
               thanks: "辛苦了，明天也拜託你。" },
+  // the desert: one chain from the guard captain, Lv.55 to 75
+  q_fox:    { npc: "hasan", name: "沙丘上的狐群", lv: 55, kill: { fox: 40 },
+              reward: { exp: 300000, coins: 30000, items: [["white_pot", 50]] },
+              ask: "沙丘狐成群結隊地搶商隊的糧食。去沙丘地帶打倒 40 隻吧。",
+              where: "沙丘狐在城東邊的沙丘地帶到處跑。",
+              thanks: "商隊總算能安心上路了。這些白藥水收下吧。" },
+  q_needle: { npc: "hasan", name: "仙人掌的刺", lv: 58, after: "q_fox", collect: { cactus_needle: 30 },
+              reward: { exp: 400000, coins: 30000, items: [["scroll_shoes60", 2]] },
+              ask: "城牆需要修補，仙人掌刺是最好的釘子。幫我收集 30 根仙人掌刺。",
+              where: "仙人掌谷的仙人掌怪會掉仙人掌刺。小心，牠們會從遠處丟刺過來。",
+              thanks: "這麼多刺，夠把城牆釘得牢牢的了。這兩張鞋子卷軸給你。" },
+  q_lamp:   { npc: "hasan", name: "古墓裡的燈火", lv: 62, after: "q_needle", kill: { wisp: 40 },
+              reward: { exp: 600000, coins: 50000, items: [["scroll_cape60", 2]] },
+              ask: "地下古墓裡飄著藍色的燈火，進去的人都迷了路。打倒 40 隻古墓燈魂。",
+              where: "地下古墓在仙人掌谷東邊高台的傳送門後面。裡面很暗，只看得見身邊和燈魂的光。",
+              thanks: "燈火熄了，古墓總算安靜下來。這兩張披風卷軸是謝禮。" },
+  q_clay:   { npc: "hasan", name: "陶俑的碎片", lv: 66, after: "q_lamp", collect: { clay_shard: 30 },
+              reward: { exp: 800000, coins: 60000, items: [["guard_scroll", 3]] },
+              ask: "古墓的陶俑自己動了起來。學者想研究原因，幫我收集 30 個陶俑碎片。",
+              where: "地下古墓和流沙神殿的墓守陶俑會掉陶俑碎片。",
+              thanks: "碎片上刻著蠍子的圖案……看來一切都和神殿有關。這三張防爆卷軸給你。" },
+  q_scorp:  { npc: "hasan", name: "沙暴的源頭", lv: 72, after: "q_clay", kill: { scorpking: 1 },
+              reward: { exp: 1500000, coins: 150000, items: [["scroll_wpn10", 3]] },
+              ask: "沙暴的源頭就是流沙神殿裡的沙暴蠍皇。牠會召喚小蠍子，血少了還會鑽進沙裡。打倒牠吧！",
+              where: "流沙神殿在地下古墓的東邊，蠍皇在神殿中間的高台上。",
+              thanks: "沙暴停了！沉砂城的天空終於看得到星星。你是沙漠的英雄。" },
+  d_worm:   { npc: "hasan", name: "沙丘巡邏", lv: 58, daily: true, kill: { worm: 30 },
+              reward: { exp: 250000, coins: 30000 },
+              ask: "鑽沙蚯又在沙丘底下挖洞了。今天也麻煩你打倒 30 隻。", where: "鑽沙蚯在沙丘地帶和仙人掌谷，會鑽進沙裡再冒出來。",
+              thanks: "辛苦了，明天也拜託你。" },
 };
 for (const [id, q] of Object.entries(QUESTS)) q.id = id;
 // P.quests[id] is { state: "active" | "done", kills: { monster type: count } }; a finished daily quest also
@@ -346,6 +384,9 @@ function cleanQuests(d) {
 // ---------- Shops ----------
 // [item, how many one purchase gives]; you sell anything back for half its price
 const SHOPS = {
+  sand: [["white_pot", 1], ["mana_pot", 1], ["town_scroll", 1], ["pet_food", 1], ["arrow", 100], ["steel_star", 100], ["guard_scroll", 1], ["restore_scroll", 1],
+         ["scroll_cape60", 1], ["scroll_shoes60", 1],
+         ...["desert_hat", "desert_robe", "desert_pants", "desert_boots", "sand_sword", "sun_staff", "dune_bow", "sand_claw"].map(id => [id, 1])],
   pet: [["pet_food", 1]],
   items: [["red_pot", 1], ["blue_pot", 1], ["town_scroll", 1], ["pet_food", 1], ["arrow", 100], ["iron_star", 100], ["guard_scroll", 1], ["restore_scroll", 1]],
   cloud: [["white_pot", 1], ["mana_pot", 1], ["town_scroll", 1], ["pet_food", 1], ["arrow", 100], ["steel_star", 100], ["guard_scroll", 1], ["restore_scroll", 1],
