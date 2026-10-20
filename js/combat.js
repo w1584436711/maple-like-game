@@ -5,7 +5,7 @@
 // ---------- Combat ----------
 function targetsIn(box, n) {
   const cx = P.x + P.w / 2;
-  return mobs.filter(m => !m.dead && m.alpha > 0.5 && overlap(box, m))
+  return mobs.filter(m => hittable(m) && overlap(box, m))
     .sort((a, b) => Math.abs(a.x + a.w / 2 - cx) - Math.abs(b.x + b.w / 2 - cx))
     .slice(0, n);
 }
@@ -55,7 +55,11 @@ function kill(m) {
     if (kind === "item" && ITEMS[id].slot) drops[drops.length - 1].gear = rollGear(id);
   });
   if (items.length && !P.lootHint) { P.lootHint = true; msg("按 Z 撿起地上的東西", "#ffc94a"); }
-  if (boss) { msg(`打倒了${m.T.name}！`, "#ffc94a"); cam.shake = 10; }
+  if (boss) {
+    msg(`打倒了${m.T.name}！`, "#ffc94a"); cam.shake = 10;
+    // the young it called up scatter with it
+    mobs.forEach(o => { if (o.minion && !o.dead) { o.dead = true; o.deadT = 0; } });
+  }
 }
 // kind "coin" carries an amount in value; kind "item" carries an item id and a count in value
 function addDrop(kind, x, y, value, id) {
@@ -350,7 +354,7 @@ function updateShots(dt) {
     }
     const step = s.vx * dt;
     s.x += step; s.dist += Math.abs(step); s.spin += dt * 30;
-    const m = mobs.find(m => !m.dead && m.alpha > 0.5 && !s.hit.includes(m) && s.x >= m.x && s.x <= m.x + m.w && s.y >= m.y - 10 && s.y <= m.y + m.h + 6);
+    const m = mobs.find(m => hittable(m) && !s.hit.includes(m) && s.x >= m.x && s.x <= m.x + m.w && s.y >= m.y - 10 && s.y <= m.y + m.h + 6);
     if (m) {
       dealDamage(m, s.o);
       s.hit.push(m);
@@ -361,6 +365,30 @@ function updateShots(dt) {
   }
 }
 
+// a monster you can hit: not dead, faded in, and not hidden in the sand
+const hittable = m => !m.dead && m.alpha > 0.5 && !m.under;
+
+// what monsters throw at you: needles and lantern fire fly at you and hit like a monster would
+const foes = [];
+const FOE_SPEED = { needle: 330, wisp: 230 };
+function throwAt(m, Th) {
+  const sx = m.x + m.w / 2 + m.dir * m.w * 0.4, sy = m.y + m.h * 0.35;
+  const tx = P.x + P.w / 2, ty = P.y + P.h / 2, sp = FOE_SPEED[Th.kind];
+  const t = Math.max(0.2, Math.abs(tx - sx) / sp);
+  foes.push({ kind: Th.kind, x: sx, y: sy, vx: Math.sign(tx - sx || m.dir) * sp, vy: clamp((ty - sy) / t, -260, 260), dmg: Th.dmg, acc: m.T.acc, left: Th.range + 120, t: 0 });
+  m.throwT = 0.35;
+}
+function updateFoes(dt) {
+  for (let i = foes.length - 1; i >= 0; i--) {
+    const f = foes[i];
+    f.x += f.vx * dt; f.y += f.vy * dt; f.t += dt; f.left -= Math.abs(f.vx * dt);
+    if (!P.dead && P.inv <= 0 && f.x > P.x - 4 && f.x < P.x + P.w + 4 && f.y > P.y - 4 && f.y < P.y + P.h + 4) {
+      hurt(f.dmg, f.x - f.vx, f.acc); foes.splice(i, 1); continue;
+    }
+    if (f.left <= 0 || f.x < 0 || f.x > WORLD_W) foes.splice(i, 1);
+  }
+}
+
 function updateMobs(dt) {
   const pcx = P.x + P.w / 2;
   for (const m of mobs) {
@@ -368,34 +396,83 @@ function updateMobs(dt) {
     if (m.dead) {
       m.alpha = Math.max(0, m.alpha - dt * 2.5);
       m.deadT -= dt;
-      if (m.deadT <= 0) placeMob(m);
+      if (m.deadT <= 0 && !m.minion) placeMob(m);
       continue;
     }
     if (m.alpha < 1) m.alpha = Math.min(1, m.alpha + dt * 2);
-    m.flash = Math.max(0, m.flash - dt); m.showHp -= dt; m.aggro -= dt;
-    const mcx = m.x + m.w / 2;
-    const dx = pcx - mcx;
-    if (m.T.boss && !P.dead && P.ground === m.p && Math.abs(dx) < 360) m.aggro = Math.max(m.aggro, 3);
+    m.flash = Math.max(0, m.flash - dt); m.showHp -= dt; m.aggro -= dt; m.throwT -= dt; m.surf -= dt;
+    const T = m.T, mcx = m.x + m.w / 2;
+    const dx = pcx - mcx, dy = (P.y + P.h) - (m.y + m.h);
+    if (T.boss && !P.dead && P.ground === m.p && Math.abs(dx) < 360) m.aggro = Math.max(m.aggro, 3);
 
-    if (m.kb) {
+    // a boss below its rage line gets faster, slams more often and may start burrowing
+    if (T.rage && !m.raged && m.hp < T.hp * T.rage.at) {
+      m.raged = true; cam.shake = 12; sfx("slam");
+      msg(`${T.name}發怒了！`, "#ff9b8f");
+    }
+    const spd = T.spd * (m.raged ? T.rage.spd : 1);
+    const B = (m.raged && T.rage.burrow) || T.burrow;
+
+    // burrowers spend a while hidden under the sand, closing in on you, then burst out
+    if (B && m.wind <= 0) {
+      m.bt -= dt;
+      const close = Math.abs(dx) < 14 && m.bt < (m.under ? B.under - 0.5 : 0);
+      if (m.bt <= 0 || (m.under && close)) {
+        m.under = !m.under;
+        m.bt = m.under ? B.under : B.up * rand(0.7, 1.3);
+        m.kb = 0;
+        if (!m.under) {
+          m.surf = 0.4;
+          fx.push({ k: "dust", x: mcx, y: m.p.y, r: m.w * 0.8, t: 0 });
+          // bursting out right under you hurts; a boss comes up already winding up a slam
+          if (!P.dead && P.ground === m.p && Math.abs(dx) < m.w / 2 + 16) { P.inv = 0; hurt(T.dmg * 1.2, mcx, T.acc); }
+          if (T.slam && m.aggro > 0) { m.wind = 0.45; m.slamCd = T.slam.cd * (m.raged ? T.rage.cd : 1); }
+        }
+      }
+    }
+    // throwers spot you from a distance and keep it
+    const Th = T.throw;
+    if (Th && !P.dead && Math.abs(dx) < Th.range && Math.abs(dy) < 160) m.aggro = Math.max(m.aggro, 1);
+
+    if (m.under) {
+      if (!P.dead && Math.abs(dx) < 520 && Math.abs(dx) > 4) { m.dir = dx > 0 ? 1 : -1; m.x += m.dir * spd * 1.8 * dt; }
+    } else if (m.kb) {
       m.x += m.kb * dt; m.kb *= Math.pow(0.002, dt);
       if (Math.abs(m.kb) < 6) m.kb = 0;
-    } else if (m.wind > 0) {
-      // boss winding up: stand still
+    } else if (m.wind > 0 || m.throwT > 0) {
+      // winding up a slam or throwing: stand still
     } else if (m.aggro > 0 && !P.dead && Math.abs(dx) < 520) {
       m.dir = dx > 0 ? 1 : -1;
-      if (Math.abs(dx) > 10) m.x += m.dir * m.T.spd * 1.5 * dt;
+      // a thrower keeps its distance instead of walking into you
+      if (Math.abs(dx) > (Th ? 170 : 10)) m.x += m.dir * spd * 1.5 * dt;
       m.state = "walk";
     } else {
       m.st -= dt;
       if (m.st <= 0) { m.st = rand(1, 3.5); m.state = Math.random() < 0.35 ? "idle" : "walk"; m.dir = Math.random() < 0.5 ? -1 : 1; }
-      if (m.state === "walk") m.x += m.dir * m.T.spd * dt;
+      if (m.state === "walk") m.x += m.dir * spd * dt;
     }
     if (m.x < m.x0) { m.x = m.x0; m.dir = 1; }
     if (m.x > m.x1) { m.x = m.x1; m.dir = -1; }
+    if (m.under) continue;
+
+    if (Th && m.aggro > 0 && !P.dead) {
+      m.tcd -= dt;
+      if (m.tcd <= 0 && Math.abs(dx) < Th.range && Math.abs(dy) < 160) { m.dir = dx > 0 ? 1 : -1; throwAt(m, Th); m.tcd = Th.cd * rand(0.85, 1.15); }
+    }
+    // a boss calls its young to its side, a few at a time
+    const Su = T.summon;
+    if (Su && m.aggro > 0 && !P.dead) {
+      m.scd -= dt;
+      if (m.scd <= 0) {
+        m.scd = Su.cd;
+        const have = mobs.filter(o => o.minion && !o.dead && o.t === Su.t).length;
+        for (let i = 0; i < Math.min(Su.n, Su.max - have); i++) spawnMob(Su.t, m.p, m.x0, m.x1 + m.w, mcx + (i % 2 ? 1 : -1) * (60 + i * 30));
+        if (have < Su.max) { msg(`${T.name}召喚了${TYPES[Su.t].name}！`, "#ffb36b"); fx.push({ k: "dust", x: mcx, y: m.p.y, r: 120, t: 0 }); }
+      }
+    }
 
     // a boss winds up, then slams: anyone standing on its platform within range takes a hit that cannot be dodged
-    const S = m.T.slam;
+    const S = T.slam;
     if (S && m.aggro > 0 && !P.dead) {
       if (m.wind > 0) {
         m.wind -= dt;
@@ -406,11 +483,13 @@ function updateMobs(dt) {
         }
       } else {
         m.slamCd -= dt;
-        if (m.slamCd <= 0 && Math.abs(dx) < S.range + 120) { m.wind = S.wind; m.slamCd = S.cd; }
+        if (m.slamCd <= 0 && Math.abs(dx) < S.range + 120) { m.wind = S.wind; m.slamCd = S.cd * (m.raged ? T.rage.cd : 1); }
       }
     }
-    if (!P.dead && P.inv <= 0 && m.alpha > 0.6 && overlap(P, m, 5)) hurt(m.T.dmg, m.x + m.w / 2, m.T.acc);
+    if (!P.dead && P.inv <= 0 && m.alpha > 0.6 && overlap(P, m, 5)) hurt(T.dmg, m.x + m.w / 2, T.acc);
   }
+  // summoned monsters leave for good once they have faded out
+  for (let i = mobs.length - 1; i >= 0; i--) if (mobs[i].minion && mobs[i].dead && mobs[i].alpha <= 0) mobs.splice(i, 1);
 }
 
 function updateDrops(dt) {
@@ -450,13 +529,14 @@ function update(dt) {
   P.knock = Math.max(0, P.knock - dt);
 
   updateShots(dt);
+  updateFoes(dt);
   updateMobs(dt);
   updateDrops(dt);
   updatePet(dt);
   for (let i = nums.length - 1; i >= 0; i--) if ((nums[i].t += dt) > 1.1) nums.splice(i, 1);
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt;
-    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3, buff: 0.7, burst: 0.3, nova: 0.5, quake: 0.5, zap: 0.3, rain: 0.6 }[f.k];
+    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3, buff: 0.7, burst: 0.3, dust: 0.6, nova: 0.5, quake: 0.5, zap: 0.3, rain: 0.6 }[f.k];
     if (f.t > life) fx.splice(i, 1);
   }
   for (let i = msgs.length - 1; i >= 0; i--) if ((msgs[i].t -= dt) <= 0) msgs.splice(i, 1);
