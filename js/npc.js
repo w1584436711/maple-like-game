@@ -41,6 +41,8 @@ const NPCS = {
            look: { robe: "#e0a040", hair: "#3a2a20", bun: true, apron: true } },
   mia:   { name: "倉庫管理員 米亞", map: "sandcity", x: 560, storage: true, greet: "我是蘿絲的表妹。放在浮島村倉庫的東西，在我這裡也拿得到喔。",
            look: { robe: "#8a6aa8", hair: "#2a2a3a", long: true, apron: true } },
+  isa:   { name: "神殿祭司 伊薩", map: "sandcity", x: 1150, talk: isaTalk,
+           look: { robe: "#f0e6d0", hair: "#c8c8d8", long: true, beard: "#e6e6f0", prop: "staff" } },
   hasan: { name: "守衛隊長 哈山", map: "sandcity", x: 760, greet: "沙暴越來越頻繁了。神殿深處好像有什麼東西醒了過來。",
            look: { robe: "#c8553d", hair: "#2a2a2a", beard: "#2a2a2a", prop: "staff" } },
   ed:    { name: "守林人 艾德", map: "grove", x: 130, greet: "古樹精醒過來之後，森林就再也沒安靜過。你是來幫忙的嗎？",
@@ -98,12 +100,38 @@ function sail(id) {
 }
 // the sage hands out the shadow trial, and once it is done, the third job
 function auraTalk(opts) {
+  if (FOURTH[P.job] && P.lv >= 70) { say("你已經走到星空的盡頭了。再往上的路，要去沙漠的沉砂城問神殿祭司伊薩。", [...opts, ["再見", closeDialog]]); return; }
   const next = THIRD[P.job] && JOBS[THIRD[P.job]];
   if (next && P.quests.q_trial?.state === "done") {
     say(`你戰勝了自己的影子。現在，你可以成為${next.name}了。`, [...opts, ["我想三轉", thirdJob], ["再見", closeDialog]]);
   } else if (next && P.lv >= next.req.lv) {
     say("你身上有很強的力量……想再往上走一步，就得先戰勝自己的影子。", [...opts, ["再見", closeDialog]]);
   } else say("我是看守星空的賢者。二轉之後到了 Lv.50，再來找我吧。", [...opts, ["再見", closeDialog]]);
+}
+// the temple priest: two relics, then the king's trial, then the fourth job
+function isaTalk(opts) {
+  const next = FOURTH[P.job] && JOBS[FOURTH[P.job]];
+  if (next && P.quests.q_trial4?.state === "done") say(`你通過了王者的試煉。現在，你可以成為${next.name}了。`, [...opts, ["我想四轉", fourthJob], ["再見", closeDialog]]);
+  else if (next && P.lv >= 70) say("想要成為王者，就要帶來沙與墓的兩件信物，再到試煉場證明你自己。", [...opts, ["再見", closeDialog]]);
+  else if (FOURTH[P.job]) say("你的力量還不夠。到了 Lv.70 再來找我吧。", [...opts, ["再見", closeDialog]]);
+  else say("我守著這座城的神殿。三轉之後到了 Lv.70，再來找我。", [...opts, ["再見", closeDialog]]);
+}
+function fourthJob() {
+  const id = FOURTH[P.job], J = JOBS[id];
+  const preview = SKILLS[id].map(s => `・${s.name}：${s.desc(1)}${s.cd ? `（冷卻 ${s.cd(1)} 秒）` : ""}`).join("\n");
+  say(`${J.blurb}\n\n成為${J.name}之後會學到：\n${preview}`, [[`我要成為${J.name}`, () => advance4(id)], ["再想想", back]]);
+}
+function advance4(id) {
+  const J = JOBS[id];
+  P.job = id;
+  P.sp += 3;
+  P.mhp += J.gain.hp; P.mmp += J.gain.mp;
+  P.hp = maxHp(); P.mp = maxMp();
+  fx.push({ k: "lvup", t: 0, text: "JOB UP!" });
+  sfx("levelup");
+  msg(`你成為${J.name}了！按 ${keyOf("skills")} 學新技能`, "#ffc94a");
+  refreshPanels(true); save();
+  say(`從今天起你就是${J.name}了。\n四轉技能一開始最高只能升到 Lv.20；打倒沙暴蠍皇有機會拿到技能書，讀了就能升到 Lv.30。大招用完要等冷卻時間才能再用。`, [["好", closeDialog]]);
 }
 function thirdJob() {
   const id = THIRD[P.job], J = JOBS[id];
@@ -272,6 +300,22 @@ const QUESTS = {
               reward: { exp: 40000, coins: 10000 },
               ask: "今天也麻煩你去風之高台巡一巡，打倒 30 隻風鈴精。", where: "風鈴精在風之高台的平台上。",
               thanks: "辛苦了，明天也拜託你。" },
+  // the fourth job: two relics from the temple priest, then the king's trial
+  q_relic1: { npc: "isa", name: "蠍皇的毒針", lv: 70, when: () => !!FOURTH[P.job], collect: { scorp_stinger: 1 },
+              reward: { exp: 200000, coins: 0, items: [["sand_sigil", 1]] },
+              ask: "第一件信物，是沙暴蠍皇的毒針。打倒牠，把毒針帶回來。",
+              where: "沙暴蠍皇在流沙神殿中間的高台上，打倒牠一定會掉毒針。",
+              thanks: "這是真的毒針……收下沙之信物吧。" },
+  q_relic2: { npc: "isa", name: "古墓的記憶", lv: 70, when: () => !!FOURTH[P.job], collect: { clay_shard: 40, wisp_ash: 40 },
+              reward: { exp: 200000, coins: 0, items: [["tomb_sigil", 1]] },
+              ask: "第二件信物，要用古墓的記憶來換：40 個陶俑碎片和 40 個燈魂餘燼。",
+              where: "地下古墓的墓守陶俑掉陶俑碎片，古墓燈魂掉燈魂餘燼。",
+              thanks: "古墓的記憶都在這裡了。收下墓之信物吧。" },
+  q_trial4: { npc: "isa", name: "王者試煉", lv: 70, when: () => !!FOURTH[P.job] && ["q_relic1", "q_relic2"].every(id => P.quests[id]?.state === "done"),
+              collect: { sand_sigil: 1, tomb_sigil: 1 }, kill: { shadow2: 1 }, reward: { exp: 300000, coins: 0 }, enter: "trial4",
+              ask: "帶著兩件信物進入王者試煉場。在那裡等著你的，是比上次更強的影子。",
+              where: "打倒試煉場裡的真影分身，再帶著兩件信物回來。倒下會回到沉砂城，隨時可以再來。",
+              thanks: "你戰勝了真正的自己。兩件信物我收下了。" },
   // the desert: one chain from the guard captain, Lv.55 to 75
   q_fox:    { npc: "hasan", name: "沙丘上的狐群", lv: 55, kill: { fox: 40 },
               reward: { exp: 300000, coins: 30000, items: [["white_pot", 50]] },

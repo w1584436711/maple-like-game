@@ -176,6 +176,12 @@ const MAPS = {
     plats: [], ladders: [], trees: [260, 980], zones: [{ p: 0, x0: 520, x1: 1100, t: "shadow", n: 1 }],
     portals: [{ x: 60, to: "cloudtown", tp: 0 }],
   },
+  // reached only through the temple priest's trial; not on the world map
+  trial4: {
+    name: "王者試煉場", area: "沉砂", home: "sandcity", w: 1200, spawn: 100, theme: THEMES.shadow,
+    plats: [], ladders: [], trees: [260, 980], zones: [{ p: 0, x0: 520, x1: 1100, t: "shadow2", n: 1 }],
+    portals: [{ x: 60, to: "sandcity", tp: 0 }],
+  },
   stormaltar: {
     name: "雷雲祭壇", area: "雲頂", home: "cloudtown", w: 1800, spawn: 60, theme: THEMES.storm,
     plats: [
@@ -319,6 +325,9 @@ const TYPES = {
   // the trial's shadow: quick, hits hard, and fights with your own weapon
   shadow: { name: "影子分身", lv: 55, hp: 30000, exp: 8000, dmg: 160, spd: 70, avoid: 15, acc: 260, w: 40, h: 80, coin: [1, 1], respawn: 20,
             boss: true, slam: { wind: 0.7, cd: 3, range: 260, dmg: 200 }, drops: [["white_pot", 1, 10], ["mana_pot", 1, 10]] },
+  // the fourth job's trial: a stronger shadow, crimson instead of violet
+  shadow2: { name: "真影分身", lv: 80, hp: 150000, exp: 30000, dmg: 330, spd: 85, avoid: 18, acc: 400, w: 44, h: 90, coin: [1, 1], respawn: 20,
+             boss: true, slam: { wind: 0.6, cd: 2.6, range: 280, dmg: 450 }, drops: [["white_pot", 1, 15], ["mana_pot", 1, 15]] },
   // the desert. burrow: { under, up } seconds spent hidden in the sand (it cannot be hit, and closes in on you)
   // and above it; throw: { cd, range, dmg, kind } a shot thrown at you from a distance
   fox:     { name: "沙丘狐", lv: 55, hp: 11000, exp: 2000, dmg: 230, spd: 75, avoid: 16, acc: 280, w: 50, h: 34, coin: [180, 300],
