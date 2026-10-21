@@ -71,6 +71,17 @@ function drawBG() {
       const x = ((i * 110 - ox * 1.2 + time * 6) % 1540 + 1540) % 1540 - 160;
       ctx.beginPath(); ctx.ellipse(x, sy + 24 + (i % 3) * 6, 70 + (i % 4) * 14, 26, 0, 0, Math.PI * 2); ctx.fill();
     }
+  } else if (th.lava) {
+    // a sea of lava far below, with slow bright ripples
+    const sy = 330 - oy;
+    ctx.fillStyle = vgrad(sy, H, "#ff8a3a", "#8a1a0a"); ctx.fillRect(0, sy, W, H - sy);
+    ctx.strokeStyle = "rgba(255,230,140,.45)"; ctx.lineWidth = 2;
+    for (let r = 0; r < 5; r++) {
+      const y = sy + 12 + r * 24;
+      ctx.beginPath();
+      for (let x = -20; x <= W + 20; x += 50) { const px = x - ((ox * (1 + r * 0.3) + time * (5 + r * 2)) % 50); ctx.moveTo(px, y); ctx.quadraticCurveTo(px + 12, y - 4, px + 25, y); }
+      ctx.stroke();
+    }
   } else if (th.sea) {
     // open sea with slow rolling wave lines
     const sy = 330 - oy;
@@ -572,6 +583,18 @@ function paintItem(I) {
   } else if (kind === "gel") {
     shape(c, () => ctx.ellipse(16, 19, 11, 8, 0, 0, Math.PI * 2));
     ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.beginPath(); ctx.ellipse(12, 16, 3.5, 2, -0.4, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === "earring") {
+    ctx.strokeStyle = "#d8b050"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(16, 9, 4, Math.PI * 0.2, Math.PI * 1.8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(16, 13); ctx.lineTo(16, 16); ctx.stroke();
+    shape(c, poly(16, 15, 22, 22, 16, 29, 10, 22));
+  } else if (kind === "necklace") {
+    ctx.strokeStyle = "#d8b050"; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(16, 12, 11, 9, 0, 0.15, Math.PI - 0.15); ctx.stroke();
+    shape(c, () => ctx.arc(16, 23, 6, 0, Math.PI * 2));
+    ctx.fillStyle = "rgba(255,255,255,.6)"; ctx.beginPath(); ctx.arc(14, 21, 1.8, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === "ring") {
+    ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(16, 19, 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = "#e7c45a"; ctx.lineWidth = 3.6; ctx.stroke();
+    shape(c, poly(16, 4, 21, 9, 16, 14, 11, 9));
   } else if (kind === "book") {
     // a thick book with a gem on the cover in the job's colour
     shape("#f0e6d0", () => rr(8, 5, 18, 23, 2));
@@ -1031,6 +1054,51 @@ function drawMob(m) {
     ctx.beginPath(); ctx.ellipse(19, -12, 8, 7, 0, 0, Math.PI * 2); paint(white ? "#fff" : "#2a3a30", "#0f1a14", 1.4);
     ctx.strokeStyle = "#d8b050"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(24, -14); ctx.quadraticCurveTo(31, -18, 30, -27); ctx.stroke(); ctx.lineCap = "butt";
     ctx.fillStyle = m.aggro > 0 ? "#ff6a4a" : "#ffe066"; ctx.beginPath(); ctx.arc(22, -14, 1.8, 0, Math.PI * 2); ctx.fill();
+  } else if (m.t === "colossus") {
+    // a giant of black basalt split by glowing lava; the core in its chest is shielded while its arms are up
+    const wind = m.wind > 0 ? 1 - m.wind / m.T.slam.wind : 0, shake = m.wind > 0 ? Math.sin(m.ph * 50) * 2 : 0;
+    const phase = raid?.phase || 1, heat = phase === 3 ? "#fff0a0" : phase === 2 ? "#ffaa3a" : "#ff6a2a", breathe = Math.sin(m.ph * 2) * 2;
+    const rock = (y0, y1) => white ? "#fff" : vgrad(y0, y1, "#5a4a48", "#1e1614");
+    ctx.translate(shake, 0); ctx.scale(f, 1);
+    for (const x of [-56, 56]) { ctx.beginPath(); rr(x - 26, -70, 52, 70, 12); paint(rock(-70, 0), "#0a0605", 2); }
+    // shoulders reaching toward the arms
+    for (const x of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x * 92, -176 + breathe, 34, 28, 0, 0, Math.PI * 2); paint(rock(-204, -148), "#0a0605", 2); }
+    ctx.beginPath(); ctx.moveTo(-90, -70); ctx.lineTo(-104, -170 + breathe); ctx.quadraticCurveTo(0, -214 + breathe, 104, -170 + breathe); ctx.lineTo(90, -70); ctx.closePath();
+    paint(rock(-214, -70), "#0a0605", 2.4);
+    // lava cracks, brighter each phase
+    ctx.save(); ctx.strokeStyle = heat; ctx.shadowColor = heat; ctx.shadowBlur = 10; ctx.lineWidth = 3; ctx.lineJoin = "round";
+    for (const pts of [[-70, -90, -52, -120, -64, -150], [60, -84, 44, -112, 66, -146], [-20, -76, -6, -96, -24, -112], [-56, -30, -40, -50], [48, -20, 62, -48]]) {
+      ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.stroke();
+    }
+    ctx.restore();
+    // the core, and a shield over it while the arms still stand
+    ctx.save(); ctx.shadowColor = heat; ctx.shadowBlur = 24;
+    ctx.beginPath(); ctx.arc(0, -128 + breathe, 22 + wind * 6, 0, Math.PI * 2); ctx.fillStyle = white ? "#fff" : vgrad(-150, -106, "#fff6c0", heat); ctx.fill();
+    ctx.restore();
+    if (m.armored) {
+      ctx.strokeStyle = `rgba(160,220,255,${0.6 + Math.sin(m.ph * 6) * 0.25})`; ctx.lineWidth = 4;
+      ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 + m.ph * 0.5; ctx.lineTo(Math.cos(a) * 36, -128 + breathe + Math.sin(a) * 36); } ctx.closePath(); ctx.stroke();
+    }
+    // head with burning eyes
+    ctx.beginPath(); rr(-34, -238 + breathe, 68, 50, 16); paint(rock(-238, -188), "#0a0605", 2.2);
+    ctx.save(); ctx.fillStyle = heat; ctx.shadowColor = heat; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.ellipse(-12, -214 + breathe, 7, 4 + wind * 3, 0, 0, Math.PI * 2); ctx.ellipse(16, -214 + breathe, 7, 4 + wind * 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "rgba(255,150,60,.5)"; ctx.fillRect(-14, -196 + breathe, 28, 3);
+  } else if (m.t === "carm") {
+    // a molten fist resting on the ground, raised high before it pounds
+    const wind = m.wind > 0 ? 1 - m.wind / m.T.slam.wind : 0, lift = wind * 70, side = m.side || 1;
+    const rock = (y0, y1) => white ? "#fff" : vgrad(y0, y1, "#6a5450", "#241a18");
+    ctx.scale(side, 1);
+    ctx.beginPath(); ctx.moveTo(-22, -70 - lift); ctx.quadraticCurveTo(-40, -150, -72, -170); ctx.lineTo(-52, -190); ctx.quadraticCurveTo(-12, -160, 18, -76 - lift); ctx.closePath();
+    paint(rock(-190, -70), "#0a0605", 2);
+    ctx.beginPath(); rr(-34, -96 - lift, 68, 96, 18); paint(rock(-96 - lift, -lift), "#0a0605", 2.2);
+    ctx.strokeStyle = "rgba(10,6,5,.6)"; ctx.lineWidth = 2;
+    for (const x of [-16, 0, 16]) { ctx.beginPath(); ctx.moveTo(x, -96 - lift); ctx.lineTo(x, -66 - lift); ctx.stroke(); }
+    ctx.save(); ctx.strokeStyle = "#ff8a3a"; ctx.shadowColor = "#ff6a2a"; ctx.shadowBlur = 8; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(-24, -40 - lift); ctx.lineTo(-8, -54 - lift); ctx.lineTo(4, -38 - lift); ctx.lineTo(20, -50 - lift); ctx.stroke();
+    ctx.restore();
+    if (lift) { ctx.fillStyle = `rgba(255,120,40,${0.3 * wind})`; ctx.beginPath(); ctx.ellipse(0, 0, 60, 8, 0, 0, Math.PI * 2); ctx.fill(); }
   } else if (m.t === "scorpling" || m.t === "scorpking") {
     ctx.scale(f, 1);
     drawScorp(m, white);
@@ -1308,12 +1376,24 @@ function drawFX() {
         ctx.restore();
       }
       if (f.t < 0.25) { ctx.fillStyle = `rgba(255,255,255,${0.25 * (1 - f.t / 0.25)})`; ctx.fillRect(cam.x, cam.y, W, H); }
+    } else if (f.k === "flood") {
+      // lava surging over the whole floor of the altar
+      const p = f.t / 1.4, rise = Math.sin(Math.min(1, p) * Math.PI) * 46;
+      ctx.fillStyle = vgrad(840 - rise, 924, "rgba(255,230,140,.95)", "rgba(200,40,10,.95)"); ctx.fillRect(0, 840 - rise, WORLD_W, 84 + rise);
+      ctx.strokeStyle = "rgba(255,250,200,.8)"; ctx.lineWidth = 3; ctx.beginPath();
+      for (let x = 0; x <= WORLD_W; x += 40) ctx.lineTo(x, 840 - rise + Math.sin(x * 0.05 + time * 8) * 5);
+      ctx.stroke();
+    } else if (f.k === "wave") {
+      // a ring of fire racing out along the ground from the colossus
+      const p = f.t / 0.9, r = p * 900;
+      ctx.save(); ctx.globalAlpha = 1 - p; ctx.strokeStyle = "#ffaa3a"; ctx.shadowColor = "#ff6a2a"; ctx.shadowBlur = 20; ctx.lineWidth = 14 * (1 - p) + 3;
+      ctx.beginPath(); ctx.ellipse(f.x, f.y - 10, r, 30 + r * 0.05, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     } else if (f.k === "dust") {
       // sand bursting up where something comes out of the ground
       const p = f.t / 0.6;
       for (let i = 0; i < 12; i++) {
         const a = Math.PI + (i + 0.5) / 12 * Math.PI, d = f.r * 0.6 * p;
-        ctx.fillStyle = `rgba(220,180,110,${0.8 * (1 - p)})`;
+        ctx.fillStyle = f.lava ? `rgba(255,140,50,${0.9 * (1 - p)})` : `rgba(220,180,110,${0.8 * (1 - p)})`;
         ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.9 + p * p * 30, 5 * (1 - p) + 2, 0, Math.PI * 2); ctx.fill();
       }
     } else if (f.k === "nova") {
@@ -1439,6 +1519,9 @@ function drawBar(x, y, w, h, ratio, c1, c2, label, value) {
   }
   ctx.font = `12px ${NUM}`; ctx.fillStyle = "#fff"; ctx.textAlign = "left";
   outlinedText(label, x + 8, y + h - 4, "#fff", "rgba(0,0,0,.6)", 3);
+  // big numbers shrink to fit beside the label instead of running over it
+  const room = w - 16 - ctx.measureText(label).width - 6;
+  ctx.font = `${Math.max(8, Math.min(12, 12 * room / ctx.measureText(value).width))}px ${NUM}`;
   ctx.textAlign = "right"; outlinedText(value, x + w - 8, y + h - 4, "#fff", "rgba(0,0,0,.6)", 3);
   ctx.textAlign = "left";
 }
@@ -1623,6 +1706,14 @@ function drawFoes() {
       ctx.rotate(Math.atan2(f.vy, f.vx));
       ctx.strokeStyle = "#4a8a3a"; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(7, 0); ctx.stroke();
       ctx.fillStyle = "#f6f0d8"; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(6, -2.5); ctx.lineTo(6, 2.5); ctx.fill();
+    } else if (f.kind === "lava") {
+      // a falling blob of lava with a glowing tail, and a mark where it will land
+      ctx.restore(); ctx.save();
+      ctx.fillStyle = "rgba(255,90,30,.25)"; ctx.beginPath(); ctx.ellipse(f.x, 840, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.translate(f.x, f.y);
+      ctx.shadowColor = "#ff6a2a"; ctx.shadowBlur = 16;
+      ctx.fillStyle = "rgba(255,120,40,.4)"; ctx.beginPath(); ctx.moveTo(-8, -6); ctx.lineTo(0, -40); ctx.lineTo(8, -6); ctx.fill();
+      ctx.fillStyle = vgrad(-12, 12, "#fff0a0", "#ff4a1a"); ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
     } else {
       ctx.shadowColor = "#7fe0e0"; ctx.shadowBlur = 14;
       ctx.fillStyle = "rgba(127,224,224,.35)"; ctx.beginPath(); ctx.arc(-Math.sign(f.vx) * 8, 0, 5, 0, Math.PI * 2); ctx.fill();
@@ -1678,6 +1769,33 @@ function drawSandTown() {
   ctx.fillStyle = "#8a6237"; ctx.fillRect(x - 3, y - 60, 6, 60);
   ctx.beginPath(); rr(x - 46, y - 82, 92, 28, 5); paint(vgrad(y - 82, y - 54, "#fff6e0", "#e8d6a8"), "rgba(90,60,30,.7)", 1.4);
   ctx.font = `900 13px ${UI}`; ctx.textAlign = "center"; ctx.fillStyle = "#5a3a1a"; ctx.fillText("沉砂城", x, y - 63); ctx.textAlign = "left";
+}
+
+// the expedition's clock under the boss bar, the red warning before a big attack, and phase banners
+function drawRaidHUD() {
+  ctx.textAlign = "center";
+  if (!raid.done) {
+    const m = Math.floor(Math.max(0, raid.t) / 60), sec = String(Math.floor(Math.max(0, raid.t) % 60)).padStart(2, "0");
+    ctx.font = `16px ${NUM}`; outlinedText(`${m}:${sec}`, W / 2, 132, raid.t < 60 ? "#ff9b8f" : "#ffffff", "rgba(40,10,0,.8)", 4);
+  }
+  if (raid.warn) {
+    const a = 0.35 + Math.abs(Math.sin(time * 8)) * 0.35;
+    const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.65);
+    g.addColorStop(0, "rgba(255,40,20,0)"); g.addColorStop(1, `rgba(255,40,20,${a})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H - 48);
+    const text = raid.warn.kind === "flood" ? "熔岩要淹沒地面了！快跳到平台上！" : "衝擊波要來了！看準時機跳起來！";
+    ctx.fillStyle = "rgba(60,0,0,.75)"; rr(W / 2 - 230, 168, 460, 56, 12); ctx.fill();
+    ctx.font = `900 20px ${UI}`; outlinedText(`⚠ ${text}`, W / 2, 196, "#ffe0a0", "rgba(80,0,0,.9)", 4);
+    ctx.font = `15px ${NUM}`; ctx.fillStyle = "#ffffff"; ctx.fillText(raid.warn.t.toFixed(1), W / 2, 216);
+  } else if (raid.banner) {
+    ctx.globalAlpha = Math.min(1, raid.banner.t);
+    ctx.font = `900 18px ${UI}`;
+    const tw = ctx.measureText(raid.banner.text).width + 40;
+    ctx.fillStyle = "rgba(30,10,5,.78)"; rr(W / 2 - tw / 2, 172, tw, 40, 12); ctx.fill();
+    outlinedText(raid.banner.text, W / 2, 198, "#ffd7a0", "rgba(60,20,0,.9)", 4);
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = "left";
 }
 
 function drawHUD() {
@@ -1779,11 +1897,13 @@ function drawHUD() {
   if (boss) {
     const w = 380, x = (W - w) / 2, y = 96;
     ctx.font = `900 14px ${UI}`; ctx.textAlign = "center";
-    outlinedText(`Lv.${boss.T.lv} ${boss.T.name}`, W / 2, y - 6, "#ffd7a0", "rgba(40,10,0,.8)", 4);
+    outlinedText(`Lv.${boss.T.lv} ${boss.T.name}${raid ? `．第 ${raid.phase} 階段` : ""}${boss.armored ? "（先打斷手臂）" : ""}`, W / 2, y - 6, "#ffd7a0", "rgba(40,10,0,.8)", 4);
     ctx.textAlign = "left";
     ctx.fillStyle = "rgba(20,10,10,.85)"; rr(x, y, w, 14, 7); ctx.fill();
     ctx.fillStyle = "#d8362b"; rr(x + 2, y + 2, (w - 4) * Math.max(0, boss.hp / boss.T.hp), 10, 5); ctx.fill();
   }
+
+  if (raid) drawRaidHUD();
 
   if (!started) {
     const t = "點一下畫面，就能用鍵盤開始冒險";

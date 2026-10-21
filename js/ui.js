@@ -438,7 +438,7 @@ function pick(body, btn, infoHtml) {
   body.querySelector("[data-info]").innerHTML = infoHtml;
 }
 // laid out like a paper doll: head, body and legs top to bottom
-const EQ_ORDER = ["hat", "cape", "top", "gloves", "weapon", "bottom", "shield", "shoes"];
+const EQ_ORDER = ["hat", "cape", "top", "gloves", "weapon", "bottom", "shield", "shoes", "earring", "necklace", "ring"];
 function renderEquip() {
   let html = `<div class="eqgrid">`;
   for (const k of EQ_ORDER) {

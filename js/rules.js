@@ -57,7 +57,9 @@ const FOURTH = { swordsaint: "swordking", starsage: "astromancer", ranger: "skya
 // stat requirements, monster drop tables, and arrows and throwing stars that get used up. Names are our own.
 const BAG_SLOTS = 24;
 const TABS = { equip: "裝備", use: "消耗", etc: "其他" };
-const EQUIP_SLOTS = { hat: "帽子", top: "上衣", bottom: "褲子", shoes: "鞋子", gloves: "手套", cape: "披風", weapon: "武器", shield: "盾牌" };
+const EQUIP_SLOTS = { hat: "帽子", top: "上衣", bottom: "褲子", shoes: "鞋子", gloves: "手套", cape: "披風", weapon: "武器", shield: "盾牌",
+                      earring: "耳環", necklace: "項鍊", ring: "戒指" };
+const ACCESSORY_SLOTS = ["earring", "necklace", "ring"];
 const WTYPES = { sword: { name: "劍", jobs: ["beginner", "warrior"] }, wand: { name: "短杖", jobs: ["magician"] },
                  bow: { name: "弓", jobs: ["bowman"], twoHand: true }, claw: { name: "拳爪", jobs: ["thief"], twoHand: true } };
 const GEAR_STATS = { watk: "攻擊", matk: "魔力", def: "防禦", str: "力量", dex: "敏捷", int: "智力", luk: "幸運", hp: "HP", mp: "MP", acc: "命中", avoid: "迴避" };
@@ -151,6 +153,16 @@ const ITEMS = {
   tomb_armor:    { name: "陶俑胸甲", slot: "top", def: 48, hp: 120, color: "#b8634a", req: { lv: 65 } },
   tomb_greaves:  { name: "陶俑護腿", slot: "bottom", def: 38, hp: 40, color: "#9a5a40", req: { lv: 65 } },
   tomb_cape:     { name: "王陵披風", slot: "cape", def: 26, str: 7, dex: 7, int: 7, luk: 7, color: "#3a6a8a", req: { lv: 65 } },
+  // accessories: plain ones from the desert shop, molten ones from the expedition
+  sand_earring:  { name: "沙金耳環", slot: "earring", int: 3, luk: 3, mp: 50, color: "#ffd84a", req: { lv: 60 } },
+  sand_necklace: { name: "沙紋項鍊", slot: "necklace", str: 3, dex: 3, hp: 80, color: "#e0a040", req: { lv: 60 } },
+  sand_ring:     { name: "沙之戒指", slot: "ring", str: 2, dex: 2, int: 2, luk: 2, color: "#d8b050", req: { lv: 60 } },
+  magma_earring: { name: "熔心耳環", slot: "earring", str: 5, dex: 5, int: 5, luk: 5, watk: 3, matk: 3, color: "#ff6a2a", req: { lv: 75 } },
+  magma_necklace: { name: "熔心項鍊", slot: "necklace", str: 5, dex: 5, int: 5, luk: 5, hp: 300, mp: 150, color: "#ff8a3a", req: { lv: 75 } },
+  magma_ring:    { name: "熔心戒指", slot: "ring", str: 3, dex: 3, int: 3, luk: 3, watk: 5, matk: 5, color: "#ffaa3a", req: { lv: 75 } },
+  scroll_acc10:  { name: "飾品全能卷軸 10%", cat: "use", scroll: { slots: ACCESSORY_SLOTS, rate: 0.1, add: { str: 3, dex: 3, int: 3, luk: 3 } }, color: "#ffd0a0", seal: "#d23b3b",
+                   desc: "10% 機率讓耳環、項鍊或戒指的力量、敏捷、智力、幸運各加 3" },
+  magma_pass:    { name: "熔心入場證", color: "#ff6a2a", desc: "進入熔心祭壇要交一張，找沉砂城的遠征隊長卡蘭" },
   // gear from the cloud island
   cloud_sword:   { name: "雲紋長劍", slot: "weapon", wtype: "sword", watk: 72, color: "#bfe0ff", req: { lv: 40, str: 130 } },
   thunder_staff: { name: "雷光法杖", slot: "weapon", wtype: "wand", watk: 22, matk: 82, color: "#ffe066", req: { lv: 40, int: 130 } },
@@ -182,7 +194,8 @@ const PRICES = {
   wood_shield: 1500, shell_shield: 8000,
   storm_blade: 40000, star_staff: 40000, gale_bow: 40000, fang_claw: 40000, fog_hood: 5000, lizard_mail: 9000, lizard_greaves: 7000,
   crab_shield: 16000, grove_cape: 30000, guard_scroll: 8000, restore_scroll: 6000,
-  white_pot: 150, mana_pot: 300, scroll_cape60: 5000, scroll_shoes60: 5000,
+  white_pot: 150, mana_pot: 300, sand_earring: 60000, sand_necklace: 60000, sand_ring: 60000,
+  magma_earring: 400000, magma_necklace: 400000, magma_ring: 400000, scroll_cape60: 5000, scroll_shoes60: 5000,
   sand_sword: 200000, sun_staff: 200000, dune_bow: 200000, sand_claw: 200000, tomb_cape: 150000,
   desert_hat: 20000, desert_robe: 28000, desert_pants: 24000, desert_boots: 18000, tomb_helm: 40000, tomb_armor: 55000, tomb_greaves: 45000,
   tomb_sword: 300000, moon_staff: 300000, pharaoh_bow: 300000, scarab_claw: 300000, cloud_sword: 120000, thunder_staff: 120000, sky_bow: 120000, cloud_claw: 120000,

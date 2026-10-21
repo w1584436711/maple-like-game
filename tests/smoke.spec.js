@@ -1019,6 +1019,103 @@ test("四轉技能先到 Lv.20，讀了技能書才能升到 Lv.30；別的職�
   expect(errors).toEqual([]);
 });
 
+// 遠征用 Lv.80 的裂空劍帝，帶三張入場證；遠征隊長卡蘭站在沉砂城 x=960
+const LV80_RAIDER = {
+  ...LV75_SWORDKING, lv: 80, mhp: 10000, hp: 10000, map: "sandcity",
+  bag: { equip: [{ id: "magma_ring", n: 1 }], use: [], etc: [{ id: "magma_pass", n: 3 }] },
+};
+const enterRaid = async page => {
+  await page.evaluate(() => openNpc(NPCS.karan));
+  await page.locator("#dlg").getByRole("button", { name: "進入熔心祭壇" }).click();
+};
+
+test("遠征：交入場證才能進，每天 2 次；時間到或倒下都不扣經驗", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV80_RAIDER, exp: 1000 });
+  await page.locator("#game").click();
+  await enterRaid(page);
+  let saved = await readSave(page);
+  expect([itemCount(saved, "magma_pass"), saved.raid.used]).toEqual([2, 1]);
+  expect(await page.evaluate(() => [P.map, !!raid])).toEqual(["magma", true]);
+  // 時間到：回到沉砂城，經驗不變
+  await page.evaluate(() => { raid.t = 0.05; });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => [P.map, P.exp])).toEqual(["sandcity", 1000]);
+  // 第二次：在祭壇裡倒下也不扣經驗
+  await enterRaid(page);
+  await page.evaluate(() => { P.inv = 0; hurt(999999, P.x + 1); });
+  expect(await page.evaluate(() => [P.dead, P.exp])).toEqual([true, 1000]);
+  await page.evaluate(() => revive());
+  // 第三次：今天的次數用完了
+  await enterRaid(page);
+  await expect(page.locator("#dlg")).toContainText("次數已經用完");
+  saved = await readSave(page);
+  expect([saved.map, itemCount(saved, "magma_pass"), saved.raid.used]).toEqual(["sandcity", 1, 2]);
+  expect(errors).toEqual([]);
+});
+
+test("熔心巨像：兩隻手臂都打斷前，本體打不到", async ({ page }) => {
+  const errors = await openWithSave(page, LV80_RAIDER);
+  await page.locator("#game").click();
+  await enterRaid(page);
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => [raidArms().length, hittable(raidBody())])).toEqual([2, false]);
+  await page.evaluate(() => kill(raidArms()[0]));
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => hittable(raidBody()))).toBe(false);
+  await page.evaluate(() => kill(raidArms()[0]));
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => [raidArms().length, hittable(raidBody())])).toEqual([0, true]);
+  expect(errors).toEqual([]);
+});
+
+test("熔心巨像換階段：手臂長回來；熔岩淹地前有警告，站在地上會受傷、平台上不會", async ({ page }) => {
+  const errors = await openWithSave(page, LV80_RAIDER);
+  await page.locator("#game").click();
+  await enterRaid(page);
+  await page.evaluate(() => { raidArms().forEach(a => kill(a)); });
+  await page.waitForTimeout(800);
+  await page.evaluate(() => { const b = raidBody(); b.hp = b.T.hp * 0.6; });
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => [raid.phase, raidArms().length])).toEqual([2, 2]);
+  // 站在平台上：熔岩淹地打不到
+  const onPlatform = () => page.evaluate(() => {
+    const p = plats[5]; Object.assign(P, { x: p.x + 50, y: p.y - P.h, vx: 0, vy: 0, onGround: true, ground: p, inv: 0, hp: 10000 });
+    raid.rainT = 99; raid.bigT = 99; raid.warn = { kind: "flood", t: 0.3 };
+  });
+  await onPlatform();
+  await page.waitForTimeout(150);
+  await expect(page.locator("#game")).toBeVisible();
+  expect(await page.evaluate(() => raid.warn?.kind)).toBe("flood");
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => P.hp)).toBe(10000);
+  // 站在地上：被淹到
+  await page.evaluate(() => {
+    Object.assign(P, { x: 160, y: 840 - P.h, vx: 0, vy: 0, onGround: true, ground: plats[0], inv: 0, hp: 10000 });
+    raid.warn = { kind: "flood", t: 0.3 };
+  });
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => P.hp)).toBeLessThan(10000);
+  await page.evaluate(() => { const b = raidBody(); b.hp = b.T.hp * 0.3; });
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => raid.phase)).toBe(3);
+  expect(errors).toEqual([]);
+});
+
+test("耳環、項鍊、戒指三個新欄位；在熔心祭壇存檔會回到沉砂城", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV80_RAIDER, map: "magma" });
+  await page.locator("#game").click();
+  expect(await page.evaluate(() => P.map)).toBe("sandcity");
+  await page.keyboard.press("i");
+  await page.locator("#invWin").getByRole("button", { name: "熔心戒指" }).dblclick();
+  const saved = await readSave(page);
+  expect(saved.eq.ring.id).toBe("magma_ring");
+  await page.keyboard.press("e");
+  const eq = page.locator("#equipWin");
+  for (const name of ["耳環", "項鍊", "戒指"]) await expect(eq).toContainText(name);
+  await expect(eq).toContainText("魔力 +5");
+  expect(errors).toEqual([]);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 

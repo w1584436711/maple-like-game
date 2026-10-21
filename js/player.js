@@ -6,7 +6,7 @@
 function freshCharacter() {
   return {
     lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
-    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [], pets: {}, petOn: null, books: [], cds: {}, cdMax: {},
+    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [], pets: {}, petOn: null, books: [], cds: {}, cdMax: {}, raid: { day: "", used: 0 },
     bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"), storage: Array(BAG_SLOTS).fill(null),
   };
 }
@@ -207,7 +207,7 @@ document.querySelectorAll("[data-act]").forEach(b => {
 const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins", "map"];
 function serialize() {
   const copy = v => JSON.parse(JSON.stringify(v));
-  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], books: [...P.books], quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage), pets: copy(P.pets), petOn: P.petOn };
+  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], books: [...P.books], raid: { ...P.raid }, quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage), pets: copy(P.pets), petOn: P.petOn };
   SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
   return d;
 }
@@ -274,6 +274,9 @@ function load(d) {
     SAVE_FIELDS.forEach(k => { if (d[k] !== undefined) c[k] = d[k]; });
     if (!JOBS[c.job]) c.job = "beginner";
     if (!MAPS[c.map]) c.map = "village";
+    // an expedition does not survive closing the game: you wake up in its town
+    if (MAPS[c.map].raid) c.map = MAPS[c.map].home;
+    if (typeof d.raid?.day === "string") c.raid = { day: d.raid.day, used: clamp(d.raid.used | 0, 0, 9) };
     c.skills = { ...(d.skills || {}) }; c.buffs = { ...(d.buffs || {}) };
     c.slots = Array.isArray(d.slots) ? d.slots.slice(0, SKILL_SLOTS).map(x => SKILL_BY_ID[x] ? x : null) : [];
     c.books = Array.isArray(d.books) ? [...new Set(d.books.filter(x => SKILL_BY_ID[x]?.book))] : [];

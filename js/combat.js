@@ -32,7 +32,7 @@ function dealDamage(m, o = {}) {
   if (!r) { nums.push({ x: mcx, y: ny, text: "MISS", kind: "miss", t: 0 }); sfx("miss"); return; }
   const d = Math.max(1, Math.round(r.d));
   m.hp -= d; m.flash = 0.12;
-  if (!m.T.boss) m.kb = (mcx > P.x + P.w / 2 ? 1 : -1) * 170;
+  if (!m.T.boss && !m.T.heavy) m.kb = (mcx > P.x + P.w / 2 ? 1 : -1) * 170;
   nums.push({ x: mcx, y: ny, text: String(d), kind: r.crit ? "crit" : "hit", t: 0 });
   sfx("hit");
   fx.push({ k: "spark", x: mcx + rand(-8, 8), y: m.y + m.h / 2 + rand(-8, 8), t: 0 });
@@ -134,7 +134,8 @@ function hurt(d, fromX, acc = null) {
 }
 // percent of the current exp lost when knocked out: nothing for a beginner, 10% for a new first job,
 // then a quarter of a percent less each level down to 3%, so a long climb is never wiped out at once
-const deathPenalty = () => P.job === "beginner" ? 0 : clamp(10 - (P.lv - 10) * 0.25, 3, 10);
+// the expedition costs nothing but the try
+const deathPenalty = () => P.job === "beginner" || map.raid ? 0 : clamp(10 - (P.lv - 10) * 0.25, 3, 10);
 function revive() {
   // like the original, you get back up in the nearest town
   P.dead = false;
@@ -372,11 +373,12 @@ function updateShots(dt) {
 }
 
 // a monster you can hit: not dead, faded in, and not hidden in the sand
-const hittable = m => !m.dead && m.alpha > 0.5 && !m.under;
+const hittable = m => !m.dead && m.alpha > 0.5 && !m.under && !m.armored;
 
 // what monsters throw at you: needles and lantern fire fly at you and hit like a monster would
 const foes = [];
 const FOE_SPEED = { needle: 330, wisp: 230 };
+// lava falls straight down from the sky in the expedition and splashes on the ground
 function throwAt(m, Th) {
   const sx = m.x + m.w / 2 + m.dir * m.w * 0.4, sy = m.y + m.h * 0.35;
   const tx = P.x + P.w / 2, ty = P.y + P.h / 2, sp = FOE_SPEED[Th.kind];
@@ -387,7 +389,8 @@ function throwAt(m, Th) {
 function updateFoes(dt) {
   for (let i = foes.length - 1; i >= 0; i--) {
     const f = foes[i];
-    f.x += f.vx * dt; f.y += f.vy * dt; f.t += dt; f.left -= Math.abs(f.vx * dt);
+    f.x += f.vx * dt; f.y += f.vy * dt; f.t += dt; f.left -= Math.hypot(f.vx, f.vy) * dt;
+    if (f.kind === "lava" && f.y >= 840) { fx.push({ k: "dust", x: f.x, y: 840, r: 50, t: 0, lava: true }); foes.splice(i, 1); continue; }
     if (!P.dead && P.inv <= 0 && f.x > P.x - 4 && f.x < P.x + P.w + 4 && f.y > P.y - 4 && f.y < P.y + P.h + 4) {
       hurt(f.dmg, f.x - f.vx, f.acc); foes.splice(i, 1); continue;
     }
@@ -537,13 +540,14 @@ function update(dt) {
 
   updateShots(dt);
   updateFoes(dt);
+  raidTick(dt);
   updateMobs(dt);
   updateDrops(dt);
   updatePet(dt);
   for (let i = nums.length - 1; i >= 0; i--) if ((nums[i].t += dt) > 1.1) nums.splice(i, 1);
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt;
-    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3, buff: 0.7, burst: 0.3, dust: 0.6, sky: 1, nova: 0.5, quake: 0.5, zap: 0.3, rain: 0.6 }[f.k];
+    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3, buff: 0.7, burst: 0.3, dust: 0.6, sky: 1, flood: 1.4, wave: 0.9, nova: 0.5, quake: 0.5, zap: 0.3, rain: 0.6 }[f.k];
     if (f.t > life) fx.splice(i, 1);
   }
   for (let i = msgs.length - 1; i >= 0; i--) if ((msgs[i].t -= dt) <= 0) msgs.splice(i, 1);

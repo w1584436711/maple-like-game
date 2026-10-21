@@ -31,6 +31,9 @@ const THEMES = {
             grass: ["#9a8a6a", "#6a5c48", "#4a4034"], dirt: ["#5a4a3a", "#30261c", "#40342a"], tuft: ["#5a5040", "#6a6050"] },
   temple: { sky: ["#c8703a", "#eca866", "#f8dcae"], far: "#c88a5a", near: "#b87a4a", tree: "pillar",
             grass: ["#ecd29a", "#c9a46a", "#a8844e"], dirt: ["#b08050", "#6a4a2a", "#8a6038"], tuft: ["#a89050", "#c0a868"] },
+  // the expedition's altar: a sea of lava in the background, glowing cracks in the rock
+  lava:   { sky: ["#1a0a08", "#4a1a10", "#8a3a1a"], far: "#ff6a2a", near: "#2a1410", tree: "pillar", lava: true,
+            grass: ["#6a5450", "#3a2e2c", "#2a2220"], dirt: ["#4a3430", "#241a18", "#33251f"], tuft: ["#ff6a2a", "#ffaa3a"] },
 };
 const MAPS = {
   village: {
@@ -199,8 +202,16 @@ const MAPS = {
   // the desert continent, Lv.55 to 75, reached by airship from either town
   sandcity: {
     name: "沉砂城", area: "沉砂", town: true, scene: "sand", home: "sandcity", note: "城鎮．飛船、沙商、倉庫、守衛隊長", w: 1400, spawn: 200, dock: 200,
-    theme: THEMES.desert, plats: [{ x: 840, y: 780, w: 180 }, { x: 1040, y: 720, w: 200 }], ladders: [], trees: [470, 1000, 1260], zones: [],
+    theme: THEMES.desert, plats: [], ladders: [], trees: [470, 1260], zones: [],
     portals: [{ x: 1350, to: "dunes", tp: 0 }],
+  },
+  // the expedition: only through the expedition captain, with a pass, twice a day; not on the world map.
+  // raid maps send a saved game back to town, and you lose no experience if you fall here
+  magma: {
+    name: "熔心祭壇", area: "沉砂", home: "sandcity", raid: true, w: 1400, spawn: 120, theme: THEMES.lava,
+    plats: [{ x: 60, y: 780, w: 220 }, { x: 1120, y: 780, w: 220 }, { x: 250, y: 720, w: 200 }, { x: 950, y: 720, w: 200 }, { x: 400, y: 660, w: 150 }, { x: 850, y: 660, w: 150 }],
+    ladders: [], trees: [40, 1360], zones: [{ p: 0, x0: 600, x1: 800, t: "colossus", n: 1 }],
+    portals: [{ x: 40, y: 780, to: "sandcity", tp: 0 }],
   },
   dunes: {
     name: "沙丘地帶", area: "沉砂", home: "sandcity", w: 2400, spawn: 60, theme: THEMES.desert,
@@ -325,6 +336,13 @@ const TYPES = {
   // the trial's shadow: quick, hits hard, and fights with your own weapon
   shadow: { name: "影子分身", lv: 55, hp: 30000, exp: 8000, dmg: 160, spd: 70, avoid: 15, acc: 260, w: 40, h: 80, coin: [1, 1], respawn: 20,
             boss: true, slam: { wind: 0.7, cd: 3, range: 260, dmg: 200 }, drops: [["white_pot", 1, 10], ["mana_pot", 1, 10]] },
+  // the expedition boss: the body cannot be hurt while either arm is up (armored); heavy things are never knocked back
+  colossus: { name: "熔心巨像", lv: 85, hp: 900000, exp: 120000, dmg: 400, spd: 0, avoid: 20, acc: 450, w: 200, h: 230, coin: [10000, 15000], respawn: 99999,
+              boss: true, heavy: true, slam: { wind: 1.2, cd: 5, range: 450, dmg: 900 },
+              drops: [[["magma_earring", "magma_necklace", "magma_ring"], 1], [["magma_earring", "magma_necklace", "magma_ring"], 0.3], ["scroll_acc10", 0.8],
+                      ["scroll_wpn10", 1], ["guard_scroll", 1, 2], ["restore_scroll", 0.6], ["white_pot", 1, 30], ["mana_pot", 1, 30]] },
+  carm:     { name: "熔岩巨臂", lv: 85, hp: 150000, exp: 10000, dmg: 350, spd: 0, avoid: 18, acc: 420, w: 70, h: 96, coin: [500, 800], heavy: true,
+              slam: { wind: 0.9, cd: 3.5, range: 180, dmg: 600 }, drops: [["white_pot", 0.5, 3]] },
   // the fourth job's trial: a stronger shadow, crimson instead of violet
   shadow2: { name: "真影分身", lv: 80, hp: 150000, exp: 30000, dmg: 330, spd: 85, avoid: 18, acc: 400, w: 44, h: 90, coin: [1, 1], respawn: 20,
              boss: true, slam: { wind: 0.6, cd: 2.6, range: 280, dmg: 450 }, drops: [["white_pot", 1, 15], ["mana_pot", 1, 15]] },
@@ -418,6 +436,7 @@ function loadMap(id, x = MAPS[id].spawn, y = 840) {
   cam.y = clamp(P.y - H * 0.58, 0, WORLD_H - H);
   fade = 1;
   pet.map = null;
+  if (!map.raid) raid = null;
 }
 const portalAt = () => portals.find(pt => Math.abs(P.x + P.w / 2 - pt.x) < 24 && Math.abs(P.y + P.h - pt.y) < 4);
 function usePortal(pt) {
