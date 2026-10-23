@@ -179,6 +179,24 @@ const MAPS = {
     plats: [], ladders: [], trees: [260, 980], zones: [{ p: 0, x0: 520, x1: 1100, t: "shadow", n: 1 }],
     portals: [{ x: 60, to: "cloudtown", tp: 0 }],
   },
+  // jump challenges, through the coaches in the two towns: no monsters, the ground sends you back to the start,
+  // and standing on platform `goal` (an index into plats) finishes it
+  jump1: {
+    name: "彩虹跳台", area: "浮島", home: "village", jump: true, w: 1000, spawn: 100, theme: THEMES.meadow, goal: 12,
+    plats: [
+      ...[0, 1, 2, 3, 4, 5].map(i => ({ x: 180 + i * 105, y: 790 - i * 50, w: 70 })), { x: 810, y: 490, w: 130 },
+      ...[0, 1, 2, 3, 4].map(i => ({ x: 710 - i * 100, y: 440 - i * 50, w: 65 })), { x: 150, y: 190, w: 125 },
+    ],
+    ladders: [], trees: [60, 940], zones: [], portals: [{ x: 40, to: "village", tp: 0 }],
+  },
+  jump2: {
+    name: "雲階試煉", area: "雲頂", home: "cloudtown", jump: true, w: 1000, spawn: 100, theme: THEMES.cloud, goal: 12,
+    plats: [
+      ...[0, 1, 2, 3, 4, 5].map(i => ({ x: 170 + i * 90, y: 785 - i * 55, w: 50 })), { x: 710, y: 455, w: 100 },
+      ...[0, 1, 2, 3, 4].map(i => ({ x: 620 - i * 90, y: 400 - i * 55, w: 50 })), { x: 100, y: 125, w: 120 },
+    ],
+    ladders: [], trees: [40, 900], zones: [], portals: [{ x: 40, to: "cloudtown", tp: 0 }],
+  },
   // reached only through the temple priest's trial; not on the world map
   trial4: {
     name: "王者試煉場", area: "沉砂", home: "sandcity", w: 1200, spawn: 100, theme: THEMES.shadow,
@@ -334,17 +352,17 @@ const TYPES = {
             drops: [["eagle_feather", 1], [["cloud_sword", "thunder_staff", "sky_bow", "cloud_claw"], 1], ["storm_cape", 0.5], ["scroll_wpn10", 0.6], ["scroll_arm10", 0.6], ["guard_scroll", 0.5],
                     ["white_pot", 1, 20], ["mana_pot", 1, 20]] },
   // the trial's shadow: quick, hits hard, and fights with your own weapon
-  shadow: { name: "影子分身", lv: 55, hp: 30000, exp: 8000, dmg: 160, spd: 70, avoid: 15, acc: 260, w: 40, h: 80, coin: [1, 1], respawn: 20,
+  shadow: { name: "影子分身", lv: 55, nocard: true, hp: 30000, exp: 8000, dmg: 160, spd: 70, avoid: 15, acc: 260, w: 40, h: 80, coin: [1, 1], respawn: 20,
             boss: true, slam: { wind: 0.7, cd: 3, range: 260, dmg: 200 }, drops: [["white_pot", 1, 10], ["mana_pot", 1, 10]] },
   // the expedition boss: the body cannot be hurt while either arm is up (armored); heavy things are never knocked back
   colossus: { name: "熔心巨像", lv: 85, hp: 900000, exp: 120000, dmg: 400, spd: 0, avoid: 20, acc: 450, w: 200, h: 230, coin: [10000, 15000], respawn: 99999,
               boss: true, heavy: true, slam: { wind: 1.2, cd: 5, range: 450, dmg: 900 },
               drops: [[["magma_earring", "magma_necklace", "magma_ring"], 1], [["magma_earring", "magma_necklace", "magma_ring"], 0.3], ["scroll_acc10", 0.8],
                       ["scroll_wpn10", 1], ["guard_scroll", 1, 2], ["restore_scroll", 0.6], ["white_pot", 1, 30], ["mana_pot", 1, 30]] },
-  carm:     { name: "熔岩巨臂", lv: 85, hp: 150000, exp: 10000, dmg: 350, spd: 0, avoid: 18, acc: 420, w: 70, h: 96, coin: [500, 800], heavy: true,
+  carm:     { name: "熔岩巨臂", lv: 85, nocard: true, hp: 150000, exp: 10000, dmg: 350, spd: 0, avoid: 18, acc: 420, w: 70, h: 96, coin: [500, 800], heavy: true,
               slam: { wind: 0.9, cd: 3.5, range: 180, dmg: 600 }, drops: [["white_pot", 0.5, 3]] },
   // the fourth job's trial: a stronger shadow, crimson instead of violet
-  shadow2: { name: "真影分身", lv: 80, hp: 150000, exp: 30000, dmg: 330, spd: 85, avoid: 18, acc: 400, w: 44, h: 90, coin: [1, 1], respawn: 20,
+  shadow2: { name: "真影分身", lv: 80, nocard: true, hp: 150000, exp: 30000, dmg: 330, spd: 85, avoid: 18, acc: 400, w: 44, h: 90, coin: [1, 1], respawn: 20,
              boss: true, slam: { wind: 0.6, cd: 2.6, range: 280, dmg: 450 }, drops: [["white_pot", 1, 15], ["mana_pot", 1, 15]] },
   // the desert. burrow: { under, up } seconds spent hidden in the sand (it cannot be hit, and closes in on you)
   // and above it; throw: { cd, range, dmg, kind } a shot thrown at you from a distance
@@ -371,7 +389,7 @@ const TYPES = {
              drops: [["scarab_shell", 0.5], ["white_pot", 0.2], ["mana_pot", 0.15], ["tomb_cape", 0.012], ["tomb_helm", 0.015],
                      [["tomb_sword", "moon_staff", "pharaoh_bow", "scarab_claw"], 0.008], ["scroll_arm10", 0.01], ["guard_scroll", 0.01]] },
   // summoned by the scorpion king; they do not come back once beaten
-  scorpling: { name: "小沙蠍", lv: 60, hp: 6000, exp: 500, dmg: 220, spd: 85, avoid: 12, acc: 300, w: 38, h: 24, coin: [30, 60], drops: [["white_pot", 0.1]] },
+  scorpling: { name: "小沙蠍", lv: 60, nocard: true, hp: 6000, exp: 500, dmg: 220, spd: 85, avoid: 12, acc: 300, w: 38, h: 24, coin: [30, 60], drops: [["white_pot", 0.1]] },
   // summon: { t, n, cd, max } calls monsters to its side; rage: below `at` of its health it gets faster,
   // slams more often and starts burrowing
   scorpking: { name: "沙暴蠍皇", lv: 75, hp: 200000, exp: 80000, dmg: 320, spd: 30, avoid: 18, acc: 380, w: 150, h: 104, coin: [5000, 8000], respawn: 150,
@@ -430,7 +448,7 @@ function loadMap(id, x = MAPS[id].spawn, y = 840) {
     }
   });
   drops.length = 0; shots.length = 0; foes.length = 0; skyGrad = null;
-  Object.assign(P, { x: x - P.w / 2, y: y - P.h, vx: 0, vy: 0, climb: null, onGround: true, prone: false, knock: 0 });
+  Object.assign(P, { x: x - P.w / 2, y: y - P.h, vx: 0, vy: 0, climb: null, onGround: true, prone: false, knock: 0, sit: null });
   P.ground = platAt(x, y);
   cam.x = clamp(P.x + P.w / 2 - W / 2, 0, WORLD_W - W);
   cam.y = clamp(P.y - H * 0.58, 0, WORLD_H - H);

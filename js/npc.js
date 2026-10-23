@@ -14,6 +14,9 @@ const NPCS = {
            look: { robe: "#7a5233", hair: "#3a2a20", bald: true, beard: "#4a3020", apron: true, prop: "hammer" } },
   rose:  { name: "倉庫管理員 蘿絲", map: "village", x: 790, storage: true, greet: "要寄放東西嗎？放在我這裡的東西，什麼時候來拿都可以。",
            look: { robe: "#a85a3a", hair: "#2a2a3a", bun: true, apron: true } },
+  // the jump challenge coaches, one in each of the first two towns
+  fei:   { name: "跳跳教練 小飛", map: "village", x: 36, talk: coachTalk, look: { robe: "#4fae3f", hair: "#e8b860", strawHat: true } },
+  yun:   { name: "跳跳教練 小雲", map: "cloudtown", x: 290, talk: coachTalk, look: { robe: "#7ab8f0", hair: "#ffffff", bun: true } },
   lulu:  { name: "寵物飼育員 露露", map: "village", x: 1090, shop: "pet", talk: luluTalk,
            look: { robe: "#e88ab0", hair: "#f6d36a", long: true, apron: true } },
   owen:  { name: "村長 歐文", map: "village", x: 660, greet: "歡迎來到浮島村。年輕人，村子最近有些麻煩，你願意幫忙嗎？",
@@ -336,10 +339,10 @@ const QUESTS = {
               thanks: "兩張入場證，拿好。" },
   // the desert: one chain from the guard captain, Lv.55 to 75
   q_fox:    { npc: "hasan", name: "沙丘上的狐群", lv: 55, kill: { fox: 40 },
-              reward: { exp: 300000, coins: 30000, items: [["white_pot", 50]] },
+              reward: { exp: 300000, coins: 30000, items: [["white_pot", 50], ["chair_dune", 1]] },
               ask: "沙丘狐成群結隊地搶商隊的糧食。去沙丘地帶打倒 40 隻吧。",
               where: "沙丘狐在城東邊的沙丘地帶到處跑。",
-              thanks: "商隊總算能安心上路了。這些白藥水收下吧。" },
+              thanks: "商隊總算能安心上路了。這些白藥水收下吧，還有商隊送你的躺椅，累了就坐下來休息。" },
   q_needle: { npc: "hasan", name: "仙人掌的刺", lv: 58, after: "q_fox", collect: { cactus_needle: 30 },
               reward: { exp: 400000, coins: 30000, items: [["scroll_shoes60", 2]] },
               ask: "城牆需要修補，仙人掌刺是最好的釘子。幫我收集 30 根仙人掌刺。",

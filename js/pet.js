@@ -95,7 +95,7 @@ function petGrew(before, d) {
 function petWants(d, range) {
   if (!d.landed || d.petSkip) return false;
   if (Math.abs(d.x - (P.x + P.w / 2)) > range || Math.abs(d.y - (P.y + P.h)) > 130) return false;
-  return d.kind === "coin" || (settings.petItems && roomFor(d.id) > 0);
+  return d.kind === "coin" || (settings.petItems && canTake(d));
 }
 
 function updatePet(dt) {

@@ -595,6 +595,16 @@ function paintItem(I) {
     ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(16, 19, 8, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = "#e7c45a"; ctx.lineWidth = 3.6; ctx.stroke();
     shape(c, poly(16, 4, 21, 9, 16, 14, 11, 9));
+  } else if (kind === "card") {
+    // a little card with a gold border and a star
+    shape("#3b4a63", () => rr(7, 3, 18, 26, 3));
+    ctx.strokeStyle = c; ctx.lineWidth = 1.6; ctx.strokeRect(9.5, 5.5, 13, 21);
+    ctx.fillStyle = c; ctx.beginPath();
+    for (let i = 0; i < 10; i++) { const r = i % 2 ? 2.4 : 6, a = -Math.PI / 2 + i * Math.PI / 5; ctx.lineTo(16 + Math.cos(a) * r, 16 + Math.sin(a) * r); }
+    ctx.closePath(); ctx.fill();
+  } else if (kind === "chair") {
+    ctx.translate(16, 28); ctx.scale(0.62, 0.62);
+    drawChair(I.id, true); drawChair(I.id, false);
   } else if (kind === "book") {
     // a thick book with a gem on the cover in the job's colour
     shape("#f0e6d0", () => rr(8, 5, 18, 23, 2));
@@ -1798,6 +1808,52 @@ function drawRaidHUD() {
   ctx.textAlign = "left";
 }
 
+// the worn title under your feet, in gold, as the original's medals
+function drawTitleTag() {
+  const T = TITLES[P.title];
+  if (!T || P.dead) return;
+  const cx = P.x + P.w / 2, by = P.y + P.h + (P.sit ? 9 : 0);
+  ctx.font = `900 11px ${UI}`; ctx.textAlign = "center";
+  const tw = ctx.measureText(T.name).width + 18;
+  ctx.fillStyle = vgrad(by + 4, by + 21, "#8a5a10", "#5a3a00"); rr(cx - tw / 2, by + 4, tw, 17, 8); ctx.fill();
+  ctx.strokeStyle = "#ffd84a"; ctx.lineWidth = 1.4; ctx.stroke();
+  ctx.fillStyle = "#ffe48a"; ctx.fillText(T.name, cx, by + 17);
+  ctx.textAlign = "left";
+}
+// chairs are drawn around (0, 0) at the feet: back parts first, then the seat in front of you
+function drawChair(id, back) {
+  const C = CHAIRS[id], c = C.color;
+  if (C.look === "stool") {
+    if (back) return;
+    for (const x of [-11, 8]) { ctx.beginPath(); rr(x, -12, 4, 12, 1.5); paint(shade(c, -0.25)); }
+    ctx.beginPath(); rr(-15, -17, 30, 6, 3); paint(gloss(c, -17, -11));
+  } else if (C.look === "cloud") {
+    const puff = (pts, fill) => { ctx.beginPath(); for (const [x, y, r] of pts) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, Math.PI * 2); } ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = "rgba(90,110,150,.45)"; ctx.lineWidth = 1.2; ctx.stroke(); };
+    if (back) puff([[-14, -32, 10], [-6, -38, 10], [-18, -22, 9]], vgrad(-48, -12, "#ffffff", "#d6e2f2"));
+    else puff([[-12, -12, 9], [0, -14, 10], [12, -12, 9], [-4, -6, 8], [8, -6, 8]], vgrad(-24, 0, "#ffffff", "#d6e2f2"));
+  } else {
+    // a striped deck chair leaning back
+    if (back) {
+      ctx.beginPath(); ctx.moveTo(-6, -14); ctx.lineTo(-20, -42); ctx.lineTo(-12, -44); ctx.lineTo(2, -14); ctx.closePath(); paint(gloss(c, -44, -14));
+      ctx.fillStyle = "rgba(255,255,255,.6)"; ctx.beginPath(); ctx.moveTo(-10, -22); ctx.lineTo(-15, -33); ctx.lineTo(-11, -34); ctx.lineTo(-6, -23); ctx.fill();
+      return;
+    }
+    ctx.strokeStyle = "#8a5a32"; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(12, -16); ctx.moveTo(14, 0); ctx.lineTo(-8, -16); ctx.stroke();
+    ctx.beginPath(); rr(-12, -18, 28, 5, 2.5); paint(gloss(c, -18, -13));
+  }
+}
+// the goal of a jump challenge: a pole with a waving flag
+function drawGoalFlag(p) {
+  const x = p.x + p.w / 2, y = p.y;
+  ctx.strokeStyle = "#8a6237"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 70); ctx.stroke();
+  const wave = Math.sin(time * 5) * 4;
+  ctx.beginPath(); ctx.moveTo(x, y - 70); ctx.quadraticCurveTo(x + 20, y - 72 + wave, x + 38, y - 62 + wave); ctx.lineTo(x, y - 48); ctx.closePath();
+  paint(vgrad(y - 72, y - 48, "#ff7aa8", "#e0453b"));
+  ctx.fillStyle = "#ffe066"; ctx.beginPath(); ctx.arc(x, y - 72, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.font = `900 12px ${UI}`; ctx.textAlign = "center"; outlinedText("終點", x, y - 78, "#ffffff", "rgba(80,20,20,.8)", 3); ctx.textAlign = "left";
+}
+
 function drawHUD() {
   // bottom panel
   const top = H - 48;
@@ -1937,13 +1993,20 @@ function draw() {
   for (let i = plats.length - 1; i >= 0; i--) drawPlatform(plats[i]);
   ladders.forEach(drawLadder);
   portals.forEach(drawPortal);
+  if (map.jump) drawGoalFlag(plats[map.goal + 1]);
   npcsHere().forEach(drawNpc);
   drops.forEach(drawDrop);
   drawPet();
   mobs.forEach(drawMob);
   drawShots();
   drawFoes();
-  drawPlayer();
+  // sitting: the chair's back, you a little lower, then the seat's front over your legs
+  if (P.sit && !P.dead) {
+    ctx.save(); ctx.translate(P.x + P.w / 2, P.y + P.h); ctx.scale(P.face, 1); drawChair(P.sit, true); ctx.restore();
+    ctx.save(); ctx.translate(0, 9); drawPlayer(); ctx.restore();
+    ctx.save(); ctx.translate(P.x + P.w / 2, P.y + P.h); ctx.scale(P.face, 1); drawChair(P.sit, false); ctx.restore();
+  } else drawPlayer();
+  drawTitleTag();
   drawFX();
   drawNums();
   ctx.restore();

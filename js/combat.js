@@ -50,6 +50,9 @@ function kill(m) {
     // id can be a list to pick one from, or a function that picks (a skill book for your job)
     if (Math.random() < chance) items.push(["item", randi(a, b), Array.isArray(id) ? id[randi(0, id.length - 1)] : typeof id === "function" ? id() : id]);
   }
+  // a card for the monster book, now and then (often from a boss)
+  if (!m.minion && !m.T.nocard && Math.random() < (boss ? BOSS_CARD_CHANCE : CARD_CHANCE)) items.push(["item", 1, `card_${m.t}`]);
+  if (boss && !m.minion) P.bossKills[m.t] = (P.bossKills[m.t] || 0) + 1;
   // items pop up and land side by side in a row, centred on the monster
   items.forEach(([kind, value, id], i) => {
     addDrop(kind, mcx + (i - (items.length - 1) / 2) * 24, my, value, id);
@@ -66,10 +69,13 @@ function kill(m) {
 function addDrop(kind, x, y, value, id) {
   drops.push({ kind, id, x: clamp(x, 8, WORLD_W - 8), y, value: Math.max(1, value), vx: 0, vy: -420, landed: false, age: 0, ph: rand(0, 6) });
 }
+// coins and monster cards never need bag room
+const canTake = d => d.kind === "coin" || !!ITEMS[d.id].card || roomFor(d.id) > 0;
 const PICK_COLORS = { equip: "#ffd97a", use: "#9fd0ff", etc: "#cfe3ff" };
 function collect(d) {
   sfx(d.kind === "coin" ? "coin" : "pickup");
   if (d.kind === "coin") { P.coins += d.value; msg(`撿到金幣 ${d.value}`, "#ffd97a"); }
+  else if (ITEMS[d.id].card) gainCard(ITEMS[d.id].card);
   else {
     // a stack that only partly fits leaves the rest on the ground
     const I = ITEMS[d.id], left = d.gear ? putGear(d.gear) : addItem(d.id, d.value), got = d.value - left;
@@ -151,6 +157,7 @@ function findLadder(test) { return ladders.find(test); }
 const jumpPressed = () => pressed.has("jump") || (pressed.has("space") && !nearNpc());
 
 function updatePlayer(dt) {
+  if (sitting()) return;
   const L_ = held.has("left"), R_ = held.has("right"), U_ = held.has("up"), D_ = held.has("down");
   const cx = P.x + P.w / 2;
 
@@ -233,7 +240,7 @@ function playerActions(dt0) {
     const near = drops.filter(d => d.landed && Math.abs(d.x - cx) < 32 && d.y >= P.y && d.y <= P.y + P.h + 4)
       .sort((a, b) => Math.abs(a.x - cx) - Math.abs(b.x - cx));
     // skip what the bag has no room for, so one stuck item does not block the coins next to it
-    const d = near.find(d => d.kind === "coin" || roomFor(d.id) > 0);
+    const d = near.find(canTake);
     if (d) { collect(d); P.pickCd = 0.12; }
     else if (near.length) hint(`背包的${TABS[ITEMS[near[0].id].cat]}欄滿了，按 I 整理背包`);
   }
@@ -527,8 +534,10 @@ function update(dt) {
     P.regen += dt;
     if (P.regen >= 2.5) {
       P.regen = 0;
-      P.hp = Math.min(maxHp(), P.hp + 2 + (P.lv >> 2) + passive("w_regen", "hpr"));
-      P.mp = Math.min(maxMp(), P.mp + 1 + (P.lv >> 3) + passive("m_medit", "mpr"));
+      // sitting on a chair heals three times as much, plus what the chair adds
+      const k = P.sit ? 3 : 1, C = CHAIRS[P.sit]?.regen;
+      P.hp = Math.min(maxHp(), P.hp + (2 + (P.lv >> 2) + passive("w_regen", "hpr")) * k + (C?.hp || 0));
+      P.mp = Math.min(maxMp(), P.mp + (1 + (P.lv >> 3) + passive("m_medit", "mpr")) * k + (C?.mp || 0));
     }
     for (const id in P.buffs) {
       if (P.buffs[id] > 0 && (P.buffs[id] -= dt) <= 0) { P.buffs[id] = 0; msg(`「${SKILL_BY_ID[id].name}」的效果結束了`, "#9fb0cd"); }
@@ -541,6 +550,8 @@ function update(dt) {
   updateShots(dt);
   updateFoes(dt);
   raidTick(dt);
+  jumpTick();
+  checkTitles(dt);
   updateMobs(dt);
   updateDrops(dt);
   updatePet(dt);

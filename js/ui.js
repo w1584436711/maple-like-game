@@ -12,10 +12,11 @@ const shopWin = document.getElementById("shopWin"), shopBody = document.getEleme
 const questWin = document.getElementById("questWin"), questBody = document.getElementById("questBody");
 const keysWin = document.getElementById("keysWin"), keysBody = document.getElementById("keysBody");
 const setWin = document.getElementById("setWin"), setBody = document.getElementById("setBody");
+const collectWin = document.getElementById("collectWin"), collectBody = document.getElementById("collectBody");
 function togglePanel(w) { w.hidden = !w.hidden; if (!w.hidden) refreshPanels(true); }
 let panelSig = "";
 function refreshPanels(force) {
-  const sig = JSON.stringify([P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer, P.map, P.quests, shopMode, shopTab, sellArm, binding, P.slots]);
+  const sig = JSON.stringify([P.cards, P.titles, P.title, collectTab, P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer, P.map, P.quests, shopMode, shopTab, sellArm, binding, P.slots]);
   if (!force && sig === panelSig) return;
   panelSig = sig;
   if (!statsWin.hidden) renderStats();
@@ -27,6 +28,7 @@ function refreshPanels(force) {
   if (!questWin.hidden) renderQuests();
   if (!keysWin.hidden) renderKeys();
   if (force && !setWin.hidden) renderSettings();
+  if (!collectWin.hidden) renderCollection();
 }
 function renderShop() {
   document.getElementById("shopTitle").textContent = shopNpc.name;
@@ -428,7 +430,8 @@ function invInfo() {
       + list.map(([t, g, where]) => `<button type="button" class="btn pickgear" data-target="${t}">${esc(gearName(g))}${where}　剩 ${gearLeft(g)} 次</button>`).join("")
       + `<div class="acts">${actBtn("cancel", "取消")}</div></div>`;
   }
-  return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.heal || I.warp || I.scroll || I.feed || I.book ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"), I.slot ? s : null);
+  return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.chair ? actBtn("use", P.sit === s.id ? "站起來" : "坐下")
+    : I.heal || I.warp || I.scroll || I.feed || I.book ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"), I.slot ? s : null);
 }
 // picking a slot only moves the outline and swaps the description, so the slot under the
 // pointer stays the same element and a double click on it still registers
@@ -446,7 +449,7 @@ function renderEquip() {
     html += `<div class="cell">${s ? slotBtn(s, `data-slot="${k}"`, eqSel === k, false, `${EQUIP_SLOTS[k]}：${gearName(s)}`) : `<span class="slot" aria-hidden="true"></span>`}${EQUIP_SLOTS[k]}</div>`;
   }
   html += `</div>`;
-  const bon = Object.keys(GEAR_STATS).filter(k => gear(k)).map(k => `${GEAR_STATS[k]} +${gear(k)}`);
+  const bon = Object.keys(GEAR_STATS).filter(k => gearOnly(k)).map(k => `${GEAR_STATS[k]} +${gearOnly(k)}`);
   const sets = Object.entries(SETS).map(([id, S]) => [S, setCount(id)]).filter(([, n]) => n >= 2);
   html += `<p class="note">裝備加成：${bon.join("、") || "沒有"}</p>`
     + sets.map(([S, n]) => `<p class="note set">${esc(S.name)} ${n} / ${S.items.length} 件</p>`).join("")
@@ -465,6 +468,7 @@ function doInv(act) {
   else if (act === "use" && invTab === "use" && ITEMS[s.id].warp) readScroll(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].feed) feedPet(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].book) readBook(i);
+  else if (act === "use" && invTab === "etc" && ITEMS[s.id].chair) sitOn(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].scroll) {
     if (scrollTargets(ITEMS[s.id].scroll).length) { scrollPick = i; return; }
     hint(ITEMS[s.id].scroll.kind === "restore" ? "沒有強化失敗過的裝備" : "沒有可以用這張卷軸的裝備");
@@ -578,6 +582,40 @@ setBody.addEventListener("click", e => {
   renderSettings();
 });
 document.getElementById("openSettings").addEventListener("click", () => togglePanel(setWin));
+
+// ---------- Monster book and titles ----------
+let collectTab = "book";
+function renderCollection() {
+  let html = `<div class="tabs" role="tablist" aria-label="圖鑑或稱號">`
+    + [["book", "怪物圖鑑"], ["titles", "稱號"]].map(([k, n]) => `<button type="button" role="tab" data-ctab="${k}" aria-selected="${collectTab === k}">${n}</button>`).join("") + `</div>`;
+  if (collectTab === "book") {
+    const lit = litPages();
+    html += `<div class="ap">點亮 <b>${lit} / ${CARD_TYPES.length}</b> 頁．全能力值 <b>+${bookStat()}</b></div>`
+      + `<p class="note">每種怪物的卡片集滿 ${CARD_NEED} 張就點亮一頁，每點亮 ${PAGES_PER_STAT} 頁全能力值 +1。卡片會直接收進圖鑑，不佔背包。</p>`
+      + `<div class="cards">` + CARD_TYPES.map(t => {
+        const n = P.cards[t] || 0, T = TYPES[t];
+        return `<div class="card${n >= CARD_NEED ? " lit" : ""}${T.boss ? " boss" : ""}"><b>${n ? esc(T.name) : "？？？"}</b><small>Lv.${T.lv}．${n} / ${CARD_NEED}</small></div>`;
+      }).join("") + `</div>`;
+  } else {
+    html += `<p class="note">一次可以戴一個稱號，會顯示在角色腳下，有些還有小加成。</p>`;
+    for (const T of Object.values(TITLES)) {
+      const got = P.titles.includes(T.id), on = P.title === T.id;
+      const bonus = T.bonus ? Object.entries(T.bonus).map(([k, v]) => `${GEAR_STATS[k]} +${v}`).join("、") : "";
+      html += `<div class="skill"><div class="row"><span><b class="sname">${got ? esc(T.name) : "？？？"}</b></span>`
+        + (got ? `<button type="button" class="btn${on ? " warn" : ""}" data-title="${T.id}" aria-label="${on ? "拿下" : "戴上"}${esc(T.name)}">${on ? "拿下" : "戴上"}</button>` : `<small>未獲得</small>`)
+        + `</div><p>${esc(T.desc)}</p>${bonus ? `<p class="dim">戴上時：${esc(bonus)}</p>` : ""}</div>`;
+    }
+  }
+  collectBody.innerHTML = html;
+}
+collectBody.addEventListener("click", e => {
+  const t = e.target.closest("[data-ctab],[data-title]");
+  if (!t) return;
+  if (t.dataset.ctab) collectTab = t.dataset.ctab;
+  else wearTitle(t.dataset.title);
+  refreshPanels(true);
+});
+document.getElementById("openCollect").addEventListener("click", () => togglePanel(collectWin));
 renderKeyLabels();
 
 document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => { b.closest(".win").hidden = true; cv.focus({ preventScroll: true }); }));
