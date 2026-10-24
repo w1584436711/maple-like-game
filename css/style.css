@@ -144,3 +144,10 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 .setrow b{font-family:var(--num);font-weight:400;min-width:26px;text-align:right}
 #saveText{width:100%;margin-top:6px;box-sizing:border-box;font:.72rem/1.4 ui-monospace,monospace;color:var(--ink);background:#0b1426;border:1px solid var(--line);border-radius:7px;padding:6px;resize:vertical}
 #saveText:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px}
+.card{display:flex;flex-direction:column;gap:1px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:rgb(255 255 255 / .03);color:var(--muted)}
+.card b{color:#dfe8f6;font-size:.78rem}
+.card small{font-size:.68rem}
+.card.lit{border-color:#ffc94a;background:rgb(255 201 74 / .12)}
+.card.lit b{color:#ffe48a}
+.card.boss b::after{content:" ★";color:#ffc94a}

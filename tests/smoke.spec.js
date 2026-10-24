@@ -1019,6 +1019,177 @@ test("四轉技能先到 Lv.20，讀了技能書才能升到 Lv.30；別的職�
   expect(errors).toEqual([]);
 });
 
+// 遠征用 Lv.80 的裂空劍帝，帶三張入場證；遠征隊長卡蘭站在沉砂城 x=960
+const LV80_RAIDER = {
+  ...LV75_SWORDKING, lv: 80, mhp: 10000, hp: 10000, map: "sandcity",
+  bag: { equip: [{ id: "magma_ring", n: 1 }], use: [], etc: [{ id: "magma_pass", n: 3 }] },
+};
+const enterRaid = async page => {
+  await page.evaluate(() => openNpc(NPCS.karan));
+  await page.locator("#dlg").getByRole("button", { name: "進入熔心祭壇" }).click();
+};
+
+test("遠征：交入場證才能進，每天 2 次；時間到或倒下都不扣經驗", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV80_RAIDER, exp: 1000 });
+  await page.locator("#game").click();
+  await enterRaid(page);
+  let saved = await readSave(page);
+  expect([itemCount(saved, "magma_pass"), saved.raid.used]).toEqual([2, 1]);
+  expect(await page.evaluate(() => [P.map, !!raid])).toEqual(["magma", true]);
+  // 時間到：回到沉砂城，經驗不變
+  await page.evaluate(() => { raid.t = 0.05; });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => [P.map, P.exp])).toEqual(["sandcity", 1000]);
+  // 第二次：在祭壇裡倒下也不扣經驗
+  await enterRaid(page);
+  await page.evaluate(() => { P.inv = 0; hurt(999999, P.x + 1); });
+  expect(await page.evaluate(() => [P.dead, P.exp])).toEqual([true, 1000]);
+  await page.evaluate(() => revive());
+  // 第三次：今天的次數用完了
+  await enterRaid(page);
+  await expect(page.locator("#dlg")).toContainText("次數已經用完");
+  saved = await readSave(page);
+  expect([saved.map, itemCount(saved, "magma_pass"), saved.raid.used]).toEqual(["sandcity", 1, 2]);
+  expect(errors).toEqual([]);
+});
+
+test("熔心巨像：兩隻手臂都打斷前，本體打不到", async ({ page }) => {
+  const errors = await openWithSave(page, LV80_RAIDER);
+  await page.locator("#game").click();
+  await enterRaid(page);
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => [raidArms().length, hittable(raidBody())])).toEqual([2, false]);
+  await page.evaluate(() => kill(raidArms()[0]));
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => hittable(raidBody()))).toBe(false);
+  await page.evaluate(() => kill(raidArms()[0]));
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => [raidArms().length, hittable(raidBody())])).toEqual([0, true]);
+  expect(errors).toEqual([]);
+});
+
+test("熔心巨像換階段：手臂長回來；熔岩淹地前有警告，站在地上會受傷、平台上不會", async ({ page }) => {
+  const errors = await openWithSave(page, LV80_RAIDER);
+  await page.locator("#game").click();
+  await enterRaid(page);
+  await page.evaluate(() => { raidArms().forEach(a => kill(a)); });
+  await page.waitForTimeout(800);
+  await page.evaluate(() => { const b = raidBody(); b.hp = b.T.hp * 0.6; });
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => [raid.phase, raidArms().length])).toEqual([2, 2]);
+  // 站在平台上：熔岩淹地打不到
+  const onPlatform = () => page.evaluate(() => {
+    const p = plats[5]; Object.assign(P, { x: p.x + 50, y: p.y - P.h, vx: 0, vy: 0, onGround: true, ground: p, inv: 0, hp: 10000 });
+    raid.rainT = 99; raid.bigT = 99; raid.warn = { kind: "flood", t: 0.3 };
+  });
+  await onPlatform();
+  await page.waitForTimeout(150);
+  await expect(page.locator("#game")).toBeVisible();
+  expect(await page.evaluate(() => raid.warn?.kind)).toBe("flood");
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => P.hp)).toBe(10000);
+  // 站在地上：被淹到
+  await page.evaluate(() => {
+    Object.assign(P, { x: 160, y: 840 - P.h, vx: 0, vy: 0, onGround: true, ground: plats[0], inv: 0, hp: 10000 });
+    raid.warn = { kind: "flood", t: 0.3 };
+  });
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => P.hp)).toBeLessThan(10000);
+  await page.evaluate(() => { const b = raidBody(); b.hp = b.T.hp * 0.3; });
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => raid.phase)).toBe(3);
+  expect(errors).toEqual([]);
+});
+
+test("耳環、項鍊、戒指三個新欄位；在熔心祭壇存檔會回到沉砂城", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV80_RAIDER, map: "magma" });
+  await page.locator("#game").click();
+  expect(await page.evaluate(() => P.map)).toBe("sandcity");
+  await page.keyboard.press("i");
+  await page.locator("#invWin").getByRole("button", { name: "熔心戒指" }).dblclick();
+  const saved = await readSave(page);
+  expect(saved.eq.ring.id).toBe("magma_ring");
+  await page.keyboard.press("e");
+  const eq = page.locator("#equipWin");
+  for (const name of ["耳環", "項鍊", "戒指"]) await expect(eq).toContainText(name);
+  await expect(eq).toContainText("魔力 +5");
+  expect(errors).toEqual([]);
+});
+
+test("怪物卡片直接收進圖鑑；集滿 5 張點亮一頁，點亮 4 頁全能力值 +1", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV10_BEGINNER, map: "meadow", cards: { jelly: 5, bjelly: 5, shell: 5, boss: 4 } });
+  await page.locator("#game").click();
+  const before = await page.evaluate(() => [stat("str"), stat("luk"), P.bag.etc.filter(Boolean).length]);
+  await page.evaluate(() => { addDrop("item", P.x + P.w / 2, P.y + P.h, 1, "card_boss"); });
+  await page.waitForTimeout(600);
+  await page.keyboard.down("z"); await page.waitForTimeout(200); await page.keyboard.up("z");
+  const after = await page.evaluate(() => [stat("str"), stat("luk"), P.bag.etc.filter(Boolean).length, P.cards.boss]);
+  expect(after).toEqual([before[0] + 1, before[1] + 1, before[2], 5]);
+  await page.keyboard.press("j");
+  await expect(page.locator("#collectWin")).toContainText("點亮 4 /");
+  await expect(page.locator("#collectWin .card.lit")).toHaveCount(4);
+  expect((await readSave(page)).cards.boss).toBe(5);
+  expect(errors).toEqual([]);
+});
+
+test("跳跳挑戰：掉到地上從頭開始；到終點第一次送椅子，同一天再完成沒有獎勵", async ({ page }) => {
+  const errors = await openWithSave(page, LV10_BEGINNER);
+  // 跳跳教練小飛站在浮島村 x=36
+  await clickNpc(page, 36);
+  await page.locator("#dlg").getByRole("button", { name: "挑戰彩虹跳台" }).click();
+  expect(await page.evaluate(() => P.map)).toBe("jump1");
+  // 掉到地上：回到起點
+  await page.evaluate(() => Object.assign(P, { x: 600, y: 700, vy: 0 }));
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => P.x)).toBeLessThan(120);
+  const toGoal = () => page.evaluate(() => { const g = plats[map.goal + 1]; Object.assign(P, { x: g.x + 20, y: g.y - P.h - 2, vy: 0 }); });
+  await toGoal();
+  await page.waitForTimeout(500);
+  let saved = await readSave(page);
+  expect([saved.map, itemCount(saved, "chair_stool"), saved.coins]).toEqual(["village", 1, 3000]);
+  await page.evaluate(() => enterJump("jump1"));
+  await toGoal();
+  await page.waitForTimeout(500);
+  saved = await readSave(page);
+  expect([saved.map, itemCount(saved, "chair_stool"), saved.coins]).toEqual(["village", 1, 3000]);
+  expect(errors).toEqual([]);
+});
+
+test("轉職會解鎖稱號；戴上的稱號有加成，存檔會記住", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV30_WARRIOR, job: "berserker" });
+  await page.locator("#game").click();
+  await page.waitForTimeout(1300);
+  expect(await page.evaluate(() => P.titles)).toEqual(expect.arrayContaining(["first", "second"]));
+  await page.keyboard.press("j");
+  const win = page.locator("#collectWin");
+  await win.getByRole("tab", { name: "稱號" }).click();
+  await win.getByRole("button", { name: "戴上嶄露頭角" }).click();
+  expect((await readSave(page)).title).toBe("second");
+  // 四轉的稱號有全能力值 +2：解鎖後戴上，力量多 2
+  const str = await page.evaluate(() => stat("str"));
+  await page.evaluate(() => { P.titles.push("fourth"); wearTitle("fourth"); });
+  expect(await page.evaluate(() => stat("str"))).toBe(str + 2);
+  expect(errors).toEqual([]);
+});
+
+test("坐在椅子上回復變快，按方向鍵就站起來", async ({ page }) => {
+  const errors = await openWithSave(page, { ...LV30_WARRIOR, hp: 100, mp: 10, bag: { equip: [], use: [], etc: [{ id: "chair_stool", n: 1 }] } });
+  await page.locator("#game").click();
+  await page.keyboard.press("i");
+  const inv = page.locator("#invWin");
+  await inv.getByRole("tab", { name: "其他" }).click();
+  await inv.getByRole("button", { name: "木頭小板凳" }).dblclick();
+  await page.keyboard.press("Escape");
+  expect(await page.evaluate(() => P.sit)).toBe("chair_stool");
+  await page.evaluate(() => { P.regen = 2.4; });
+  await page.waitForTimeout(300);
+  // Lv.30 劍士站著每次回 9 HP；坐在板凳上是 9×3+30
+  expect(await page.evaluate(() => P.hp)).toBeGreaterThanOrEqual(100 + 9 * 3 + 30);
+  await page.keyboard.down("ArrowRight"); await page.waitForTimeout(150); await page.keyboard.up("ArrowRight");
+  expect(await page.evaluate(() => P.sit)).toBe(null);
+  expect(errors).toEqual([]);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 

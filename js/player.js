@@ -6,7 +6,8 @@
 function freshCharacter() {
   return {
     lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
-    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [], pets: {}, petOn: null, books: [], cds: {}, cdMax: {},
+    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [], pets: {}, petOn: null, books: [], cds: {}, cdMax: {}, raid: { day: "", used: 0 },
+    cards: {}, titles: [], title: null, bossKills: {}, jumps: {}, sit: null,
     bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"), storage: Array(BAG_SLOTS).fill(null),
   };
 }
@@ -28,7 +29,9 @@ const setBonus = k => Object.entries(SETS).reduce((s, [id, S]) => {
   const n = setCount(id);
   return s + Object.entries(S.tiers).reduce((t, [need, add]) => t + (n >= need ? add[k] || 0 : 0), 0);
 }, 0);
-const gear = k => Object.values(P.eq).reduce((s, e) => s + (e ? bonusOf(e, k) : 0), 0) + setBonus(k);
+// equipment alone (with sets), then everything: equipment plus the monster book and the worn title
+const gearOnly = k => Object.values(P.eq).reduce((s, e) => s + (e ? bonusOf(e, k) : 0), 0) + setBonus(k);
+const gear = k => gearOnly(k) + extraBonus(k);
 const stat = k => P[k] + gear(k);
 const maxHp = () => P.mhp + gear("hp");
 const maxMp = () => P.mmp + gear("mp");
@@ -106,13 +109,13 @@ const held = new Set(), pressed = new Set();
 const FIXED_KEYS = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Space: "space", Enter: "revive", Escape: "esc" };
 const ACTIONS = {
   jump: "跳躍", attack: "攻擊", pickup: "撿東西", skill1: "技能 1", skill2: "技能 2", skill3: "技能 3", skill4: "技能 4", skill5: "技能 5", skill6: "技能 6", skill7: "技能 7",
-  hpPot: "紅藥水", mpPot: "藍藥水", stats: "能力值", skills: "技能視窗", inv: "背包", equip: "裝備", world: "世界地圖", quests: "任務日誌", keys: "鍵位設定", settings: "設定", minimap: "小地圖",
+  hpPot: "紅藥水", mpPot: "藍藥水", stats: "能力值", skills: "技能視窗", inv: "背包", equip: "裝備", world: "世界地圖", quests: "任務日誌", keys: "鍵位設定", settings: "設定", minimap: "小地圖", collection: "圖鑑與稱號",
 };
 const DEFAULT_BINDS = {
   jump: ["AltLeft", "AltRight", "KeyC"], attack: ["ControlLeft", "ControlRight", "KeyX"], pickup: ["KeyZ"],
   skill1: ["ShiftLeft", "ShiftRight", "KeyA"], skill2: ["KeyD"], skill3: ["KeyF"], skill4: ["KeyG"], skill5: ["KeyH"], skill6: ["KeyV"], skill7: ["KeyB"],
   hpPot: ["Digit1", "Numpad1", "Delete"], mpPot: ["Digit2", "Numpad2", "End"],
-  stats: ["KeyS"], skills: ["KeyK"], inv: ["KeyI"], equip: ["KeyE"], world: ["KeyW"], quests: ["KeyQ"], keys: ["KeyO"], settings: ["KeyP"], minimap: ["KeyM"],
+  stats: ["KeyS"], skills: ["KeyK"], inv: ["KeyI"], equip: ["KeyE"], world: ["KeyW"], quests: ["KeyQ"], keys: ["KeyO"], settings: ["KeyP"], minimap: ["KeyM"], collection: ["KeyJ"],
 };
 const BINDS_KEY = "floating-isle-keys";
 let binds = {}, KEYMAP = {}, binding = null;
@@ -145,7 +148,7 @@ const keyName = code => KEY_NAMES[code] || code.replace(/^Key|^Digit/, "").repla
 // the key shown for an action: its first binding, or a dash when it has none
 const keyOf = a => binds[a]?.length ? keyName(binds[a][0]) : "—";
 loadBinds();
-const PANEL_KEYS = ["stats", "skills", "inv", "equip", "world", "quests", "keys", "settings", "esc"];
+const PANEL_KEYS = ["stats", "skills", "inv", "equip", "world", "quests", "keys", "settings", "collection", "esc"];
 function press(a) { started = true; startAudio(); if (!held.has(a)) pressed.add(a); held.add(a); }
 addEventListener("keydown", e => {
   // typing in the settings window (pasting a save) must not move the character
@@ -174,7 +177,7 @@ addEventListener("keydown", e => {
   if (a === "minimap") { if (!e.repeat) cycleMinimap(); return; }
   if (PANEL_KEYS.includes(a)) {
     if (e.repeat) return;
-    const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin, world: worldWin, quests: questWin, keys: keysWin, settings: setWin };
+    const wins = { stats: statsWin, skills: skillsWin, inv: invWin, equip: equipWin, world: worldWin, quests: questWin, keys: keysWin, settings: setWin, collection: collectWin };
     if (a === "esc") [...Object.values(wins), shopWin].forEach(w => { w.hidden = true; });
     else togglePanel(wins[a]);
     return;
@@ -207,7 +210,8 @@ document.querySelectorAll("[data-act]").forEach(b => {
 const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins", "map"];
 function serialize() {
   const copy = v => JSON.parse(JSON.stringify(v));
-  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], books: [...P.books], quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage), pets: copy(P.pets), petOn: P.petOn };
+  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], books: [...P.books], raid: { ...P.raid },
+    cards: { ...P.cards }, titles: [...P.titles], title: P.title, bossKills: { ...P.bossKills }, jumps: { ...P.jumps }, quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage), pets: copy(P.pets), petOn: P.petOn };
   SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
   return d;
 }
@@ -274,6 +278,15 @@ function load(d) {
     SAVE_FIELDS.forEach(k => { if (d[k] !== undefined) c[k] = d[k]; });
     if (!JOBS[c.job]) c.job = "beginner";
     if (!MAPS[c.map]) c.map = "village";
+    // an expedition does not survive closing the game: you wake up in its town
+    if (MAPS[c.map].raid) c.map = MAPS[c.map].home;
+    if (typeof d.raid?.day === "string") c.raid = { day: d.raid.day, used: clamp(d.raid.used | 0, 0, 9) };
+    // the monster book, titles, boss kills and jump challenges keep only what still exists
+    for (const t of CARD_TYPES) if (d.cards?.[t] > 0) c.cards[t] = clamp(d.cards[t] | 0, 0, CARD_NEED);
+    c.titles = Array.isArray(d.titles) ? [...new Set(d.titles.filter(id => TITLES[id]))] : [];
+    c.title = c.titles.includes(d.title) ? d.title : null;
+    for (const t in TYPES) if (d.bossKills?.[t] > 0) c.bossKills[t] = d.bossKills[t] | 0;
+    for (const id in JUMPS) if (typeof d.jumps?.[id] === "string") c.jumps[id] = d.jumps[id];
     c.skills = { ...(d.skills || {}) }; c.buffs = { ...(d.buffs || {}) };
     c.slots = Array.isArray(d.slots) ? d.slots.slice(0, SKILL_SLOTS).map(x => SKILL_BY_ID[x] ? x : null) : [];
     c.books = Array.isArray(d.books) ? [...new Set(d.books.filter(x => SKILL_BY_ID[x]?.book))] : [];

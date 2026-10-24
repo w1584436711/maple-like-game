@@ -14,6 +14,9 @@ const NPCS = {
            look: { robe: "#7a5233", hair: "#3a2a20", bald: true, beard: "#4a3020", apron: true, prop: "hammer" } },
   rose:  { name: "倉庫管理員 蘿絲", map: "village", x: 790, storage: true, greet: "要寄放東西嗎？放在我這裡的東西，什麼時候來拿都可以。",
            look: { robe: "#a85a3a", hair: "#2a2a3a", bun: true, apron: true } },
+  // the jump challenge coaches, one in each of the first two towns
+  fei:   { name: "跳跳教練 小飛", map: "village", x: 36, talk: coachTalk, look: { robe: "#4fae3f", hair: "#e8b860", strawHat: true } },
+  yun:   { name: "跳跳教練 小雲", map: "cloudtown", x: 290, talk: coachTalk, look: { robe: "#7ab8f0", hair: "#ffffff", bun: true } },
   lulu:  { name: "寵物飼育員 露露", map: "village", x: 1090, shop: "pet", talk: luluTalk,
            look: { robe: "#e88ab0", hair: "#f6d36a", long: true, apron: true } },
   owen:  { name: "村長 歐文", map: "village", x: 660, greet: "歡迎來到浮島村。年輕人，村子最近有些麻煩，你願意幫忙嗎？",
@@ -43,6 +46,8 @@ const NPCS = {
            look: { robe: "#8a6aa8", hair: "#2a2a3a", long: true, apron: true } },
   isa:   { name: "神殿祭司 伊薩", map: "sandcity", x: 1150, talk: isaTalk,
            look: { robe: "#f0e6d0", hair: "#c8c8d8", long: true, beard: "#e6e6f0", prop: "staff" } },
+  karan: { name: "遠征隊長 卡蘭", map: "sandcity", x: 960, talk: karanTalk,
+           look: { robe: "#8a2a1a", hair: "#2a1a10", beard: "#2a1a10", prop: "hammer" } },
   hasan: { name: "守衛隊長 哈山", map: "sandcity", x: 760, greet: "沙暴越來越頻繁了。神殿深處好像有什麼東西醒了過來。",
            look: { robe: "#c8553d", hair: "#2a2a2a", beard: "#2a2a2a", prop: "staff" } },
   ed:    { name: "守林人 艾德", map: "grove", x: 130, greet: "古樹精醒過來之後，森林就再也沒安靜過。你是來幫忙的嗎？",
@@ -107,6 +112,12 @@ function auraTalk(opts) {
   } else if (next && P.lv >= next.req.lv) {
     say("你身上有很強的力量……想再往上走一步，就得先戰勝自己的影子。", [...opts, ["再見", closeDialog]]);
   } else say("我是看守星空的賢者。二轉之後到了 Lv.50，再來找我吧。", [...opts, ["再見", closeDialog]]);
+}
+// the expedition captain: the pass quests, then the door to the Molten Altar
+function karanTalk(opts) {
+  const left = raidLeft();
+  say(`熔心祭壇底下睡著一尊熔岩巨像。進去要交一張入場證，每天最多挑戰 ${RAID.perDay} 次，限時 ${RAID.time / 60} 分鐘。` + (P.lv >= RAID.lv ? `\n\n今天還能挑戰 ${left} 次，你有 ${countItem(RAID.pass)} 張入場證。` : ""),
+      [...opts, ["進入熔心祭壇", enterRaid], ["再見", closeDialog]]);
 }
 // the temple priest: two relics, then the king's trial, then the fourth job
 function isaTalk(opts) {
@@ -316,12 +327,22 @@ const QUESTS = {
               ask: "帶著兩件信物進入王者試煉場。在那裡等著你的，是比上次更強的影子。",
               where: "打倒試煉場裡的真影分身，再帶著兩件信物回來。倒下會回到沉砂城，隨時可以再來。",
               thanks: "你戰勝了真正的自己。兩件信物我收下了。" },
+  // the expedition: the first passes after the desert chain, then two more every day
+  q_magma:  { npc: "karan", name: "熔岩的低語", lv: 75, after: "q_scorp", collect: { scarab_shell: 30 },
+              reward: { exp: 300000, coins: 50000, items: [["magma_pass", 3]] },
+              ask: "蠍皇倒下之後，神殿底下傳來熔岩的聲音。帶 30 個聖甲蟲殼來，我用它們做入場證給你。",
+              where: "流沙神殿的聖甲蟲會掉聖甲蟲殼。",
+              thanks: "這三張入場證給你。進了祭壇，記得先打斷巨像的兩隻手臂。" },
+  d_magma:  { npc: "karan", name: "遠征準備", lv: 75, after: "q_magma", daily: true, collect: { scarab_shell: 15 },
+              reward: { exp: 100000, coins: 20000, items: [["magma_pass", 2]] },
+              ask: "今天也要挑戰祭壇嗎？帶 15 個聖甲蟲殼來，我再做兩張入場證。", where: "流沙神殿的聖甲蟲會掉聖甲蟲殼。",
+              thanks: "兩張入場證，拿好。" },
   // the desert: one chain from the guard captain, Lv.55 to 75
   q_fox:    { npc: "hasan", name: "沙丘上的狐群", lv: 55, kill: { fox: 40 },
-              reward: { exp: 300000, coins: 30000, items: [["white_pot", 50]] },
+              reward: { exp: 300000, coins: 30000, items: [["white_pot", 50], ["chair_dune", 1]] },
               ask: "沙丘狐成群結隊地搶商隊的糧食。去沙丘地帶打倒 40 隻吧。",
               where: "沙丘狐在城東邊的沙丘地帶到處跑。",
-              thanks: "商隊總算能安心上路了。這些白藥水收下吧。" },
+              thanks: "商隊總算能安心上路了。這些白藥水收下吧，還有商隊送你的躺椅，累了就坐下來休息。" },
   q_needle: { npc: "hasan", name: "仙人掌的刺", lv: 58, after: "q_fox", collect: { cactus_needle: 30 },
               reward: { exp: 400000, coins: 30000, items: [["scroll_shoes60", 2]] },
               ask: "城牆需要修補，仙人掌刺是最好的釘子。幫我收集 30 根仙人掌刺。",
@@ -429,7 +450,7 @@ function cleanQuests(d) {
 // [item, how many one purchase gives]; you sell anything back for half its price
 const SHOPS = {
   sand: [["white_pot", 1], ["mana_pot", 1], ["town_scroll", 1], ["pet_food", 1], ["arrow", 100], ["steel_star", 100], ["guard_scroll", 1], ["restore_scroll", 1],
-         ["scroll_cape60", 1], ["scroll_shoes60", 1],
+         ["scroll_cape60", 1], ["scroll_shoes60", 1], ["sand_earring", 1], ["sand_necklace", 1], ["sand_ring", 1],
          ...["desert_hat", "desert_robe", "desert_pants", "desert_boots", "sand_sword", "sun_staff", "dune_bow", "sand_claw"].map(id => [id, 1])],
   pet: [["pet_food", 1]],
   items: [["red_pot", 1], ["blue_pot", 1], ["town_scroll", 1], ["pet_food", 1], ["arrow", 100], ["iron_star", 100], ["guard_scroll", 1], ["restore_scroll", 1]],

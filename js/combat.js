@@ -32,7 +32,7 @@ function dealDamage(m, o = {}) {
   if (!r) { nums.push({ x: mcx, y: ny, text: "MISS", kind: "miss", t: 0 }); sfx("miss"); return; }
   const d = Math.max(1, Math.round(r.d));
   m.hp -= d; m.flash = 0.12;
-  if (!m.T.boss) m.kb = (mcx > P.x + P.w / 2 ? 1 : -1) * 170;
+  if (!m.T.boss && !m.T.heavy) m.kb = (mcx > P.x + P.w / 2 ? 1 : -1) * 170;
   nums.push({ x: mcx, y: ny, text: String(d), kind: r.crit ? "crit" : "hit", t: 0 });
   sfx("hit");
   fx.push({ k: "spark", x: mcx + rand(-8, 8), y: m.y + m.h / 2 + rand(-8, 8), t: 0 });
@@ -50,6 +50,9 @@ function kill(m) {
     // id can be a list to pick one from, or a function that picks (a skill book for your job)
     if (Math.random() < chance) items.push(["item", randi(a, b), Array.isArray(id) ? id[randi(0, id.length - 1)] : typeof id === "function" ? id() : id]);
   }
+  // a card for the monster book, now and then (often from a boss)
+  if (!m.minion && !m.T.nocard && Math.random() < (boss ? BOSS_CARD_CHANCE : CARD_CHANCE)) items.push(["item", 1, `card_${m.t}`]);
+  if (boss && !m.minion) P.bossKills[m.t] = (P.bossKills[m.t] || 0) + 1;
   // items pop up and land side by side in a row, centred on the monster
   items.forEach(([kind, value, id], i) => {
     addDrop(kind, mcx + (i - (items.length - 1) / 2) * 24, my, value, id);
@@ -66,10 +69,13 @@ function kill(m) {
 function addDrop(kind, x, y, value, id) {
   drops.push({ kind, id, x: clamp(x, 8, WORLD_W - 8), y, value: Math.max(1, value), vx: 0, vy: -420, landed: false, age: 0, ph: rand(0, 6) });
 }
+// coins and monster cards never need bag room
+const canTake = d => d.kind === "coin" || !!ITEMS[d.id].card || roomFor(d.id) > 0;
 const PICK_COLORS = { equip: "#ffd97a", use: "#9fd0ff", etc: "#cfe3ff" };
 function collect(d) {
   sfx(d.kind === "coin" ? "coin" : "pickup");
   if (d.kind === "coin") { P.coins += d.value; msg(`撿到金幣 ${d.value}`, "#ffd97a"); }
+  else if (ITEMS[d.id].card) gainCard(ITEMS[d.id].card);
   else {
     // a stack that only partly fits leaves the rest on the ground
     const I = ITEMS[d.id], left = d.gear ? putGear(d.gear) : addItem(d.id, d.value), got = d.value - left;
@@ -134,7 +140,8 @@ function hurt(d, fromX, acc = null) {
 }
 // percent of the current exp lost when knocked out: nothing for a beginner, 10% for a new first job,
 // then a quarter of a percent less each level down to 3%, so a long climb is never wiped out at once
-const deathPenalty = () => P.job === "beginner" ? 0 : clamp(10 - (P.lv - 10) * 0.25, 3, 10);
+// the expedition costs nothing but the try
+const deathPenalty = () => P.job === "beginner" || map.raid ? 0 : clamp(10 - (P.lv - 10) * 0.25, 3, 10);
 function revive() {
   // like the original, you get back up in the nearest town
   P.dead = false;
@@ -150,6 +157,7 @@ function findLadder(test) { return ladders.find(test); }
 const jumpPressed = () => pressed.has("jump") || (pressed.has("space") && !nearNpc());
 
 function updatePlayer(dt) {
+  if (sitting()) return;
   const L_ = held.has("left"), R_ = held.has("right"), U_ = held.has("up"), D_ = held.has("down");
   const cx = P.x + P.w / 2;
 
@@ -232,7 +240,7 @@ function playerActions(dt0) {
     const near = drops.filter(d => d.landed && Math.abs(d.x - cx) < 32 && d.y >= P.y && d.y <= P.y + P.h + 4)
       .sort((a, b) => Math.abs(a.x - cx) - Math.abs(b.x - cx));
     // skip what the bag has no room for, so one stuck item does not block the coins next to it
-    const d = near.find(d => d.kind === "coin" || roomFor(d.id) > 0);
+    const d = near.find(canTake);
     if (d) { collect(d); P.pickCd = 0.12; }
     else if (near.length) hint(`背包的${TABS[ITEMS[near[0].id].cat]}欄滿了，按 I 整理背包`);
   }
@@ -372,11 +380,12 @@ function updateShots(dt) {
 }
 
 // a monster you can hit: not dead, faded in, and not hidden in the sand
-const hittable = m => !m.dead && m.alpha > 0.5 && !m.under;
+const hittable = m => !m.dead && m.alpha > 0.5 && !m.under && !m.armored;
 
 // what monsters throw at you: needles and lantern fire fly at you and hit like a monster would
 const foes = [];
 const FOE_SPEED = { needle: 330, wisp: 230 };
+// lava falls straight down from the sky in the expedition and splashes on the ground
 function throwAt(m, Th) {
   const sx = m.x + m.w / 2 + m.dir * m.w * 0.4, sy = m.y + m.h * 0.35;
   const tx = P.x + P.w / 2, ty = P.y + P.h / 2, sp = FOE_SPEED[Th.kind];
@@ -387,7 +396,8 @@ function throwAt(m, Th) {
 function updateFoes(dt) {
   for (let i = foes.length - 1; i >= 0; i--) {
     const f = foes[i];
-    f.x += f.vx * dt; f.y += f.vy * dt; f.t += dt; f.left -= Math.abs(f.vx * dt);
+    f.x += f.vx * dt; f.y += f.vy * dt; f.t += dt; f.left -= Math.hypot(f.vx, f.vy) * dt;
+    if (f.kind === "lava" && f.y >= 840) { fx.push({ k: "dust", x: f.x, y: 840, r: 50, t: 0, lava: true }); foes.splice(i, 1); continue; }
     if (!P.dead && P.inv <= 0 && f.x > P.x - 4 && f.x < P.x + P.w + 4 && f.y > P.y - 4 && f.y < P.y + P.h + 4) {
       hurt(f.dmg, f.x - f.vx, f.acc); foes.splice(i, 1); continue;
     }
@@ -524,8 +534,10 @@ function update(dt) {
     P.regen += dt;
     if (P.regen >= 2.5) {
       P.regen = 0;
-      P.hp = Math.min(maxHp(), P.hp + 2 + (P.lv >> 2) + passive("w_regen", "hpr"));
-      P.mp = Math.min(maxMp(), P.mp + 1 + (P.lv >> 3) + passive("m_medit", "mpr"));
+      // sitting on a chair heals three times as much, plus what the chair adds
+      const k = P.sit ? 3 : 1, C = CHAIRS[P.sit]?.regen;
+      P.hp = Math.min(maxHp(), P.hp + (2 + (P.lv >> 2) + passive("w_regen", "hpr")) * k + (C?.hp || 0));
+      P.mp = Math.min(maxMp(), P.mp + (1 + (P.lv >> 3) + passive("m_medit", "mpr")) * k + (C?.mp || 0));
     }
     for (const id in P.buffs) {
       if (P.buffs[id] > 0 && (P.buffs[id] -= dt) <= 0) { P.buffs[id] = 0; msg(`「${SKILL_BY_ID[id].name}」的效果結束了`, "#9fb0cd"); }
@@ -537,13 +549,16 @@ function update(dt) {
 
   updateShots(dt);
   updateFoes(dt);
+  raidTick(dt);
+  jumpTick();
+  checkTitles(dt);
   updateMobs(dt);
   updateDrops(dt);
   updatePet(dt);
   for (let i = nums.length - 1; i >= 0; i--) if ((nums[i].t += dt) > 1.1) nums.splice(i, 1);
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt;
-    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3, buff: 0.7, burst: 0.3, dust: 0.6, sky: 1, nova: 0.5, quake: 0.5, zap: 0.3, rain: 0.6 }[f.k];
+    const life = { slash: 0.25, stab: 0.2, spin: 0.5, ring: 0.7, lvup: 2.2, spark: 0.3, buff: 0.7, burst: 0.3, dust: 0.6, sky: 1, flood: 1.4, wave: 0.9, nova: 0.5, quake: 0.5, zap: 0.3, rain: 0.6 }[f.k];
     if (f.t > life) fx.splice(i, 1);
   }
   for (let i = msgs.length - 1; i >= 0; i--) if ((msgs[i].t -= dt) <= 0) msgs.splice(i, 1);

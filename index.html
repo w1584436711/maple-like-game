@@ -46,6 +46,10 @@
       <header><h2>世界地圖</h2><button type="button" class="x" data-close aria-label="關閉世界地圖">✕</button></header>
       <div id="worldBody"></div>
     </section>
+    <section class="win right" id="collectWin" hidden aria-label="圖鑑與稱號">
+      <header><h2>圖鑑與稱號</h2><button type="button" class="x" data-close aria-label="關閉圖鑑與稱號">✕</button></header>
+      <div id="collectBody"></div>
+    </section>
     <section class="win right" id="invWin" hidden aria-label="背包">
       <header><h2>背包</h2><button type="button" class="x" data-close aria-label="關閉背包">✕</button></header>
       <div id="invBody"></div>
@@ -75,6 +79,7 @@
     <li><kbd data-key="world">W</kbd> 世界地圖</li>
     <li><kbd data-key="minimap">M</kbd> 小地圖（小、大、關閉）</li>
     <li><kbd data-key="quests">Q</kbd> 任務日誌</li>
+    <li><kbd data-key="collection">J</kbd> 怪物圖鑑與稱號</li>
     <li><kbd data-key="keys">O</kbd> 鍵位設定</li>
     <li><kbd data-key="settings">P</kbd> 設定（聲音、畫面、存檔）</li>
     <li>傳送門前按 <kbd>↑</kbd> 換地圖</li>
@@ -113,6 +118,7 @@
       <button class="reset" id="openEquip" type="button">裝備（<span data-key="equip"></span>）</button>
       <button class="reset" id="openWorld" type="button">世界地圖（<span data-key="world"></span>）</button>
       <button class="reset" id="openQuests" type="button">任務（<span data-key="quests"></span>）</button>
+      <button class="reset" id="openCollect" type="button">圖鑑（<span data-key="collection"></span>）</button>
       <button class="reset" id="openKeys" type="button">鍵位設定（<span data-key="keys"></span>）</button>
       <button class="reset" id="openSettings" type="button">設定（<span data-key="settings"></span>）</button>
       <button class="reset" id="reset" type="button">重新開始</button>
@@ -126,9 +132,11 @@
 <script src="js/rules.js"></script>
 <script src="js/player.js"></script>
 <script src="js/pet.js"></script>
+<script src="js/collect.js"></script>
 <script src="js/npc.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/combat.js"></script>
+<script src="js/raid.js"></script>
 <script src="js/draw.js"></script>
 <script src="js/main.js"></script>
 
