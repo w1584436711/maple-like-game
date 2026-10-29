@@ -17,6 +17,11 @@ const NPCS = {
   // the jump challenge coaches, one in each of the first two towns
   fei:   { name: "跳跳教練 小飛", map: "village", x: 36, talk: coachTalk, look: { robe: "#4fae3f", hair: "#e8b860", strawHat: true } },
   yun:   { name: "跳跳教練 小雲", map: "cloudtown", x: 290, talk: coachTalk, look: { robe: "#7ab8f0", hair: "#ffffff", bun: true } },
+  // the hair salon in the village and the face shop in Cloud Top
+  cali:  { name: "美髮師 卡莉", map: "village", x: 940, talk: opts => say("想換個新髮型嗎？髮型 3000 金幣，髮色 2000 金幣，不滿意可以再來。", [...opts, ["換髮型或髮色", () => { closeDialog(); openCreate("hair"); }], ["再見", closeDialog]]),
+           look: { robe: "#c86a9a", hair: "#e06a3a", bun: true, apron: true } },
+  mika:  { name: "整形師 米卡", map: "cloudtown", x: 940, talk: opts => say("眼睛是靈魂之窗。換個眼睛顏色，5000 金幣。", [...opts, ["換眼睛顏色", () => { closeDialog(); openCreate("face"); }], ["再見", closeDialog]]),
+           look: { robe: "#e8e8f0", hair: "#5a8ae0", long: true } },
   lulu:  { name: "寵物飼育員 露露", map: "village", x: 1090, shop: "pet", talk: luluTalk,
            look: { robe: "#e88ab0", hair: "#f6d36a", long: true, apron: true } },
   owen:  { name: "村長 歐文", map: "village", x: 660, greet: "歡迎來到浮島村。年輕人，村子最近有些麻煩，你願意幫忙嗎？",

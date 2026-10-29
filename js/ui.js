@@ -621,3 +621,107 @@ renderKeyLabels();
 document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => { b.closest(".win").hidden = true; cv.focus({ preventScroll: true }); }));
 document.getElementById("openStats").addEventListener("click", () => togglePanel(statsWin));
 document.getElementById("openSkills").addEventListener("click", () => togglePanel(skillsWin));
+
+// ---------- Character creation, the hair salon and the face shop ----------
+// One window for all three: creating shows every choice and a name; the salon shows only hair, the
+// face shop only eyes, each with a price for what you change.
+const createWin = document.getElementById("createWin"), createBody = document.getElementById("createBody");
+const SALON_PRICES = { hair: 3000, hairColor: 2000, eyes: 5000 };
+const CREATE_ROWS = { create: ["hair", "hairColor", "skin", "eyes"], hair: ["hair", "hairColor"], face: ["eyes"] };
+const ROW_NAMES = { hair: "髮型", hairColor: "髮色", skin: "膚色", eyes: "眼睛" };
+let createMode = "create", draft = null;
+function openCreate(mode) {
+  createMode = mode;
+  draft = mode === "create" ? { ...(P.look || randomLook()), name: P.look?.name || "" } : { ...P.look };
+  createWin.hidden = false; held.clear();
+  renderCreate();
+  if (mode === "create") document.getElementById("lookName").focus();
+}
+// after loading a character: ask for a look if it has none, and close the creation screen if it has one
+function checkLook() {
+  if (!P.look) openCreate("create");
+  else if (!createWin.hidden && createMode === "create") createWin.hidden = true;
+}
+function closeCreate() { createWin.hidden = true; cv.focus({ preventScroll: true }); }
+const salonCost = () => CREATE_ROWS[createMode].reduce((n, k) => n + (draft[k] !== P.look[k] ? SALON_PRICES[k] : 0), 0);
+function renderCreate() {
+  const create = createMode === "create", old = create && P.lv > 1;
+  const title = create ? (old ? "幫你的角色決定名字和樣子" : "建立角色") : createMode === "hair" ? "美髮店" : "整形診所";
+  const row = k => {
+    const list = k === "hair" ? Object.entries(HAIR_STYLES) : (k === "hairColor" ? HAIR_COLORS : k === "skin" ? SKINS : EYE_COLORS).map((c, i) => [i, c]);
+    return `<div class="lrow"><span>${ROW_NAMES[k]}${create ? "" : `<small>${SALON_PRICES[k].toLocaleString()} 金幣</small>`}</span><div class="lopts">`
+      + list.map(([v, c]) => k === "hair"
+        ? `<button type="button" class="btn${draft.hair === v ? " on" : ""}" data-look="hair" data-v="${v}" aria-pressed="${draft.hair === v}">${c}</button>`
+        : `<button type="button" class="swatch${draft[k] === v ? " on" : ""}" data-look="${k}" data-v="${v}" aria-pressed="${draft[k] === v}" aria-label="${ROW_NAMES[k]} ${v + 1}" style="background:${Array.isArray(c) ? c[0] : c}"></button>`).join("")
+      + `</div></div>`;
+  };
+  const cost = create ? 0 : salonCost();
+  createBody.innerHTML = `<h2>${title}</h2>`
+    + (old ? `<p class="note">以前的存檔還沒有名字和外觀。等級、背包和裝備都不會變。</p>` : "")
+    + `<div class="crow"><canvas id="lookPreview" width="200" height="230" aria-label="角色預覽"></canvas><div class="copts">`
+    + (create ? `<label class="lrow"><span>名字</span><input id="lookName" maxlength="${NAME_MAX}" autocomplete="off" value="${esc(draft.name)}" placeholder="${NAME_MIN}～${NAME_MAX} 個字" aria-label="角色名字"></label>` : "")
+    + CREATE_ROWS[createMode].map(row).join("") + `</div></div>`
+    + `<p class="err" id="lookErr" role="alert"></p>`
+    + `<div class="acts">` + (create
+      ? `${actBtn("random", "隨機")}${actBtn("confirm", old ? "確定" : "開始冒險")}`
+      : `<span class="money">金幣 <b>${P.coins.toLocaleString()}</b></span>${actBtn("cancel", "取消")}${actBtn("confirm", cost ? `確定（${cost.toLocaleString()} 金幣）` : "確定")}`)
+    + `</div>`;
+  drawPreview();
+}
+// the preview borrows the game's own drawing of the player, with the draft look standing still
+function drawPreview() {
+  const c = document.getElementById("lookPreview");
+  if (!c) return;
+  const g = c.getContext("2d");
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.fillStyle = g.createLinearGradient(0, 0, 0, c.height); g.fillStyle.addColorStop(0, "#6fb9ea"); g.fillStyle.addColorStop(1, "#e4f6ee");
+  g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = "#79d35f"; g.fillRect(0, c.height - 30, c.width, 30);
+  const keep = { x: P.x, y: P.y, face: P.face, look: P.look, atkT: P.atkT, prone: P.prone, climb: P.climb, dead: P.dead, inv: P.inv, onGround: P.onGround, vx: P.vx, sit: P.sit };
+  const main = ctx;
+  ctx = g;
+  try {
+    g.setTransform(3, 0, 0, 3, c.width / 2, c.height - 30);
+    Object.assign(P, { x: -P.w / 2, y: -P.h, face: 1, look: draft, atkT: 0, prone: false, climb: null, dead: false, inv: 0, onGround: true, vx: 0, sit: null });
+    drawPlayer();
+  } finally { ctx = main; Object.assign(P, keep); }
+}
+function confirmCreate() {
+  const err = document.getElementById("lookErr");
+  if (createMode === "create") {
+    const name = draft.name.trim();
+    if (nameLength(name) < NAME_MIN || nameLength(name) > NAME_MAX) { err.textContent = `名字要 ${NAME_MIN}～${NAME_MAX} 個字`; return; }
+    const first = !P.look;
+    P.look = cleanLook({ ...draft, name });
+    closeCreate();
+    msg(first && P.lv === 1 ? `${name}，歡迎來到浮島！往右走到傳送門按 ↑，去青草平原打青果凍` : `${name}，準備好繼續冒險了`, "#ffc94a");
+  } else {
+    const cost = salonCost();
+    if (!cost) { err.textContent = "還沒有改變任何地方"; return; }
+    if (P.coins < cost) { err.textContent = `金幣不夠，需要 ${cost.toLocaleString()} 金幣`; return; }
+    P.coins -= cost;
+    const changed = {};
+    for (const k of CREATE_ROWS[createMode]) changed[k] = draft[k];
+    P.look = { ...P.look, ...changed };
+    sfx("coin");
+    closeCreate();
+    msg(`換了新造型，花了 ${cost.toLocaleString()} 金幣`, "#ffd97a");
+  }
+  save(); refreshPanels(true);
+}
+createBody.addEventListener("click", e => {
+  const t = e.target.closest("[data-look],[data-do]");
+  if (!t) return;
+  if (t.dataset.look) {
+    const k = t.dataset.look;
+    draft[k] = k === "hair" ? t.dataset.v : Number(t.dataset.v);
+  } else if (t.dataset.do === "random") draft = randomLook(draft.name);
+  else if (t.dataset.do === "cancel") { closeCreate(); return; }
+  else if (t.dataset.do === "confirm") { confirmCreate(); return; }
+  renderCreate();
+});
+createBody.addEventListener("input", e => { if (e.target.id === "lookName") { draft.name = e.target.value; document.getElementById("lookErr").textContent = ""; } });
+createBody.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.id === "lookName") { e.preventDefault(); confirmCreate(); }
+  else if (e.key === "Escape" && createMode !== "create") { e.preventDefault(); closeCreate(); }
+});

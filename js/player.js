@@ -2,12 +2,36 @@
 // Loaded as a plain script, in the order index.html lists them; top-level names are shared between files.
 "use strict";
 
+// ---------- Looks ----------
+// What a character looks like: a name, a hair style and colour, a skin tone and eye colour.
+// Each list is drawn by draw.js; a look stores indexes (and the style id) so it stays small in the save.
+const HAIR_STYLES = { short: "短髮", long: "長髮", spiky: "刺蝟頭", bun: "包包頭", twin: "雙馬尾" };
+const HAIR_COLORS = ["#4a3468", "#2a2a32", "#7a4a2a", "#d8a040", "#e06a3a", "#e888b0", "#5a8ae0", "#e8e8f0"];
+const SKINS = [["#ffe8d4", "#f3bf95"], ["#ffe4c8", "#e8b080"], ["#f0c8a0", "#c88a5a"], ["#d8a070", "#9a6438"]];
+const EYE_COLORS = ["#2a2233", "#3a6ab8", "#3a8a4a", "#8a4a2a", "#a03a5a"];
+const NAME_MIN = 2, NAME_MAX = 12;
+const nameLength = s => [...s.trim()].length;
+const randomLook = name => ({
+  name: name || "", hair: Object.keys(HAIR_STYLES)[randi(0, 4)], hairColor: randi(0, HAIR_COLORS.length - 1),
+  skin: randi(0, SKINS.length - 1), eyes: randi(0, EYE_COLORS.length - 1),
+});
+// a look from a save, or null when it is missing or broken (the creation screen then asks for one)
+function cleanLook(l) {
+  if (!l || typeof l.name !== "string") return null;
+  const name = l.name.trim();
+  if (nameLength(name) < NAME_MIN || nameLength(name) > NAME_MAX) return null;
+  const idx = (v, list) => Number.isInteger(v) && v >= 0 && v < list.length ? v : 0;
+  return { name, hair: HAIR_STYLES[l.hair] ? l.hair : "short", hairColor: idx(l.hairColor, HAIR_COLORS), skin: idx(l.skin, SKINS), eyes: idx(l.eyes, EYE_COLORS) };
+}
+
+const DEFAULT_LOOK = { name: "", hair: "short", hairColor: 0, skin: 0, eyes: 0 };
+
 // ---------- Player ----------
 function freshCharacter() {
   return {
     lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
     mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [], pets: {}, petOn: null, books: [], cds: {}, cdMax: {}, raid: { day: "", used: 0 },
-    cards: {}, titles: [], title: null, bossKills: {}, jumps: {}, sit: null,
+    cards: {}, titles: [], title: null, bossKills: {}, jumps: {}, sit: null, look: null,
     bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"), storage: Array(BAG_SLOTS).fill(null),
   };
 }
@@ -153,6 +177,8 @@ function press(a) { started = true; startAudio(); if (!held.has(a)) pressed.add(
 addEventListener("keydown", e => {
   // typing in the settings window (pasting a save) must not move the character
   if (e.target instanceof HTMLElement && e.target.matches("input, textarea, select") && e.code !== "Escape") return;
+  // the character creation screen takes no game keys
+  if (!createWin.hidden) return;
   if (binding) {
     // the key window is waiting for the next key press
     e.preventDefault();
@@ -211,7 +237,7 @@ const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp",
 function serialize() {
   const copy = v => JSON.parse(JSON.stringify(v));
   const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], books: [...P.books], raid: { ...P.raid },
-    cards: { ...P.cards }, titles: [...P.titles], title: P.title, bossKills: { ...P.bossKills }, jumps: { ...P.jumps }, quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage), pets: copy(P.pets), petOn: P.petOn };
+    look: P.look && { ...P.look }, cards: { ...P.cards }, titles: [...P.titles], title: P.title, bossKills: { ...P.bossKills }, jumps: { ...P.jumps }, quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage), pets: copy(P.pets), petOn: P.petOn };
   SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
   return d;
 }
@@ -293,6 +319,7 @@ function load(d) {
     // a skill above its cap (a hand-edited save) comes back down to it
     for (const id in c.skills) if (SKILL_BY_ID[id]?.book && !c.books.includes(id)) c.skills[id] = Math.min(c.skills[id], 20);
   }
+  c.look = cleanLook(d.look);
   c.quests = cleanQuests(d.quests);
   c.storage = cleanStorage(d.storage);
   c.pets = cleanPets(d.pets);
@@ -307,7 +334,7 @@ function load(d) {
 function slotSummary(n) {
   let d = n === saveSlot ? P : null;
   if (!d) { try { d = JSON.parse(localStorage.getItem(slotKey(n)) || "null"); } catch (_) {} }
-  return d?.lv ? `Lv.${d.lv} ${JOBS[d.job]?.name || "新手"}．${MAPS[d.map]?.name || "浮島村"}` : "空的";
+  return d?.lv ? `${d.look?.name ? d.look.name + "．" : ""}Lv.${d.lv} ${JOBS[d.job]?.name || "新手"}．${MAPS[d.map]?.name || "浮島村"}` : "空的";
 }
 // a fresh start in the new slot when it is empty
 function switchSlot(n) {
@@ -323,6 +350,7 @@ function switchSlot(n) {
   closeDialog(); shopWin.hidden = true;
   msg(had ? `切換到存檔 ${n}：Lv.${P.lv} 的${job().name}` : `存檔 ${n} 是空的，開始新的冒險`, "#ffc94a");
   refreshPanels(true); save();
+  checkLook();
 }
 // a save as one line of text, to carry to another device; the prefix marks it as this game's
 function exportSave() {
@@ -338,6 +366,7 @@ function importSave(text) {
   save();
   msg(`匯入完成：Lv.${P.lv} 的${job().name}`, "#ffc94a");
   refreshPanels(true);
+  checkLook();
   return true;
 }
 const resetBtn = document.getElementById("reset");
@@ -355,4 +384,5 @@ resetBtn.addEventListener("click", () => {
   invSel = null; eqSel = null; bagVer++;
   closeDialog(); refreshPanels(true);
   save(); msg("已重新開始冒險", "#ffc94a"); cv.focus();
+  checkLook();
 });

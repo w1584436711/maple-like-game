@@ -1236,11 +1236,13 @@ function drawPlayer() {
   ctx.fillStyle = "rgba(0,0,0,.16)"; ctx.beginPath(); ctx.ellipse(0, 0, 14, 4, 0, 0, Math.PI * 2); ctx.fill();
 
   // clothes take their colour from what is worn; without them you see the undershirt and bare skin
-  const skin = "#ffd8b5", hair = "#4a3468";
+  // colours from your look (a default one until the creation screen is done)
+  const L = P.look || DEFAULT_LOOK, tone = SKINS[L.skin], hair = HAIR_COLORS[L.hairColor], eyeColor = EYE_COLORS[L.eyes];
+  const skin = tone[1];
   const wear = (slot, bare) => P.eq[slot] ? ITEMS[P.eq[slot].id].color : bare;
   const shirt = wear("top", "#f1ead8"), pants = wear("bottom", "#e8dcc4"), shoe = wear("shoes", "#f2c6a0");
   const hat = wear("hat", null), cape = wear("cape", null), shield = wear("shield", null), glove = wear("gloves", skin);
-  const skinFill = (y0, y1) => vgrad(y0, y1, "#ffe8d4", "#f3bf95");
+  const skinFill = (y0, y1) => vgrad(y0, y1, tone[0], tone[1]);
   const hand = (x, y) => { ctx.beginPath(); ctx.arc(x, y, 3.3, 0, Math.PI * 2); paint(glove === skin ? skinFill(y - 3, y + 3) : gloss(glove, y - 3, y + 3), INK, 1.1); };
   const hatOn = (x, y, r) => {
     ctx.beginPath(); ctx.arc(x, y, r, Math.PI, 0); ctx.closePath(); paint(gloss(hat, y - r, y));
@@ -1287,7 +1289,7 @@ function drawPlayer() {
     ctx.beginPath(); ctx.moveTo(14, -18); ctx.quadraticCurveTo(22, -30, 36, -20); ctx.lineTo(30, -21); ctx.lineTo(27, -16); ctx.lineTo(24, -21); ctx.lineTo(19, -16); ctx.closePath();
     paint(gloss(hair, -30, -16));
     if (hat) hatOn(24, -22, 12);
-    eyes(29, 34, -13, 2.3, 0.6, blinking(0));
+    eyes(29, 34, -13, 2.3, 0.6, blinking(0), eyeColor);
     ctx.restore();
     return;
   }
@@ -1339,10 +1341,11 @@ function drawPlayer() {
   ctx.restore();
   // head: hair behind, face, ear, eyes, then bangs and the hat on top
   ctx.beginPath(); ctx.arc(-1, -44, 14.5, 0, Math.PI * 2); paint(gloss(hair, -58, -30));
+  hairBack(L.hair, hair);
   ctx.beginPath(); ctx.moveTo(-11, -46); ctx.quadraticCurveTo(-16, -38, -13, -31); ctx.lineTo(-8, -37); ctx.closePath(); paint(gloss(hair, -46, -31));
   ctx.beginPath(); ctx.ellipse(2.5, -41, 12, 11.5, 0, 0, Math.PI * 2); paint(skinFill(-53, -29));
   ctx.beginPath(); ctx.ellipse(-5.5, -40, 3, 3.8, 0, 0, Math.PI * 2); paint(skinFill(-44, -36), INK, 1.1);
-  eyes(5.5, 11, -41, 2.6, 0.7, blinking(0));
+  eyes(5.5, 11, -41, 2.6, 0.7, blinking(0), eyeColor);
   ctx.strokeStyle = shade(hair, -0.2); ctx.lineWidth = 1.4; ctx.lineCap = "round";
   ctx.beginPath(); ctx.moveTo(3.5, -46.5); ctx.lineTo(7, -46.8); ctx.moveTo(9.5, -46.8); ctx.lineTo(12.5, -46); ctx.stroke();
   ctx.strokeStyle = "#9a4a3a"; ctx.lineWidth = 1.2;
@@ -1353,6 +1356,7 @@ function drawPlayer() {
   ctx.beginPath(); ctx.moveTo(-10, -45); ctx.quadraticCurveTo(-5, -59, 6, -57); ctx.quadraticCurveTo(15, -55, 15.5, -45);
   ctx.lineTo(12, -48); ctx.lineTo(10, -43.5); ctx.lineTo(7, -48.5); ctx.lineTo(3.5, -44); ctx.lineTo(1, -49); ctx.lineTo(-4, -45.5); ctx.closePath();
   paint(gloss(hair, -58, -44));
+  hairFront(L.hair, hair);
   ctx.strokeStyle = "rgba(255,255,255,.3)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(2, -47, 8, Math.PI * 1.15, Math.PI * 1.55); ctx.stroke();
   if (hat) hatOn(1.5, -49, 14);
   ctx.restore();
@@ -1808,16 +1812,52 @@ function drawRaidHUD() {
   ctx.textAlign = "left";
 }
 
-// the worn title under your feet, in gold, as the original's medals
-function drawTitleTag() {
-  const T = TITLES[P.title];
-  if (!T || P.dead) return;
-  const cx = P.x + P.w / 2, by = P.y + P.h + (P.sit ? 9 : 0);
-  ctx.font = `900 11px ${UI}`; ctx.textAlign = "center";
-  const tw = ctx.measureText(T.name).width + 18;
-  ctx.fillStyle = vgrad(by + 4, by + 21, "#8a5a10", "#5a3a00"); rr(cx - tw / 2, by + 4, tw, 17, 8); ctx.fill();
-  ctx.strokeStyle = "#ffd84a"; ctx.lineWidth = 1.4; ctx.stroke();
-  ctx.fillStyle = "#ffe48a"; ctx.fillText(T.name, cx, by + 17);
+// hair styles add to the basic short cut: parts behind the head, then parts in front of the bangs
+function hairBack(style, c) {
+  if (style === "long") {
+    ctx.beginPath(); ctx.moveTo(-14, -47); ctx.quadraticCurveTo(-19, -32, -14, -20); ctx.quadraticCurveTo(-8, -18, -3, -22); ctx.lineTo(-2, -42); ctx.closePath();
+    paint(gloss(c, -50, -20));
+  } else if (style === "twin") {
+    for (const [x, a] of [[-15, 0.25], [-10, -0.05]]) {
+      ctx.save(); ctx.translate(x, -46); ctx.rotate(a);
+      ctx.beginPath(); ctx.ellipse(0, 11, 5, 12, 0, 0, Math.PI * 2); paint(gloss(c, -1, 23));
+      ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, Math.PI * 2); paint("#ff7aa8", INK, 1);
+      ctx.restore();
+    }
+  } else if (style === "bun") {
+    ctx.beginPath(); ctx.arc(-10, -57, 7, 0, Math.PI * 2); paint(gloss(c, -64, -50));
+    ctx.fillStyle = "#e7c45a"; ctx.fillRect(-12, -52, 6, 2.2);
+  }
+}
+function hairFront(style, c) {
+  if (style === "spiky") {
+    for (const [a, b, d] of [[[-9, -53], [-8, -67], [-1, -56]], [[-2, -56], [4, -69], [8, -56]], [[6, -55], [16, -63], [13, -48]]]) {
+      ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.lineTo(...d); ctx.closePath(); paint(gloss(c, -69, -48));
+    }
+  } else if (style === "long") {
+    ctx.beginPath(); ctx.moveTo(13, -48); ctx.quadraticCurveTo(17, -40, 15, -31); ctx.lineTo(12, -36); ctx.closePath(); paint(gloss(c, -48, -31));
+  }
+}
+// your name under your feet, and the worn title above it in gold, as the original's medals
+function drawPlayerTags() {
+  if (P.dead) return;
+  const T = TITLES[P.title], cx = P.x + P.w / 2;
+  let y = P.y + P.h + (P.sit ? 9 : 0) + 3;
+  ctx.textAlign = "center";
+  if (T) {
+    ctx.font = `900 10px ${UI}`;
+    const tw = ctx.measureText(T.name).width + 16;
+    ctx.fillStyle = vgrad(y, y + 15, "#8a5a10", "#5a3a00"); rr(cx - tw / 2, y, tw, 15, 7); ctx.fill();
+    ctx.strokeStyle = "#ffd84a"; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = "#ffe48a"; ctx.fillText(T.name, cx, y + 11);
+    y += 17;
+  }
+  if (P.look) {
+    ctx.font = `700 11px ${UI}`;
+    const tw = ctx.measureText(P.look.name).width + 12;
+    ctx.fillStyle = "rgba(20,24,30,.7)"; rr(cx - tw / 2, y, tw, 15, 4); ctx.fill();
+    ctx.fillStyle = "#ffffff"; ctx.fillText(P.look.name, cx, y + 11.5);
+  }
   ctx.textAlign = "left";
 }
 // chairs are drawn around (0, 0) at the feet: back parts first, then the seat in front of you
@@ -2006,7 +2046,7 @@ function draw() {
     ctx.save(); ctx.translate(0, 9); drawPlayer(); ctx.restore();
     ctx.save(); ctx.translate(P.x + P.w / 2, P.y + P.h); ctx.scale(P.face, 1); drawChair(P.sit, false); ctx.restore();
   } else drawPlayer();
-  drawTitleTag();
+  drawPlayerTags();
   drawFX();
   drawNums();
   ctx.restore();

@@ -6,13 +6,16 @@ const { pathToFileURL } = require("url");
 const GAME_URL = pathToFileURL(path.join(__dirname, "..", "index.html")).href;
 
 // 擋掉 Google 字型：沒網路時也能測，字型只影響外觀
-async function openGame(page) {
+// 新角色和沒有外觀的舊存檔會先出現建立角色畫面；一般測試直接幫它取名「測試員」，keepCreate 才留著畫面
+async function openGame(page, { keepCreate = false } = {}) {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
   await page.goto(GAME_URL);
+  if (!keepCreate) await finishCreate(page);
   return errors;
 }
+const finishCreate = page => page.evaluate(() => { if (!createWin.hidden) { draft.name = "測試員"; confirmCreate(); } });
 
 test("遊戲畫面正常顯示，沒有程式錯誤", async ({ page }) => {
   const errors = await openGame(page);
@@ -77,9 +80,9 @@ test("離開頁面時會把進度存進瀏覽器", async ({ page }) => {
 });
 
 // 先把角色資料放進瀏覽器存檔，再打開遊戲
-async function openWithSave(page, save) {
+async function openWithSave(page, save, opts) {
   await page.addInitScript(s => localStorage.setItem("floating-isle-v1", JSON.stringify(s)), save);
-  return openGame(page);
+  return openGame(page, opts);
 }
 const readSave = async page => {
   await page.evaluate(() => dispatchEvent(new Event("pagehide")));
@@ -744,6 +747,9 @@ test("存檔欄位：切到空的存檔 2 是新角色，切回存檔 1 還是�
   const win = page.locator("#setWin");
   await expect(win).toContainText("Lv.10 新手");
   await win.getByRole("button", { name: "切換到存檔 2" }).click();
+  // 空的欄位會先出現建立角色畫面
+  await expect(page.locator("#createWin")).toBeVisible();
+  await finishCreate(page);
   expect(await page.evaluate(() => [P.lv, saveSlot])).toEqual([1, 2]);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("floating-isle-v1-2")).lv)).toBe(1);
   await win.getByRole("button", { name: "切換到存檔 1" }).click();
@@ -759,6 +765,7 @@ test("匯出存檔再匯入到另一個欄位，角色一模一樣", async ({ pa
   const text = await win.getByRole("textbox", { name: "存檔文字" }).inputValue();
   expect(text.startsWith("FI1:")).toBe(true);
   await win.getByRole("button", { name: "切換到存檔 3" }).click();
+  await finishCreate(page);
   await win.getByRole("textbox", { name: "存檔文字" }).fill(text);
   await win.getByRole("button", { name: "匯入到目前存檔" }).click();
   expect(await page.evaluate(() => [P.lv, P.job, P.coins, saveSlot])).toEqual([30, "warrior", 4321, 3]);
@@ -1187,6 +1194,65 @@ test("坐在椅子上回復變快，按方向鍵就站起來", async ({ page }) 
   expect(await page.evaluate(() => P.hp)).toBeGreaterThanOrEqual(100 + 9 * 3 + 30);
   await page.keyboard.down("ArrowRight"); await page.waitForTimeout(150); await page.keyboard.up("ArrowRight");
   expect(await page.evaluate(() => P.sit)).toBe(null);
+  expect(errors).toEqual([]);
+});
+
+test("建立角色：名字太短會提醒，可以隨機外觀，建立後名字會存檔", async ({ page }) => {
+  const errors = await openGame(page, { keepCreate: true });
+  const win = page.locator("#createWin");
+  await expect(win).toBeVisible();
+  // 建立畫面開著時，遊戲按鍵沒有作用
+  await page.locator("#createWin h2").click();
+  await page.keyboard.press("i");
+  await expect(page.locator("#invWin")).toBeHidden();
+  // 隨機會換掉外觀
+  const before = await page.evaluate(() => JSON.stringify(draft));
+  for (let i = 0; i < 8 && await page.evaluate(() => JSON.stringify(draft)) === before; i++) await win.getByRole("button", { name: "隨機" }).click();
+  expect(await page.evaluate(() => JSON.stringify(draft))).not.toBe(before);
+  await win.getByRole("textbox", { name: "角色名字" }).fill("A");
+  await win.getByRole("button", { name: "開始冒險" }).click();
+  await expect(win.locator("#lookErr")).toContainText("2～12 個字");
+  await win.getByRole("textbox", { name: "角色名字" }).fill("冒險家阿明");
+  await win.getByRole("button", { name: "長髮" }).click();
+  await win.getByRole("button", { name: "髮色 4" }).click();
+  await win.getByRole("button", { name: "開始冒險" }).click();
+  await expect(win).toBeHidden();
+  const saved = await readSave(page);
+  expect(saved.look).toMatchObject({ name: "冒險家阿明", hair: "long", hairColor: 3 });
+  await page.locator("#openSettings").click();
+  await expect(page.locator("#setWin")).toContainText("冒險家阿明．Lv.1");
+  expect(errors).toEqual([]);
+});
+
+test("沒有外觀的舊存檔：先補名字和外觀，等級和背包都不變", async ({ page }) => {
+  const errors = await openWithSave(page, LV30_WARRIOR, { keepCreate: true });
+  const win = page.locator("#createWin");
+  await expect(win).toContainText("以前的存檔還沒有名字和外觀");
+  await win.getByRole("textbox", { name: "角色名字" }).fill("老玩家");
+  await win.getByRole("textbox", { name: "角色名字" }).press("Enter");
+  await expect(win).toBeHidden();
+  const saved = await readSave(page);
+  expect([saved.look.name, saved.lv, saved.job]).toEqual(["老玩家", 30, "warrior"]);
+  expect(errors).toEqual([]);
+});
+
+test("美髮店：換髮型和髮色要付金幣，金幣不夠會提醒", async ({ page }) => {
+  const look = { name: "測試員", hair: "short", hairColor: 0, skin: 0, eyes: 0 };
+  const errors = await openWithSave(page, { ...LV10_BEGINNER, coins: 4000, look });
+  // 美髮師卡莉站在浮島村 x=940：把角色放過去，再跟她說話
+  await page.evaluate(() => { loadMap("village", 900); openNpc(NPCS.cali); });
+  await page.locator("#dlg").getByRole("button", { name: "換髮型或髮色" }).click();
+  const win = page.locator("#createWin");
+  await win.getByRole("button", { name: "包包頭" }).click();
+  await win.getByRole("button", { name: "髮色 5" }).click();
+  await win.getByRole("button", { name: "確定（5,000 金幣）" }).click();
+  await expect(win.locator("#lookErr")).toContainText("金幣不夠");
+  // 只換髮型：3000 金幣
+  await win.getByRole("button", { name: "髮色 1" }).click();
+  await win.getByRole("button", { name: "確定（3,000 金幣）" }).click();
+  await expect(win).toBeHidden();
+  const saved = await readSave(page);
+  expect([saved.coins, saved.look.hair, saved.look.hairColor, saved.look.name]).toEqual([1000, "bun", 0, "測試員"]);
   expect(errors).toEqual([]);
 });
 
