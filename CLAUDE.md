@@ -5,4 +5,5 @@
 - 一個檔案的頂層程式碼在載入時就執行，只能用到它自己或前面檔案宣告的東西；呼叫後面檔案的函式要放在事件或遊戲迴圈裡。
 - 改完一定要跑 `npm test`（Playwright 自動試玩測試），全部通過才 commit。
 - 新的玩法或畫面行為，順手在 `tests/smoke.spec.js` 補一項測試。
+- 改了怪物、技能、裝備或價格的數值，跑 `node tools/balance.js` 看平衡表（算法和目標在 `docs/BALANCE.md`），有變就把新表格貼回文件。
 - `main` 有開 GitHub Pages，合併後 1～2 分鐘就會更新 https://w1584436711.github.io/maple-like-game/

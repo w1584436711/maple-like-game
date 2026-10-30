@@ -6,7 +6,8 @@
 // ---------- Expedition ----------
 // Classic expedition rules: a pass to get in, a few tries a day, a time limit, and a boss in parts.
 const RAID = {
-  map: "magma", lv: 75, pass: "magma_pass", perDay: 2, time: 600,
+  // lv lets you in; below tip the captain warns that the colossus is hard to finish in time
+  map: "magma", lv: 75, tip: 80, pass: "magma_pass", perDay: 2, time: 600,
   // phases start below these shares of the body's health
   phases: [1, 2 / 3, 1 / 3],
   // seconds between lava drops and between the big warned attacks, per phase (index 0 unused)

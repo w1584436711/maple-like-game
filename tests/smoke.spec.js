@@ -483,6 +483,53 @@ test("練功速度：Lv.15 練到 Lv.30 不用打超過 250 隻怪", async ({ pa
   expect(kills).toBeLessThanOrEqual(250);
 });
 
+// Lv.30～85 的平衡：tests/balance-sim.js 用遊戲本身的公式，幫四個職業在每個等級配好能力值、裝備和技能來算
+// 表格和算法說明在 docs/BALANCE.md；數值調過之後，用 node tools/balance.js 重新產生表格
+const openSim = async page => { await openGame(page); await page.addScriptTag({ path: path.join(__dirname, "balance-sim.js") }); };
+const spread = o => Math.max(...Object.values(o)) / Math.min(...Object.values(o));
+
+test("練功速度：Lv.30～85 每級不超過 30 隻怪，一隻怪 6 秒內打完，職業差距不到 2.5 倍", async ({ page }) => {
+  test.setTimeout(120000);
+  await openSim(page);
+  const rows = await page.evaluate(() => SIM.levels(30, 85));
+  for (const r of rows) {
+    expect(r.kills, `Lv.${r.lv} 打幾隻`).toBeLessThanOrEqual(30);
+    for (const [line, secs] of Object.entries(r.secs)) expect(secs, `Lv.${r.lv} ${line}`).toBeLessThan(6);
+    expect(spread(r.secs), `Lv.${r.lv} 最快和最慢的職業`).toBeLessThan(2.5);
+  }
+});
+
+test("Boss 平衡：在建議等級不停攻擊要打一段時間，但不會太久，職業差距不到 2.5 倍", async ({ page }) => {
+  test.setTimeout(60000);
+  await openSim(page);
+  const rows = await page.evaluate(() => SIM.bosses());
+  // [Boss, 建議等級, 最快的職業至少幾秒, 最慢的職業最多幾秒]；熔心巨像的遠征限時 600 秒，還要留時間躲招
+  for (const [boss, lv, min, max] of [["treant", 35, 15, 60], ["eagle", 50, 20, 90], ["scorpking", 75, 20, 120], ["colossus", 80, 60, 300]]) {
+    const r = rows.find(r => r.boss === boss && r.lv === lv);
+    expect(Math.min(...Object.values(r.secs)), `${boss} Lv.${lv} 最快`).toBeGreaterThan(min);
+    expect(Math.max(...Object.values(r.secs)), `${boss} Lv.${lv} 最慢`).toBeLessThan(max);
+    expect(spread(r.secs), `${boss} Lv.${lv} 職業差距`).toBeLessThan(2.5);
+  }
+  // Lv.75 就能進遠征，但遠征隊長卡蘭會建議 Lv.80 左右再來；Lv.80 以後就不提了
+  await page.evaluate(() => { P.lv = 75; karanTalk([]); });
+  await expect(page.locator("#dlg")).toContainText("Lv.80 左右再來");
+  await page.evaluate(() => { P.lv = 80; karanTalk([]); });
+  await expect(page.locator("#dlg")).not.toContainText("Lv.80 左右再來");
+});
+
+test("金幣：越後面的怪越好賺，沙漠練到 Lv.70 的錢夠買一輪沙漠裝備", async ({ page }) => {
+  await openSim(page);
+  const r = await page.evaluate(() => ({
+    perKill: ["sheep", "sprite", "rhino", "fox", "worm", "cactus", "wisp", "soldier", "scarab"].map(t => SIM.coinsPerKill(t)),
+    desert: SIM.coins(55, 70),
+    // 一把 Lv.55 武器、一套沙漠套裝和三件沙漠飾品
+    gear: ["sand_sword", "desert_hat", "desert_robe", "desert_pants", "desert_boots", "sand_earring", "sand_necklace", "sand_ring"].reduce((s, id) => s + PRICES[id], 0),
+  }));
+  // 掉寶有運氣成分，所以只要求不要比前一種怪少太多
+  r.perKill.slice(1).forEach((v, i) => expect(v).toBeGreaterThan(r.perKill[i] * 0.6));
+  expect(r.desert).toBeGreaterThan(r.gear);
+});
+
 test("任務鏈：回報霧菇大豐收之後，採菇人會給下一個任務", async ({ page }) => {
   // 從霧影森林開始，鏡頭在地圖左邊，採菇人波波站在 x=200
   const errors = await openWithSave(page, { ...LV30_WARRIOR, lv: 20, map: "forest", quests: { q_mush: { state: "active", kills: { mush: 30 } } } });
