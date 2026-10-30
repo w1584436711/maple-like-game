@@ -21,7 +21,10 @@ function boot(data) {
   if (booted) return; booted = true;
   const resumed = load(data && data.save);
   loadMap(P.map);
-  msg(resumed ? `歡迎回來，Lv.${P.lv} 的冒險者` : "冒險開始！往右走到傳送門按 ↑，去青草平原打青果凍", "#ffc94a");
+  if (resumed && P.look) msg(`歡迎回來，${P.look.name}`, "#ffc94a");
+  else if (resumed) msg(`歡迎回來，Lv.${P.lv} 的冒險者`, "#ffc94a");
+  // a new character, or a save from before looks existed, starts at the creation screen
+  checkLook();
   requestAnimationFrame(t => { last = t; loop(t); });
 }
 try { window.claude?.hot?.snapshot?.(() => ({ save: serialize() })); } catch (_) {}

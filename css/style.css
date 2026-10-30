@@ -151,3 +151,17 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 .card.lit{border-color:#ffc94a;background:rgb(255 201 74 / .12)}
 .card.lit b{color:#ffe48a}
 .card.boss b::after{content:" ★";color:#ffc94a}
+.win.create{inset:3% 6%;width:auto;max-height:94%;z-index:5;background:rgb(14 22 40 / .97)}
+.win.create h2{margin:0 0 6px;font-size:1.05rem}
+.crow{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+#lookPreview{width:150px;height:auto;aspect-ratio:200/230;border-radius:10px;border:1px solid var(--line);flex:none}
+.copts{flex:1;min-width:200px;display:flex;flex-direction:column;gap:8px}
+.lrow{display:flex;flex-direction:column;gap:4px}
+.lrow>span{color:var(--muted);font-size:.78rem}
+.lrow small{margin-left:6px;color:#ffd97a}
+.lrow input{font:inherit;padding:6px 8px;border-radius:7px;border:1px solid var(--line);background:#0b1426;color:#fff}
+.lopts{display:flex;flex-wrap:wrap;gap:5px}
+.lopts .btn.on{outline:2px solid #ffc94a}
+.swatch{width:26px;height:26px;border-radius:50%;border:2px solid rgb(255 255 255 / .25);cursor:pointer;padding:0}
+.swatch.on{border-color:#ffc94a;box-shadow:0 0 0 2px #ffc94a}
+.err{color:#ff9b8f;min-height:1.2em;margin:6px 0 0;font-size:.8rem}
