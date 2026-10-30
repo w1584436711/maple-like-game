@@ -121,7 +121,8 @@ function auraTalk(opts) {
 // the expedition captain: the pass quests, then the door to the Molten Altar
 function karanTalk(opts) {
   const left = raidLeft();
-  say(`熔心祭壇底下睡著一尊熔岩巨像。進去要交一張入場證，每天最多挑戰 ${RAID.perDay} 次，限時 ${RAID.time / 60} 分鐘。` + (P.lv >= RAID.lv ? `\n\n今天還能挑戰 ${left} 次，你有 ${countItem(RAID.pass)} 張入場證。` : ""),
+  say(`熔心祭壇底下睡著一尊熔岩巨像。進去要交一張入場證，每天最多挑戰 ${RAID.perDay} 次，限時 ${RAID.time / 60} 分鐘。`
+      + (P.lv < RAID.tip ? `\n\n巨像非常強壯，Lv.${RAID.tip} 左右再來比較有把握打完。` : "") + (P.lv >= RAID.lv ? `\n\n今天還能挑戰 ${left} 次，你有 ${countItem(RAID.pass)} 張入場證。` : ""),
       [...opts, ["進入熔心祭壇", enterRaid], ["再見", closeDialog]]);
 }
 // the temple priest: two relics, then the king's trial, then the fourth job
