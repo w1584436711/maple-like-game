@@ -219,6 +219,7 @@ Lv.70 到沉砂城找神殿祭司伊薩四轉（原版是 Lv.120，這裡的等�
 - `tests/balance-sim.js`、`tools/balance.js`：平衡模擬，用遊戲本身的公式算每級打幾隻怪、各職業打 Boss 要多久、賺多少錢（`node tools/balance.js` 印出表格）
 - `docs/ROADMAP.md`：開發藍圖和原創界線
 - `docs/BALANCE.md`：Lv.30～85 的平衡目標、調整紀錄和模擬結果
+- `test-saves/`：Lv.50、75、80 四個職業各一個試玩存檔，在設定視窗匯入就能直接試打（`node tools/test-saves.js` 重新產生）
 
 ## 自動試玩測試
 
