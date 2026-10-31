@@ -105,6 +105,7 @@ kbd{font-family:var(--num);background:var(--panel);border:1px solid var(--line);
 .srow .what small{display:block;color:var(--muted)}
 .srow .what .bad{color:#ff9b8f}
 .srow .btn{padding:4px 9px;flex:none}
+.srow.locked img{opacity:.45}
 .srow .btn.warn{border-color:#e0675a;color:#ffb0a6}
 .price{font-family:var(--num);color:#ffe7a3;letter-spacing:.02em}
 /* quest log */

@@ -55,6 +55,13 @@ const NPCS = {
            look: { robe: "#8a2a1a", hair: "#2a1a10", beard: "#2a1a10", prop: "hammer" } },
   hasan: { name: "守衛隊長 哈山", map: "sandcity", x: 760, greet: "沙暴越來越頻繁了。神殿深處好像有什麼東西醒了過來。",
            look: { robe: "#c8553d", hair: "#2a2a2a", beard: "#2a2a2a", prop: "staff" } },
+  // the craftsmen, one in each town; craft names the list of recipes in RECIPES (js/craft.js)
+  grol:  { name: "工匠 葛洛", map: "village", x: 575, craft: "village", greet: "把怪物身上的材料帶來，我幫你做成藥水、卷軸和飾品。做得越多，手越巧。",
+           look: { robe: "#6a5a4a", hair: "#c8c8c8", beard: "#c8c8c8", apron: true, prop: "hammer" } },
+  fil:   { name: "雲匠 菲爾", map: "cloudtown", x: 1100, craft: "cloud", greet: "雲羊毛、風鈴碎片、雷角……雲頂的材料最適合做輕巧的飾品了。",
+           look: { robe: "#5a8ac8", hair: "#f0e0b0", apron: true, prop: "hammer" } },
+  rashid: { name: "沙匠 拉希德", map: "sandcity", x: 860, craft: "sand", greet: "沙漠的材料又硬又難處理，手不夠巧的人可做不來。",
+           look: { robe: "#b8763a", hair: "#2a1a10", beard: "#2a1a10", apron: true, prop: "hammer" } },
   ed:    { name: "守林人 艾德", map: "grove", x: 130, greet: "古樹精醒過來之後，森林就再也沒安靜過。你是來幫忙的嗎？",
            look: { robe: "#3f6f3a", hair: "#5a3a24", beard: "#5a3a24", prop: "cane" } },
 };
@@ -93,6 +100,7 @@ function openNpc(npc) {
   }
   if (npc.shop) opts.push(["我想買賣東西", () => openShop(npc)]);
   if (npc.storage) opts.push(["打開倉庫", () => openShop(npc)]);
+  if (npc.craft) opts.push(["我想製作東西", () => openShop(npc)]);
   for (const to of npc.ship || []) opts.push([`搭飛船去${MAPS[to].name}（${SHIP_FARE} 金幣）`, () => sail(to)]);
   if (npc.talk) { npc.talk(opts); return; }
   say(npc.greet, [...opts, ["再見", closeDialog]]);
