@@ -16,7 +16,7 @@ const collectWin = document.getElementById("collectWin"), collectBody = document
 function togglePanel(w) { w.hidden = !w.hidden; if (!w.hidden) refreshPanels(true); }
 let panelSig = "";
 function refreshPanels(force) {
-  const sig = JSON.stringify([P.cards, P.titles, P.title, collectTab, P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.coins, bagVer, P.map, P.quests, shopMode, shopTab, sellArm, binding, P.slots]);
+  const sig = JSON.stringify([P.cards, P.titles, P.title, collectTab, P.lv, P.exp, P.job, P.str, P.dex, P.int, P.luk, P.ap, P.sp, P.mhp, P.mmp, P.skills, P.craft, P.recipes, P.coins, bagVer, P.map, P.quests, shopMode, shopTab, sellArm, binding, P.slots]);
   if (!force && sig === panelSig) return;
   panelSig = sig;
   if (!statsWin.hidden) renderStats();
@@ -33,6 +33,7 @@ function refreshPanels(force) {
 function renderShop() {
   document.getElementById("shopTitle").textContent = shopNpc.name;
   if (shopNpc.storage) { renderStorage(); return; }
+  if (shopNpc.craft) { renderCraft(); return; }
   let html = `<div class="tabs" role="tablist" aria-label="買或賣">`
     + [["buy", "買"], ["sell", "賣"]].map(([k, n]) => `<button type="button" role="tab" data-mode="${k}" aria-selected="${shopMode === k}">${n}</button>`).join("") + `</div>`;
   if (shopMode === "buy") {
@@ -89,8 +90,9 @@ function renderStorage() {
   shopBody.innerHTML = html;
 }
 shopBody.addEventListener("click", e => {
-  const t = e.target.closest("[data-mode],[data-stab],[data-buy],[data-sell],[data-store],[data-take]");
+  const t = e.target.closest("[data-mode],[data-stab],[data-buy],[data-sell],[data-store],[data-take],[data-craft]");
   if (!t) return;
+  if (t.dataset.craft) { craft(t.dataset.craft); refreshPanels(true); return; }
   if (t.dataset.store) { store(Number(t.dataset.store), !!t.dataset.all); refreshPanels(true); return; }
   if (t.dataset.take) { takeOut(Number(t.dataset.take), !!t.dataset.all); refreshPanels(true); return; }
   if (t.dataset.mode) { shopMode = t.dataset.mode; sellArm = -1; }
@@ -431,7 +433,7 @@ function invInfo() {
       + `<div class="acts">${actBtn("cancel", "取消")}</div></div>`;
   }
   return itemInfo(I, s.n, (I.slot ? actBtn("equip", "裝備") : I.chair ? actBtn("use", P.sit === s.id ? "站起來" : "坐下")
-    : I.heal || I.warp || I.scroll || I.feed || I.book ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"), I.slot ? s : null);
+    : I.heal || I.warp || I.scroll || I.feed || I.book || I.recipe ? actBtn("use", "使用") : "") + actBtn("drop", "丟掉"), I.slot ? s : null);
 }
 // picking a slot only moves the outline and swaps the description, so the slot under the
 // pointer stays the same element and a double click on it still registers
@@ -468,6 +470,7 @@ function doInv(act) {
   else if (act === "use" && invTab === "use" && ITEMS[s.id].warp) readScroll(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].feed) feedPet(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].book) readBook(i);
+  else if (act === "use" && invTab === "use" && ITEMS[s.id].recipe) readRecipe(i);
   else if (act === "use" && invTab === "etc" && ITEMS[s.id].chair) sitOn(i);
   else if (act === "use" && invTab === "use" && ITEMS[s.id].scroll) {
     if (scrollTargets(ITEMS[s.id].scroll).length) { scrollPick = i; return; }

@@ -30,7 +30,7 @@ const DEFAULT_LOOK = { name: "", hair: "short", hairColor: 0, skin: 0, eyes: 0 }
 function freshCharacter() {
   return {
     lv: 1, exp: 0, job: "beginner", str: 12, dex: 5, int: 4, luk: 4, ap: 0, sp: 0,
-    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [], pets: {}, petOn: null, books: [], cds: {}, cdMax: {}, raid: { day: "", used: 0 },
+    mhp: 50, mmp: 5, hp: 50, mp: 5, coins: 0, skills: {}, buffs: {}, map: "village", quests: {}, slots: [], pets: {}, petOn: null, books: [], cds: {}, cdMax: {}, raid: { day: "", used: 0 }, craft: { lv: 1, exp: 0 }, recipes: [],
     cards: {}, titles: [], title: null, bossKills: {}, jumps: {}, sit: null, look: null,
     bag: starterBag({ hp: 5, mp: 3 }), eq: outfit("wood_sword"), storage: Array(BAG_SLOTS).fill(null),
   };
@@ -236,7 +236,7 @@ document.querySelectorAll("[data-act]").forEach(b => {
 const SAVE_FIELDS = ["lv", "exp", "job", "str", "dex", "int", "luk", "ap", "sp", "mhp", "mmp", "hp", "mp", "coins", "map"];
 function serialize() {
   const copy = v => JSON.parse(JSON.stringify(v));
-  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], books: [...P.books], raid: { ...P.raid },
+  const d = { skills: { ...P.skills }, buffs: { ...P.buffs }, slots: [...P.slots], books: [...P.books], raid: { ...P.raid }, craft: { ...P.craft }, recipes: [...P.recipes],
     look: P.look && { ...P.look }, cards: { ...P.cards }, titles: [...P.titles], title: P.title, bossKills: { ...P.bossKills }, jumps: { ...P.jumps }, quests: copy(P.quests), bag: copy(P.bag), eq: copy(P.eq), storage: copy(P.storage), pets: copy(P.pets), petOn: P.petOn };
   SAVE_FIELDS.forEach(k => { d[k] = P[k]; });
   return d;
@@ -316,6 +316,10 @@ function load(d) {
     c.skills = { ...(d.skills || {}) }; c.buffs = { ...(d.buffs || {}) };
     c.slots = Array.isArray(d.slots) ? d.slots.slice(0, SKILL_SLOTS).map(x => SKILL_BY_ID[x] ? x : null) : [];
     c.books = Array.isArray(d.books) ? [...new Set(d.books.filter(x => SKILL_BY_ID[x]?.book))] : [];
+    // crafting proficiency and the recipes learned from books
+    const cl = clamp(d.craft?.lv | 0, 1, CRAFT_MAX);
+    c.craft = { lv: cl, exp: cl < CRAFT_MAX ? clamp(d.craft?.exp | 0, 0, CRAFT_NEED[cl] - 1) : 0 };
+    c.recipes = Array.isArray(d.recipes) ? [...new Set(d.recipes.filter(k => RECIPES[k]?.book))] : [];
     // a skill above its cap (a hand-edited save) comes back down to it
     for (const id in c.skills) if (SKILL_BY_ID[id]?.book && !c.books.includes(id)) c.skills[id] = Math.min(c.skills[id], 20);
   }

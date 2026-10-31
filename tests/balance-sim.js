@@ -43,7 +43,7 @@ const SIM = (() => {
     for (const slot of Object.keys(EQUIP_SLOTS)) {
       if (slot === "shield" && WTYPES[wtype].twoHand) continue;
       const fits = Object.values(ITEMS).filter(I => I.slot === slot && (I.req?.lv || 0) <= lv && (!I.jobs || I.jobs.includes(line))
-        && (slot !== "weapon" || I.wtype === wtype) && (raidGear || !I.id.startsWith("magma_")));
+        && (slot !== "weapon" || I.wtype === wtype) && (raidGear || !I.id.startsWith("magma_")) && !I.made);
       fits.sort((a, b) => (b.req?.lv || 0) - (a.req?.lv || 0) || b.price - a.price);
       P.eq[slot] = fits[0] ? { id: fits[0].id, n: 1 } : null;
     }

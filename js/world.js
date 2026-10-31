@@ -37,7 +37,7 @@ const THEMES = {
 };
 const MAPS = {
   village: {
-    name: "浮島村", area: "浮島", town: true, scene: "village", note: "城鎮．轉職教官、商店、倉庫、往雲頂城的飛船", w: 1400, spawn: 96, dock: 1180, theme: THEMES.meadow,
+    name: "浮島村", area: "浮島", town: true, scene: "village", note: "城鎮．轉職教官、商店、倉庫、工匠、往雲頂城的飛船", w: 1400, spawn: 96, dock: 1180, theme: THEMES.meadow,
     plats: [{ x: 840, y: 780, w: 180 }, { x: 1040, y: 720, w: 200 }],
     ladders: [], trees: [250, 760, 1240], zones: [],
     portals: [{ x: 1350, to: "meadow", tp: 0 }],
@@ -132,7 +132,7 @@ const MAPS = {
   },
   // the second island, reached by airship; home is the town a map sends you back to
   cloudtown: {
-    name: "雲頂城", area: "雲頂", town: true, scene: "cloud", home: "cloudtown", note: "城鎮．飛船、雲商、雲守衛", w: 1400, spawn: 200, dock: 200,
+    name: "雲頂城", area: "雲頂", town: true, scene: "cloud", home: "cloudtown", note: "城鎮．飛船、雲商、雲守衛、雲匠", w: 1400, spawn: 200, dock: 200,
     theme: THEMES.cloud, plats: [{ x: 840, y: 780, w: 180 }, { x: 1040, y: 720, w: 200 }], ladders: [], trees: [300, 760, 1240], zones: [],
     portals: [{ x: 1350, to: "cloudwalk", tp: 0 }],
   },
@@ -219,7 +219,7 @@ const MAPS = {
   },
   // the desert continent, Lv.55 to 75, reached by airship from either town
   sandcity: {
-    name: "沉砂城", area: "沉砂", town: true, scene: "sand", home: "sandcity", note: "城鎮．飛船、沙商、倉庫、守衛隊長", w: 1400, spawn: 200, dock: 200,
+    name: "沉砂城", area: "沉砂", town: true, scene: "sand", home: "sandcity", note: "城鎮．飛船、沙商、倉庫、守衛隊長、沙匠", w: 1400, spawn: 200, dock: 200,
     theme: THEMES.desert, plats: [], ladders: [], trees: [470, 1260], zones: [],
     portals: [{ x: 1350, to: "dunes", tp: 0 }],
   },

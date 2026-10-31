@@ -1303,6 +1303,40 @@ test("美髮店：換髮型和髮色要付金幣，金幣不夠會提醒", async
   expect(errors).toEqual([]);
 });
 
+test("製作：材料夠才能做、做完扣材料和金幣、熟練度升級、配方書解鎖、失敗也會用掉材料", async ({ page }) => {
+  const bag = { equip: [], use: [{ id: "recipe_grove_ring", n: 1 }], etc: [{ id: "green_gel", n: 9 }, { id: "shell_shard", n: 3 }, { id: "blue_gel", n: 30 }] };
+  const errors = await openWithSave(page, { ...LV10_BEGINNER, lv: 25, coins: 20000, bag, eq: { weapon: { id: "wood_sword", n: 1 } }, craft: { lv: 1, exp: 4 } });
+  // 工匠葛洛站在浮島村 x=575
+  await page.evaluate(() => { loadMap("village", 540); openNpc(NPCS.grol); });
+  await page.locator("#dlg").getByRole("button", { name: "我想製作東西" }).click();
+  const win = page.locator("#shopWin");
+  await expect(win).toContainText("製作熟練度 Lv.1");
+  // 回村卷軸要熟練度 Lv.2，古樹戒指要配方書
+  await expect(win.getByRole("button", { name: "製作回村卷軸" })).toBeDisabled();
+  await expect(win).toContainText("要先讀配方書（霧林古樹精掉落）");
+  // 做一次紅藥水：5 個凝膠、60 金幣換 10 瓶，熟練度經驗 4 + 1 升到 Lv.2
+  await win.getByRole("button", { name: "製作紅藥水" }).click();
+  expect(await page.evaluate(() => [countItem("green_gel"), countItem("red_pot"), P.coins, P.craft.lv, P.craft.exp])).toEqual([4, 10, 19940, 2, 0]);
+  await expect(win).toContainText("製作熟練度 Lv.2");
+  // 凝膠只剩 4 個不夠再做；回村卷軸熟練度夠了，但刺殼碎片 3 個不夠
+  await expect(win.getByRole("button", { name: "製作紅藥水" })).toBeDisabled();
+  await expect(win.getByRole("button", { name: "製作回村卷軸" })).toBeDisabled();
+  expect(await page.evaluate(() => craftBlock("town_scroll"))).toBe("材料不夠");
+  // 讀配方書：學會古樹戒指，接下來卡在熟練度
+  await page.evaluate(() => { invTab = "use"; invSel = P.bag.use.findIndex(s => s?.id === "recipe_grove_ring"); doInv("use"); });
+  expect(await page.evaluate(() => [P.recipes, countItem("recipe_grove_ring"), craftBlock("grove_ring")])).toEqual([["grove_ring"], 0, "製作熟練度 Lv.5 才能做"]);
+  // 有成功率的配方會顯示機率；失敗時材料和金幣照樣用掉，熟練度經驗照拿
+  await expect(win).toContainText("成功率 70%");
+  await page.evaluate(() => { P.craft = { lv: 4, exp: 0 }; addItem("green_gel", 26); addItem("lizard_scale", 5); Math.random = () => 0.99; craft("gel_ring"); });
+  expect(await page.evaluate(() => [countItem("green_gel"), countItem("blue_gel"), countItem("lizard_scale"), P.bag.equip.filter(Boolean).length, P.coins, P.craft.exp]))
+    .toEqual([0, 0, 0, 0, 16940, 4]);
+  // 配方書是古樹精的掉落物；熟練度和學會的配方會存檔
+  expect(await page.evaluate(() => TYPES.treant.drops.some(([id]) => id === "recipe_grove_ring"))).toBe(true);
+  const saved = await readSave(page);
+  expect([saved.craft, saved.recipes]).toEqual([{ lv: 4, exp: 4 }, ["grove_ring"]]);
+  expect(errors).toEqual([]);
+});
+
 // 手機設定裡的 defaultBrowserType 不能在分組裡改，拿掉它
 const { defaultBrowserType, ...phone } = devices["Pixel 7"];
 
